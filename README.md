@@ -1,8 +1,10 @@
 # 37signals
 
-A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), with DHH’s JOTA LMP2 driving a billboard road over it. The road is a fake-3D vanishing-point track: boards recede and grow as they approach, the car is yawed toward the camera, and each billboard is one signal (00–37).
+A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), plus a desktop Tamagotchi of DHH in the racing suit.
 
-On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. If the screensaver is already up, it only restarts `ttfx`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The car appears once the screensaver windows exist (`org.omarchy.screensaver`) and disappears when they do. The overlay is click-through, so a key or mouse still dismisses `ttfx`.
+On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The screensaver is ASCII only — no car overlay.
+
+The pet lives on the **focused monitor**. It walks on every keypress (evdev), and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a flip. The pet hides while the screensaver is up.
 
 This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 
@@ -14,9 +16,17 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-Leave the stock screensaver **on**. The essay still runs in `ttfx`; the overlay adds the car and billboards.
+Leave the stock screensaver **on**. This plugin uses it for the essays.
 
 Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`). Kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
+
+If walking does not react to keys, add your user to the `input` group so `watch-keys.py` can read `/dev/input`:
+
+```sh
+sudo usermod -aG input "$USER"
+```
+
+Then log out and back in.
 
 ## Usage
 
@@ -27,7 +37,7 @@ omarchy-shell higgsfield.signals close
 omarchy-shell higgsfield.signals ping
 ```
 
-`reveal` picks a random signal for the ASCII animation and starts the car. Billboards then cycle the catalog, one signal per board, as they slide past. Any key or mouse dismisses both. `Super + Esc` also launches the screensaver.
+`reveal` picks a random signal and starts `ttfx`. Any key or mouse dismisses the screensaver. `Super + Esc` also launches it.
 
 ## Develop
 

@@ -71,20 +71,21 @@ function screensaverSeconds(config, fallback) {
   return isFinite(fb) && fb > 0 ? Math.floor(fb) : 150
 }
 
-// Default DHH sheet. A generator later overwrites atlas.png + atlas.json;
-// QML always goes through these helpers so slicing stays in one place.
+// Default DHH racing-suit sheet. A generator later overwrites atlas.png + atlas.json.
 function defaultAtlas() {
   return {
     file: "atlas.png",
     cellWidth: 64,
-    cellHeight: 72,
+    cellHeight: 87,
     columns: 16,
     rows: 5,
-    fps: 12,
-    scale: 4,
+    fps: 10,
+    scale: 3,
     modes: {
-      walk: { row: 0, start: 0, count: 8 },
-      run: { row: 0, start: 8, count: 8 }
+      walk: { row: 0, start: 0, count: 16 },
+      idle: { row: 1, start: 8, count: 8 },
+      dance: { row: 2, start: 11, count: 4 },
+      flip: { row: 3, start: 7, count: 4 }
     }
   }
 }
@@ -121,65 +122,17 @@ function normalizeAtlas(raw) {
     scale: isFinite(scale) && scale > 0 ? Math.floor(scale) : d.scale,
     modes: {
       walk: cloneMode(modes.walk, d.modes.walk),
-      run: cloneMode(modes.run, d.modes.run)
+      idle: cloneMode(modes.idle, d.modes.idle),
+      dance: cloneMode(modes.dance, d.modes.dance),
+      flip: cloneMode(modes.flip, d.modes.flip)
     }
-  }
-}
-
-function defaultCar() {
-  return {
-    width: 919,
-    height: 276,
-    facing: "left",
-    scale: 0.7,
-    wheels: [
-      { cx: 195.7, cy: 199.0, r: 89 },
-      { cx: 760.6, cy: 198.3, r: 89 }
-    ],
-    exhaust: { x: 809.6, y: 182.3 },
-    headlight: { x: 18, y: 191.0 }
-  }
-}
-
-function nextBillboardIndex(indexA, indexB, count) {
-  var n = Math.floor(Number(count))
-  if (!isFinite(n) || n <= 0) return 0
-  var a = Number(indexA)
-  var b = Number(indexB)
-  if (!isFinite(a)) a = -1
-  if (!isFinite(b)) b = -1
-  return (Math.max(a, b) + 1) % n
-}
-
-function billboardBody(text) {
-  var wrapped = wrapLine(text, 32)
-  var lines = wrapped.split("\n")
-  if (lines.length <= 6) return wrapped
-  var out = []
-  for (var i = 0; i < 6; i++) out.push(lines[i])
-  return out.join("\n")
-}
-
-// t=0 is the vanishing point (far), t=1 is the camera (near).
-function projectTrack(t, vpX, vpY, nearX, nearY) {
-  var u = Number(t)
-  if (!isFinite(u)) u = 0
-  if (u < 0) u = 0
-  if (u > 1.25) u = 1.25
-  var scale = 0.12 + u * u * 1.15
-  return {
-    x: vpX + u * (nearX - vpX),
-    y: vpY + u * (nearY - vpY),
-    scale: scale,
-    fog: Math.max(0, Math.min(1, u * 1.05)),
-    half: 10 + u * u * 420
   }
 }
 
 function framesForMode(atlas, modeName) {
   var spec = normalizeAtlas(atlas)
-  var key = String(modeName || "run")
-  var mode = spec.modes[key] || spec.modes.run
+  var key = String(modeName || "idle")
+  var mode = spec.modes[key] || spec.modes.idle
   return {
     frameX: mode.start * spec.cellWidth,
     frameY: mode.row * spec.cellHeight,
@@ -190,6 +143,24 @@ function framesForMode(atlas, modeName) {
     displayWidth: spec.cellWidth * spec.scale,
     displayHeight: spec.cellHeight * spec.scale
   }
+}
+
+function resolveMode(opts) {
+  var keysRecent = !!(opts && opts.keysRecent)
+  var playing = !!(opts && opts.mediaPlaying)
+  var peak = Number(opts && opts.audioPeak)
+  if (!isFinite(peak) || peak < 0) peak = 0
+  if (keysRecent) return "walk"
+  if (playing && peak > 0.55) return "flip"
+  if (playing) return "dance"
+  return "idle"
+}
+
+function danceFps(peak) {
+  var p = Number(peak)
+  if (!isFinite(p) || p < 0) p = 0
+  if (p > 1) p = 1
+  return Math.round(7 + p * 16)
 }
 
 if (typeof module !== "undefined") {
@@ -203,9 +174,7 @@ if (typeof module !== "undefined") {
     defaultAtlas: defaultAtlas,
     normalizeAtlas: normalizeAtlas,
     framesForMode: framesForMode,
-    defaultCar: defaultCar,
-    nextBillboardIndex: nextBillboardIndex,
-    billboardBody: billboardBody,
-    projectTrack: projectTrack
+    resolveMode: resolveMode,
+    danceFps: danceFps
   }
 }

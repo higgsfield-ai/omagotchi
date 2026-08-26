@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "A 37signals billboard road on Omarchy's ASCII screensaver, with DHH's JOTA driving past.",
+  "description": "Random 37signals ASCII screensaver, plus a desktop Tamagotchi that walks on keystrokes and dances to audio.",
   "keepLoaded": true,
   "kinds": ["overlay", "service"],
   "entryPoints": {

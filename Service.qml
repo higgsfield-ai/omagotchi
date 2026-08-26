@@ -2,6 +2,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 import "Model.js" as Model
 import "Catalog.js" as Catalog
 
@@ -13,12 +15,36 @@ Item {
   property int currentId: -1
   property string currentTitle: ""
   property string currentBody: ""
-  property bool desktopVisible: false
+  property bool screensaverActive: false
+  property string focusedMonitor: ""
+  property int keyCount: 0
+  property double lastKeyMs: 0
+  property int nowMs: 0
+  property real audioPeak: 0
 
+  readonly property bool petVisible: !root.screensaverActive
+  readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
+  readonly property bool mediaPlaying: {
+    if (root.media && root.media.activePlayer)
+      return !!root.media.activePlayer.isPlaying
+    var list = Mpris.players ? Mpris.players.values : []
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].isPlaying) return true
+    }
+    return false
+  }
+  onMediaPlayingChanged: if (!root.mediaPlaying) root.audioPeak = 0
+  readonly property bool keysRecent: (root.nowMs - root.lastKeyMs) < 500
+  readonly property string mode: Model.resolveMode({
+    keysRecent: root.keysRecent,
+    mediaPlaying: root.mediaPlaying,
+    audioPeak: root.audioPeak
+  })
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle
     : ({})
   readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
+  readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
 
   function filePath(name) {
     var url = String(Qt.resolvedUrl(name))
@@ -48,10 +74,26 @@ Item {
   }
 
   function hide() {
-    root.desktopVisible = false
     hideProc.running = false
     hideProc.running = true
     return "ok"
+  }
+
+  function onKey() {
+    root.keyCount += 1
+    root.lastKeyMs = Date.now()
+  }
+
+  function applyMonitors(raw) {
+    try {
+      var list = JSON.parse(raw || "[]")
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].focused) {
+          root.focusedMonitor = String(list[i].name || "")
+          return
+        }
+      }
+    } catch (e) {}
   }
 
   Process { id: launcher }
@@ -61,7 +103,13 @@ Item {
     command: ["bash", "-lc", "pkill -x ttfx 2>/dev/null; pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null; true"]
   }
 
-  // Sprite follows the native screensaver windows, including Super+Esc.
+  Timer {
+    interval: 80
+    running: true
+    repeat: true
+    onTriggered: root.nowMs = Date.now()
+  }
+
   Timer {
     interval: 250
     running: true
@@ -69,13 +117,44 @@ Item {
     onTriggered: {
       presence.running = false
       presence.running = true
+      monProc.running = false
+      monProc.running = true
     }
   }
 
   Process {
     id: presence
     command: ["pgrep", "-f", "[o]rg.omarchy.screensaver"]
-    onExited: root.desktopVisible = (exitCode === 0)
+    onExited: root.screensaverActive = (exitCode === 0)
+  }
+
+  Process {
+    id: monProc
+    command: ["hyprctl", "-j", "monitors"]
+    stdout: StdioCollector {
+      id: monOut
+      onStreamFinished: root.applyMonitors(monOut.text)
+    }
+  }
+
+  Process {
+    id: keyWatch
+    command: ["python3", "-u", root.filePath("watch-keys.py")]
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (String(line).indexOf("k") !== -1) root.onKey()
+      }
+    }
+  }
+
+  PwObjectTracker { objects: root.sinkList }
+
+  PwNodePeakMonitor {
+    id: peakMon
+    node: Pipewire.defaultAudioSink
+    enabled: root.mediaPlaying && root.petVisible
+    onPeakChanged: root.audioPeak = peakMon.peak
   }
 
   IdleMonitor {

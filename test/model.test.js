@@ -68,32 +68,23 @@ test("screensaverSeconds reads Omarchy idle config", () => {
   assert.equal(Model.screensaverSeconds({}, 150), 150)
 })
 
-test("nextBillboardIndex walks the catalog without repeating the pair", () => {
-  assert.equal(Model.nextBillboardIndex(0, 1, 38), 2)
-  assert.equal(Model.nextBillboardIndex(36, 37, 38), 0)
-  assert.equal(Model.nextBillboardIndex(-1, 4, 38), 5)
+test("atlas walk cycle is the full top row", () => {
+  const frames = Model.framesForMode(null, "walk")
+  assert.equal(frames.frameX, 0)
+  assert.equal(frames.frameY, 0)
+  assert.equal(frames.frameCount, 16)
+  assert.equal(frames.frameWidth, 64)
+  assert.equal(frames.frameHeight, 87)
 })
 
-test("billboardBody wraps and caps the essay", () => {
-  const text = Model.billboardBody("We have no investors, no board of directors, no eyes on an exit. We feel a moral obligation to exercise our independence.")
-  const lines = text.split("\n")
-  assert.ok(lines.length <= 6)
-  assert.ok(lines.every((line) => line.length <= 32))
+test("resolveMode prefers keys, then loud music, then dance, then idle", () => {
+  assert.equal(Model.resolveMode({ keysRecent: true, mediaPlaying: true, audioPeak: 1 }), "walk")
+  assert.equal(Model.resolveMode({ keysRecent: false, mediaPlaying: true, audioPeak: 0.8 }), "flip")
+  assert.equal(Model.resolveMode({ keysRecent: false, mediaPlaying: true, audioPeak: 0.1 }), "dance")
+  assert.equal(Model.resolveMode({ keysRecent: false, mediaPlaying: false, audioPeak: 0 }), "idle")
 })
 
-test("defaultCar faces left with two wheels", () => {
-  const car = Model.defaultCar()
-  assert.equal(car.facing, "left")
-  assert.equal(car.wheels.length, 2)
-  assert.ok(car.wheels[0].r > 40)
-})
-
-test("projectTrack recedes toward the vanishing point", () => {
-  const far = Model.projectTrack(0, 100, 80, 800, 700)
-  const near = Model.projectTrack(1, 100, 80, 800, 700)
-  assert.equal(far.x, 100)
-  assert.equal(far.y, 80)
-  assert.ok(far.scale < near.scale)
-  assert.ok(near.x > far.x)
-  assert.ok(near.fog > far.fog)
+test("danceFps follows the waveform peak", () => {
+  assert.equal(Model.danceFps(0), 7)
+  assert.equal(Model.danceFps(1), 23)
 })
