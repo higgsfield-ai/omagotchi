@@ -1,0 +1,13 @@
+{
+  "file": "atlas.png",
+  "cellWidth": 64,
+  "cellHeight": 72,
+  "columns": 16,
+  "rows": 5,
+  "fps": 12,
+  "scale": 4,
+  "modes": {
+    "walk": { "row": 0, "start": 0, "count": 8 },
+    "run": { "row": 0, "start": 8, "count": 8 }
+  }
+}

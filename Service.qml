@@ -13,6 +13,7 @@ Item {
   property int currentId: -1
   property string currentTitle: ""
   property string currentBody: ""
+  property bool desktopVisible: false
 
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle
@@ -47,6 +48,7 @@ Item {
   }
 
   function hide() {
+    root.desktopVisible = false
     hideProc.running = false
     hideProc.running = true
     return "ok"
@@ -57,6 +59,23 @@ Item {
   Process {
     id: hideProc
     command: ["bash", "-lc", "pkill -x ttfx 2>/dev/null; pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null; true"]
+  }
+
+  // Sprite follows the native screensaver windows, including Super+Esc.
+  Timer {
+    interval: 250
+    running: true
+    repeat: true
+    onTriggered: {
+      presence.running = false
+      presence.running = true
+    }
+  }
+
+  Process {
+    id: presence
+    command: ["pgrep", "-f", "[o]rg.omarchy.screensaver"]
+    onExited: root.desktopVisible = (exitCode === 0)
   }
 
   IdleMonitor {

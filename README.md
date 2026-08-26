@@ -1,8 +1,8 @@
 # 37signals
 
-A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`). The catalog is bundled (`Catalog.js` / `signals.json`, 00–37).
+A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), with a pixel DHH running across it. The catalog is bundled (`Catalog.js` / `signals.json`, 00–37). The default pet is `atlas.png` (run cycle: row 0, frames 9–16). Custom generated pets come later; they will overwrite `atlas.png` + `atlas.json`.
 
-On reveal or idle, the plugin writes the essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. If the screensaver is already up, it only restarts `ttfx` so the next animation is the new signal. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`.
+On reveal or idle, the plugin writes the essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. If the screensaver is already up, it only restarts `ttfx` so the next animation is the new signal. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. DHH appears once the screensaver windows exist (`org.omarchy.screensaver`) and disappears when they do. The sprite is click-through, so a key or mouse still dismisses `ttfx`.
 
 This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 
@@ -14,9 +14,9 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-Leave the stock screensaver **on**. This plugin uses it rather than stacking a QML overlay.
+Leave the stock screensaver **on**. The essay still runs in `ttfx`; the overlay only adds the runner.
 
-Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`).
+Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`). Kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
 
 ## Usage
 
@@ -27,15 +27,15 @@ omarchy-shell higgsfield.signals close
 omarchy-shell higgsfield.signals ping
 ```
 
-`reveal` picks a random signal, writes it, and starts the ASCII animation. Any key or mouse dismisses it the same way as the stock screensaver. `Super + Esc` also launches the screensaver; whatever was last written to `screensaver.txt` is what `ttfx` animates.
+`reveal` picks a random signal, writes it, and starts the ASCII animation. DHH runs along the bottom of each screen while the screensaver is up. Any key or mouse dismisses both. `Super + Esc` also launches the screensaver; whatever was last written to `screensaver.txt` is what `ttfx` animates, and the runner still appears.
 
 ## Develop
 
-Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a headless `service`.
+Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a keepLoaded `overlay` plus a `service`.
 
 ```sh
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" Service.qml
+qmllint -I "$OMARCHY_PATH/shell" Service.qml Overlay.qml
 node --test test/model.test.js
 ```
 

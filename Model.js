@@ -71,6 +71,77 @@ function screensaverSeconds(config, fallback) {
   return isFinite(fb) && fb > 0 ? Math.floor(fb) : 150
 }
 
+// Default DHH sheet. A generator later overwrites atlas.png + atlas.json;
+// QML always goes through these helpers so slicing stays in one place.
+function defaultAtlas() {
+  return {
+    file: "atlas.png",
+    cellWidth: 64,
+    cellHeight: 72,
+    columns: 16,
+    rows: 5,
+    fps: 12,
+    scale: 4,
+    modes: {
+      walk: { row: 0, start: 0, count: 8 },
+      run: { row: 0, start: 8, count: 8 }
+    }
+  }
+}
+
+function cloneMode(mode, fallback) {
+  var src = mode || fallback || { row: 0, start: 0, count: 8 }
+  var row = Number(src.row)
+  var start = Number(src.start)
+  var count = Number(src.count)
+  return {
+    row: isFinite(row) && row >= 0 ? Math.floor(row) : 0,
+    start: isFinite(start) && start >= 0 ? Math.floor(start) : 0,
+    count: isFinite(count) && count > 0 ? Math.floor(count) : 8
+  }
+}
+
+function normalizeAtlas(raw) {
+  var d = defaultAtlas()
+  if (!raw) return d
+  var cellW = Number(raw.cellWidth || raw.cell)
+  var cellH = Number(raw.cellHeight || raw.cell)
+  var columns = Number(raw.columns)
+  var rows = Number(raw.rows)
+  var fps = Number(raw.fps)
+  var scale = Number(raw.scale)
+  var modes = raw.modes || {}
+  return {
+    file: String(raw.file || d.file),
+    cellWidth: isFinite(cellW) && cellW > 0 ? Math.floor(cellW) : d.cellWidth,
+    cellHeight: isFinite(cellH) && cellH > 0 ? Math.floor(cellH) : d.cellHeight,
+    columns: isFinite(columns) && columns > 0 ? Math.floor(columns) : d.columns,
+    rows: isFinite(rows) && rows > 0 ? Math.floor(rows) : d.rows,
+    fps: isFinite(fps) && fps > 0 ? Math.floor(fps) : d.fps,
+    scale: isFinite(scale) && scale > 0 ? Math.floor(scale) : d.scale,
+    modes: {
+      walk: cloneMode(modes.walk, d.modes.walk),
+      run: cloneMode(modes.run, d.modes.run)
+    }
+  }
+}
+
+function framesForMode(atlas, modeName) {
+  var spec = normalizeAtlas(atlas)
+  var key = String(modeName || "run")
+  var mode = spec.modes[key] || spec.modes.run
+  return {
+    frameX: mode.start * spec.cellWidth,
+    frameY: mode.row * spec.cellHeight,
+    frameCount: mode.count,
+    frameWidth: spec.cellWidth,
+    frameHeight: spec.cellHeight,
+    frameRate: spec.fps,
+    displayWidth: spec.cellWidth * spec.scale,
+    displayHeight: spec.cellHeight * spec.scale
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     loadSignals: loadSignals,
@@ -78,6 +149,9 @@ if (typeof module !== "undefined") {
     pickRandom: pickRandom,
     wrapLine: wrapLine,
     formatScreensaver: formatScreensaver,
-    screensaverSeconds: screensaverSeconds
+    screensaverSeconds: screensaverSeconds,
+    defaultAtlas: defaultAtlas,
+    normalizeAtlas: normalizeAtlas,
+    framesForMode: framesForMode
   }
 }

@@ -67,3 +67,15 @@ test("screensaverSeconds reads Omarchy idle config", () => {
   assert.equal(Model.screensaverSeconds({ screensaver: "90" }, 150), 90)
   assert.equal(Model.screensaverSeconds({}, 150), 150)
 })
+
+test("default atlas slices DHH's run cycle from the top-right of row 0", () => {
+  const atlas = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "atlas.json"), "utf8"))
+  const frames = Model.framesForMode(atlas, "run")
+  assert.equal(frames.frameX, 512)
+  assert.equal(frames.frameY, 0)
+  assert.equal(frames.frameCount, 8)
+  assert.equal(frames.frameWidth, 64)
+  assert.equal(frames.frameHeight, 72)
+  assert.equal(frames.displayWidth, 256)
+  assert.equal(Model.framesForMode(null, "walk").frameX, 0)
+})
