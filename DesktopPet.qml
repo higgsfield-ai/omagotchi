@@ -4,23 +4,37 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "Model.js" as Model
 
-// Overlay sprite, not the bar dropdown. Follows the Hyprland pointer.
-// It cannot follow the text caret — Wayland does not expose that.
+// Plugin panel entry (keepLoaded). Nested PanelWindows inside a bar chip
+// do not become desktop surfaces — this file is loaded by the shell host.
 Item {
   id: root
 
-  property var atlas: Model.normalizeAtlas(null)
-  property string mode: "idle"
-  property bool followPointer: true
-  property bool desktopVisible: true
-  property real pinX: -1
-  property real pinY: -1
+  property var shell: null
+  property var manifest: null
+
+  readonly property var petService: root.shell && root.shell.serviceFor
+    ? root.shell.serviceFor("higgsfield.pet")
+    : null
+  readonly property var atlas: petService ? petService.atlas : Model.normalizeAtlas(null)
+  readonly property string mode: petService ? petService.mode : "idle"
+  readonly property bool followPointer: petService ? petService.followPointer : true
+  readonly property bool desktopVisible: petService ? petService.desktopVisible : true
+  readonly property real pinX: petService ? petService.pinX : -1
+  readonly property real pinY: petService ? petService.pinY : -1
+
   property int displaySize: 96
   property int cursorOffset: 20
   property real cursorX: 0
   property real cursorY: 0
 
-  signal draggedTo(real x, real y)
+  property bool opened: root.desktopVisible
+
+  function open(payloadJson) {
+    if (root.petService) root.petService.desktopVisible = true
+  }
+
+  function close() {
+  }
 
   readonly property real restX: root.pinX >= 0
     ? root.pinX
@@ -54,14 +68,16 @@ Item {
 
     Region {
       id: petMask
-      item: pet
+      item: petFrame
     }
 
-    Pet {
-      id: pet
-      displaySize: root.displaySize
-      atlas: root.atlas
-      mode: root.mode
+    Rectangle {
+      id: petFrame
+      width: root.displaySize
+      height: root.displaySize
+      color: "#00000000"
+      border.width: 2
+      border.color: "#ff4db8"
 
       Binding on x {
         value: root.clampX(root.followPointer ? root.followX : root.restX)
@@ -73,14 +89,27 @@ Item {
         when: !dragArea.pressed
       }
 
+      Pet {
+        anchors.fill: parent
+        anchors.margins: 2
+        displaySize: root.displaySize - 4
+        atlas: root.atlas
+        mode: root.mode
+      }
+
       MouseArea {
         id: dragArea
         anchors.fill: parent
         enabled: !root.followPointer
         acceptedButtons: Qt.LeftButton
         cursorShape: Qt.OpenHandCursor
-        drag.target: pet
-        onReleased: root.draggedTo(pet.x, pet.y)
+        drag.target: petFrame
+        onReleased: {
+          if (!root.petService) return
+          root.petService.followPointer = false
+          root.petService.pinX = petFrame.x
+          root.petService.pinY = petFrame.y
+        }
       }
     }
   }
@@ -98,9 +127,9 @@ Item {
   Process {
     id: cursorProc
     command: ["hyprctl", "cursorpos"]
-    stdout: StdioCollector {
-      onStreamFinished: {
-        var text = String(this.text).trim()
+    stdout: SplitParser {
+      onRead: function(data) {
+        var text = String(data).trim()
         var parts = text.split(/[,\s]+/)
         if (parts.length < 2) return
         var x = Number(parts[0])

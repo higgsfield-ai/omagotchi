@@ -161,7 +161,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "IPC: omarchy-shell higgsfield.pet setMode dance"
+          text: "IPC: omarchy-shell higgsfield.pet setFollow true"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle

@@ -79,7 +79,20 @@ omarchy plugin enable higgsfield.pet
 omarchy bar move higgsfield.pet --section right
 ```
 
-Then: edit on Mac → watch syncs → click the pet or `omarchy-shell higgsfield.pet setMode dance`. Run `node --test test/model.test.js` on the Mac; run `qmllint` and `omarchy plugin validate` on the HP (`./scripts/sync.sh --validate`).
+This plugin declares `bar-widget`, `panel`, and `service` kinds. The overlay is the keepLoaded `panel` entry (`DesktopPet.qml`). A PanelWindow nested in the bar chip will not appear on the desktop.
+
+After updating, restart the shell once so the new kinds load:
+
+```sh
+omarchy plugin update higgsfield.pet --yes
+omarchy-restart-shell
+```
+
+If the overlay is still missing, look for a pink-bordered square (placeholder). Logs:
+
+```sh
+qs log -p "$OMARCHY_PATH/shell" --tail 100
+```
 
 If QML errors, on the HP: `qs log -p "$OMARCHY_PATH/shell" --tail 100`. Manifest-only changes need the rescan that `sync.sh` already runs. A wedged shell: `omarchy-restart-shell`.
 

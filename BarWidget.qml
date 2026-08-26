@@ -4,29 +4,18 @@ import Quickshell.Io
 import qs.Ui
 import "Model.js" as Model
 
-// Bar chip + host for the debug panel. Shell summon/hide/toggle require
-// open/close/opened/toggle/closeForPopoutSwitch on this root (clock contract).
 BarWidget {
   id: root
   moduleName: "higgsfield.pet"
 
-  property string overrideMode: ""
-  property bool locked: false
-  property bool mediaPlaying: false
-  property real keysPerSec: 0
-  property bool followPointer: true
-  property bool desktopVisible: true
-  property real pinX: -1
-  property real pinY: -1
-  property var atlasSpec: null
+  readonly property var petService: root.bar && root.bar.shell && root.bar.shell.serviceFor
+    ? root.bar.shell.serviceFor("higgsfield.pet")
+    : null
 
-  readonly property var atlas: Model.normalizeAtlas(root.atlasSpec)
-  readonly property string mode: Model.resolveMode({
-    override: root.overrideMode,
-    locked: root.locked,
-    mediaPlaying: root.mediaPlaying,
-    keysPerSec: root.keysPerSec
-  })
+  readonly property var atlas: petService ? petService.atlas : Model.normalizeAtlas(null)
+  readonly property string mode: petService ? petService.mode : "idle"
+  readonly property bool followPointer: petService ? petService.followPointer : true
+  readonly property bool desktopVisible: petService ? petService.desktopVisible : true
 
   readonly property bool opened: panelLoader.item
     ? panelLoader.item.opened === true
@@ -57,39 +46,23 @@ BarWidget {
   }
 
   function setMode(mode) {
-    var name = String(mode || "")
-    if (!Model.isKnownMode(name)) return
-    root.overrideMode = name
+    if (root.petService) root.petService.setMode(mode)
   }
 
   function clearOverride() {
-    root.overrideMode = ""
+    if (root.petService) root.petService.clearOverride()
   }
 
   function setFollow(enabled) {
-    root.followPointer = enabled === true || enabled === "true"
+    if (root.petService) root.petService.setFollow(enabled)
   }
 
   function setDesktopVisible(enabled) {
-    root.desktopVisible = enabled === true || enabled === "true"
+    if (root.petService) root.petService.setDesktopVisible(enabled)
   }
 
   function pinHere() {
-    root.followPointer = false
-    root.pinX = -1
-    root.pinY = -1
-  }
-
-  function loadAtlas() {
-    var xhr = new XMLHttpRequest()
-    xhr.open("GET", Qt.resolvedUrl("atlas.json"), false)
-    xhr.send()
-    if (xhr.status !== 200 && xhr.status !== 0) return
-    try {
-      root.atlasSpec = JSON.parse(xhr.responseText)
-    } catch (e) {
-      root.atlasSpec = null
-    }
+    if (root.petService) root.petService.pinHere()
   }
 
   function injectPanel() {
@@ -103,7 +76,6 @@ BarWidget {
   implicitHeight: button.implicitHeight
 
   onBarChanged: injectPanel()
-  Component.onCompleted: root.loadAtlas()
 
   Loader {
     id: panelLoader
@@ -117,13 +89,8 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "higgsfield.pet"
+    target: "higgsfield.pet.bar"
 
-    function setMode(mode: string): void { root.setMode(mode) }
-    function clearOverride(): void { root.clearOverride() }
-    function setFollow(enabled: string): void { root.setFollow(enabled) }
-    function setDesktopVisible(enabled: string): void { root.setDesktopVisible(enabled) }
-    function pinHere(): void { root.pinHere() }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function show(): void { root.open() }
@@ -155,20 +122,6 @@ BarWidget {
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
-    }
-  }
-
-  DesktopPet {
-    atlas: root.atlas
-    mode: root.mode
-    followPointer: root.followPointer
-    desktopVisible: root.desktopVisible
-    pinX: root.pinX
-    pinY: root.pinY
-    onDraggedTo: function(x, y) {
-      root.followPointer = false
-      root.pinX = x
-      root.pinY = y
     }
   }
 }
