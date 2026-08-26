@@ -2,13 +2,12 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "A random 37signals principle on the Omarchy screensaver overlay.",
-  "keepLoaded": true,
-  "kinds": ["panel"],
+  "description": "A random 37signals principle on Omarchy's ASCII screensaver.",
+  "kinds": ["service"],
   "entryPoints": {
-    "panel": "Overlay.qml"
+    "service": "Service.qml"
   }
 }

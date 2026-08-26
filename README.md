@@ -1,12 +1,12 @@
 # 37signals
 
-A random [37signals](https://37signals.com) principle on the Omarchy screensaver overlay. The catalog is bundled (`signals.json`, 00–37) so nothing is fetched at idle time.
+A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`). The catalog is bundled (`Catalog.js` / `signals.json`, 00–37).
 
-The overlay is a fullscreen layer-shell surface, same class as the image picker. It cannot draw on the PAM lock screen — when idle lock fires, that surface takes over.
+On reveal or idle, the plugin writes the essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. If the screensaver is already up, it only restarts `ttfx` so the next animation is the new signal. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`.
+
+This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 
 ## Install
-
-On an Omarchy machine. If the Tamagotchi plugin was already installed, remove it first — the id changed:
 
 ```sh
 omarchy plugin remove higgsfield.pet
@@ -14,61 +14,36 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-Turn off the stock ASCII screensaver so it does not stack on top of the overlay:
-
-```sh
-omarchy toggle screensaver
-```
+Leave the stock screensaver **on**. This plugin uses it rather than stacking a QML overlay.
 
 Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`).
 
 ## Usage
 
-After the screensaver timeout, a random signal fills the screen. Click or any key dismisses it. While it is up, it rotates to another signal every 45 seconds.
-
 ```sh
 omarchy-shell higgsfield.signals reveal
-omarchy-shell higgsfield.signals show '{}'
 omarchy-shell higgsfield.signals next
 omarchy-shell higgsfield.signals close
-omarchy-shell shell summon higgsfield.signals '{}'
-omarchy-shell shell hide higgsfield.signals
+omarchy-shell higgsfield.signals ping
 ```
 
-Bare `show` with no argument is swallowed by Qt `Window.show()`. Pass `'{}'` or use `reveal`.
-
-`Super + Esc` still launches the stock terminal screensaver.
+`reveal` picks a random signal, writes it, and starts the ASCII animation. Any key or mouse dismisses it the same way as the stock screensaver. `Super + Esc` also launches the screensaver; whatever was last written to `screensaver.txt` is what `ttfx` animates.
 
 ## Develop
 
-Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a keepLoaded `panel` (same contract as the OSD). There is no bar widget.
+Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a headless `service`.
 
 ```sh
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" Overlay.qml
+qmllint -I "$OMARCHY_PATH/shell" Service.qml
 node --test test/model.test.js
 ```
 
-Saved files under `~/.config/omarchy/plugins/` reload automatically. Manifest kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
+Manifest kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
 
 ## Iterate from a Mac
 
 QML only loads inside `omarchy-shell` on the HP. Keep git on the Mac; push files over SSH. Do **not** symlink the plugin directory.
-
-**Fastest for UI:** Cursor Remote SSH, open `~/.config/omarchy/plugins/higgsfield.signals` on the HP. Save → overlay reloads.
-
-**Fastest while git stays on the Mac:** one-time SSH, then watch + rsync.
-
-`~/.ssh/config`:
-
-```
-Host omarchy-hp
-  HostName 192.168.x.x
-  User <hp-user>
-  ControlMaster auto
-  ControlPath ~/.ssh/cm-%r@%h:%p
-  ControlPersist 10m
-```
 
 ```sh
 brew install fswatch
@@ -84,16 +59,15 @@ omarchy plugin enable higgsfield.signals
 omarchy-restart-shell
 ```
 
-Logs:
-
-```sh
-qs log -p "$OMARCHY_PATH/shell" --tail 100
-```
-
-A wedged shell: `omarchy-restart-shell`.
-
 ## Remove
 
 ```sh
 omarchy plugin remove higgsfield.signals
+```
+
+To restore the previous ASCII logo:
+
+```sh
+mv ~/.config/omarchy/branding/screensaver.txt.higgsfield-bak \
+   ~/.config/omarchy/branding/screensaver.txt
 ```

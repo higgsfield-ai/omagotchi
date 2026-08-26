@@ -32,6 +32,38 @@ function pickRandom(signals, exceptId) {
   return filtered[Math.floor(Math.random() * filtered.length)]
 }
 
+function wrapLine(text, width) {
+  var max = Number(width)
+  if (!isFinite(max) || max < 8) max = 52
+  var words = String(text || "").replace(/\s+/g, " ").trim().split(" ")
+  if (words.length === 1 && words[0] === "") return ""
+  var lines = []
+  var line = ""
+  for (var i = 0; i < words.length; i++) {
+    var word = words[i]
+    var next = line ? line + " " + word : word
+    if (next.length > max && line) {
+      lines.push(line)
+      line = word
+    } else {
+      line = next
+    }
+  }
+  if (line) lines.push(line)
+  return lines.join("\n")
+}
+
+function formatScreensaver(id, title, body) {
+  return [
+    "37signals",
+    "",
+    formatNumber(id) + ".",
+    String(title || ""),
+    "",
+    wrapLine(body, 52)
+  ].join("\n")
+}
+
 function screensaverSeconds(config, fallback) {
   var n = Number(config && config.screensaver)
   if (isFinite(n) && n > 0) return Math.floor(n)
@@ -44,6 +76,8 @@ if (typeof module !== "undefined") {
     loadSignals: loadSignals,
     formatNumber: formatNumber,
     pickRandom: pickRandom,
+    wrapLine: wrapLine,
+    formatScreensaver: formatScreensaver,
     screensaverSeconds: screensaverSeconds
   }
 }

@@ -52,6 +52,16 @@ test("loadSignals accepts array-like objects from QML", () => {
   assert.equal(picked.id, 5)
 })
 
+test("formatScreensaver wraps the essay for ttfx", () => {
+  const page = Model.formatScreensaver(1, "An obligation to independence", "We have no investors, no board of directors, no eyes on an exit.")
+  assert.match(page, /^37signals\n/)
+  assert.match(page, /^01\.\n/m)
+  assert.match(page, /An obligation to independence/)
+  assert.match(page, /no investors/)
+  const wrapped = Model.wrapLine("one two three four five six seven eight nine ten", 12)
+  assert.ok(wrapped.split("\n").every((line) => line.length <= 12))
+})
+
 test("screensaverSeconds reads Omarchy idle config", () => {
   assert.equal(Model.screensaverSeconds({ screensaver: 150 }, 150), 150)
   assert.equal(Model.screensaverSeconds({ screensaver: "90" }, 150), 90)
