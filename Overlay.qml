@@ -24,27 +24,40 @@ Item {
   readonly property string titleText: root.current && root.current.title ? String(root.current.title) : ""
   readonly property string bodyText: root.current && root.current.body ? String(root.current.body) : ""
 
+  function copyList(raw) {
+    var out = []
+    if (!raw) return out
+    var n = Number(raw.length)
+    if (!isFinite(n) || n <= 0) return out
+    for (var i = 0; i < n; i++) {
+      var item = raw[i]
+      if (item && item.title && item.body) out.push(item)
+    }
+    return out
+  }
+
   function loadSignals() {
     try {
       var xhr = new XMLHttpRequest()
       xhr.open("GET", Qt.resolvedUrl("signals.json"), false)
       xhr.send()
-      if (xhr.status !== 200 && xhr.status !== 0) return
-      root.signals = Model.loadSignals(JSON.parse(xhr.responseText))
+      root.signals = root.copyList(JSON.parse(xhr.responseText))
     } catch (e) {
       root.signals = []
     }
   }
 
   function pickNew() {
-    var list = Model.loadSignals(root.signals)
-    if (list.length === 0) {
-      root.loadSignals()
-      list = Model.loadSignals(root.signals)
+    if (!root.signals || root.signals.length === 0) root.loadSignals()
+    var count = root.signals ? root.signals.length : 0
+    if (count === 0) return
+    var exceptId = root.current ? Number(root.current.id) : NaN
+    var next = null
+    for (var t = 0; t < 16; t++) {
+      next = root.signals[Math.floor(Math.random() * count)]
+      if (!next) continue
+      if (!isFinite(exceptId) || Number(next.id) !== exceptId || count === 1) break
     }
-    var exceptId = root.current ? root.current.id : undefined
-    var next = Model.pickRandom(list, exceptId)
-    if (!next && list.length) next = list[Math.floor(Math.random() * list.length)]
     if (next) root.current = next
   }
 
@@ -163,6 +176,7 @@ Item {
 
           Text {
             width: parent.width
+            visible: root.numberText.length > 0
             text: root.numberText + "."
             color: Color.foreground
             font.family: Style.font.family
