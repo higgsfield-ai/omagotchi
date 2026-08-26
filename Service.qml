@@ -17,6 +17,11 @@ Item {
   property string currentBody: ""
   property bool screensaverActive: false
   property string focusedMonitor: ""
+  property real winX: 0
+  property real winY: 0
+  property real winW: 0
+  property real winH: 0
+  property bool collapsed: false
   property int keyCount: 0
   property double lastKeyMs: 0
   property int nowMs: 0
@@ -36,6 +41,7 @@ Item {
   onMediaPlayingChanged: if (!root.mediaPlaying) root.audioPeak = 0
   readonly property bool keysRecent: (root.nowMs - root.lastKeyMs) < 500
   readonly property string mode: Model.resolveMode({
+    collapsed: root.collapsed,
     keysRecent: root.keysRecent,
     mediaPlaying: root.mediaPlaying,
     audioPeak: root.audioPeak
@@ -84,17 +90,32 @@ Item {
     root.lastKeyMs = Date.now()
   }
 
-  function applyMonitors(raw) {
-    try {
-      var list = JSON.parse(raw || "[]")
-      for (var i = 0; i < list.length; i++) {
-        if (list[i] && list[i].focused) {
-          root.focusedMonitor = String(list[i].name || "")
-          return
-        }
-      }
-    } catch (e) {}
+  function toggleCollapsed() {
+    root.collapsed = !root.collapsed
+    return root.collapsed ? "collapsed" : "expanded"
   }
+
+  function applyFocus(monitorsRaw, windowRaw) {
+    var focus = Model.focusWindow(monitorsRaw, windowRaw)
+    root.focusedMonitor = focus.monitor
+    root.winX = focus.x
+    root.winY = focus.y
+    root.winW = focus.w
+    root.winH = focus.h
+  }
+
+  function applyMonitors(raw) {
+    root._monRaw = String(raw || "")
+    root.applyFocus(root._monRaw, root._winRaw)
+  }
+
+  function applyWindow(raw) {
+    root._winRaw = String(raw || "")
+    root.applyFocus(root._monRaw, root._winRaw)
+  }
+
+  property string _monRaw: "[]"
+  property string _winRaw: "null"
 
   Process { id: launcher }
 
@@ -119,6 +140,8 @@ Item {
       presence.running = true
       monProc.running = false
       monProc.running = true
+      winProc.running = false
+      winProc.running = true
     }
   }
 
@@ -134,6 +157,15 @@ Item {
     stdout: StdioCollector {
       id: monOut
       onStreamFinished: root.applyMonitors(monOut.text)
+    }
+  }
+
+  Process {
+    id: winProc
+    command: ["hyprctl", "-j", "activewindow"]
+    stdout: StdioCollector {
+      id: winOut
+      onStreamFinished: root.applyWindow(winOut.text)
     }
   }
 

@@ -4,7 +4,7 @@ A random [37signals](https://37signals.com) principle on Omarchy’s native ASCI
 
 On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The screensaver is ASCII only — no car overlay.
 
-The pet lives on the **focused monitor**. It walks on every keypress (evdev), and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a flip. The pet hides while the screensaver is up.
+The pet stays on the **bottom of the focused window** (`hyprctl activewindow`) and turns before it can leave that window’s edges. It walks on every keypress (evdev), idles with a looping stand animation, and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a dash. Drag it; click it to collapse (lie down) or expand. The pet hides while the screensaver is up.
 
 This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 

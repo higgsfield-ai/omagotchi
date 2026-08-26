@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Random 37signals ASCII screensaver, plus a desktop Tamagotchi that walks on keystrokes and dances to audio.",
+  "description": "Random 37signals ASCII screensaver, plus a small desktop Tamagotchi that runs on the focused window.",
   "keepLoaded": true,
   "kinds": ["overlay", "service"],
   "entryPoints": {
