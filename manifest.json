@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "higgsfield.pet",
+  "name": "Higgsfield Pet",
+  "version": "0.1.0",
+  "author": "Higgsfield",
+  "license": "MIT",
+  "description": "A Tamagotchi on the Omarchy bar. Modes play from a local sprite atlas; customize later with the Higgsfield API.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Higgsfield Pet",
+    "category": "Fun",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
