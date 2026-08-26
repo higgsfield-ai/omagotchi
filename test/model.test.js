@@ -1,49 +1,30 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const Model = require("../Model.js")
+const signals = require("../signals.json")
 
-test("resolveMode prefers override, then lock, hurry, dance, idle", () => {
-  assert.equal(Model.resolveMode({ override: "wave" }), "wave")
-  assert.equal(Model.resolveMode({ locked: true, mediaPlaying: true }), "sleep")
-  assert.equal(Model.resolveMode({ keysPerSec: 12, mediaPlaying: true }), "hurry")
-  assert.equal(Model.resolveMode({ mediaPlaying: true }), "dance")
-  assert.equal(Model.resolveMode({}), "idle")
+test("catalog has 38 signals", () => {
+  assert.equal(signals.length, 38)
+  assert.equal(signals[0].slug, "00")
+  assert.equal(signals[37].slug, "37")
 })
 
-test("unknown override is ignored", () => {
-  assert.equal(Model.resolveMode({ override: "explode" }), "idle")
+test("formatNumber pads ids", () => {
+  assert.equal(Model.formatNumber(1), "01")
+  assert.equal(Model.formatNumber(37), "37")
 })
 
-test("rowForMode follows atlas.json order", () => {
-  assert.equal(Model.rowForMode("idle"), 0)
-  assert.equal(Model.rowForMode("hurry"), 1)
-  assert.equal(Model.rowForMode("dance"), 2)
-  assert.equal(Model.rowForMode("wave"), 6)
-  assert.equal(Model.rowForMode("nope"), 0)
+test("pickRandom never returns the excluded id when others exist", () => {
+  const first = Model.pickRandom(signals, null)
+  assert.ok(first)
+  for (let i = 0; i < 20; i++) {
+    const next = Model.pickRandom(signals, first.id)
+    assert.notEqual(next.id, first.id)
+  }
 })
 
-test("one-shots vs loops", () => {
-  assert.equal(Model.isOneShot("wave"), true)
-  assert.equal(Model.isOneShot("angry"), true)
-  assert.equal(Model.isLoop("dance"), true)
-  assert.equal(Model.isLoop("wave"), false)
-})
-
-test("normalizePlacement defaults to focus", () => {
-  assert.equal(Model.normalizePlacement("focus"), "focus")
-  assert.equal(Model.normalizePlacement("pointer"), "pointer")
-  assert.equal(Model.normalizePlacement("pin"), "pin")
-  assert.equal(Model.normalizePlacement("true"), "pointer")
-  assert.equal(Model.normalizePlacement(""), "focus")
-  assert.equal(Model.isClickThrough("focus"), true)
-  assert.equal(Model.isClickThrough("pin"), false)
-})
-
-test("focusAnchor sits inside the bottom-right of the active window", () => {
-  const box = Model.parseActiveWindow(
-    JSON.stringify({ at: [100, 40], size: [800, 600] })
-  )
-  assert.deepEqual(box, { x: 100, y: 40, w: 800, h: 600 })
-  assert.deepEqual(Model.focusAnchor(box, 96, 12), { x: 792, y: 532 })
-  assert.equal(Model.parseActiveWindow("Invalid"), null)
+test("screensaverSeconds reads Omarchy idle config", () => {
+  assert.equal(Model.screensaverSeconds({ screensaver: 150 }, 150), 150)
+  assert.equal(Model.screensaverSeconds({ screensaver: "90" }, 150), 90)
+  assert.equal(Model.screensaverSeconds({}, 150), 150)
 })

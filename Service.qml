@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import "Model.js" as Model
 
 Item {
@@ -8,77 +9,58 @@ Item {
 
   property var shell: null
   property var manifest: null
+  property bool stayAwake: false
 
-  property string overrideMode: ""
-  property bool locked: false
-  property bool mediaPlaying: false
-  property real keysPerSec: 0
-  property string placement: "focus"
-  property bool desktopVisible: true
-  property real pinX: -1
-  property real pinY: -1
-  property var atlasSpec: null
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
+    ? shell.shellConfig.idle
+    : ({})
+  readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
+  readonly property string stayAwakePath: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake"
 
-  readonly property var atlas: Model.normalizeAtlas(root.atlasSpec)
-  readonly property string mode: Model.resolveMode({
-    override: root.overrideMode,
-    locked: root.locked,
-    mediaPlaying: root.mediaPlaying,
-    keysPerSec: root.keysPerSec
-  })
-  readonly property bool followPointer: root.placement === "pointer"
-  readonly property bool followFocus: root.placement === "focus"
-
-  function setMode(mode) {
-    var name = String(mode || "")
-    if (!Model.isKnownMode(name)) return
-    root.overrideMode = name
+  function show() {
+    if (root.stayAwake) return
+    if (root.shell && typeof root.shell.summon === "function")
+      root.shell.summon("higgsfield.signals", "{}")
   }
 
-  function clearOverride() {
-    root.overrideMode = ""
+  function hide() {
+    if (root.shell && typeof root.shell.hide === "function")
+      root.shell.hide("higgsfield.signals")
   }
 
-  function setFollow(enabled) {
-    root.setPlacement(enabled)
+  function next() {
+    if (root.stayAwake) return
+    if (root.shell && typeof root.shell.summon === "function")
+      root.shell.summon("higgsfield.signals", "{}")
   }
 
-  function setPlacement(value) {
-    root.placement = Model.normalizePlacement(value)
-  }
+  onStayAwakeChanged: if (root.stayAwake) root.hide()
 
-  function setDesktopVisible(enabled) {
-    root.desktopVisible = enabled === true || enabled === "true"
-  }
-
-  function pinHere() {
-    root.placement = "pin"
-    root.pinX = -1
-    root.pinY = -1
-  }
-
-  function loadAtlas() {
-    var xhr = new XMLHttpRequest()
-    xhr.open("GET", Qt.resolvedUrl("atlas.json"), false)
-    xhr.send()
-    if (xhr.status !== 200 && xhr.status !== 0) return
-    try {
-      root.atlasSpec = JSON.parse(xhr.responseText)
-    } catch (e) {
-      root.atlasSpec = null
+  IdleMonitor {
+    id: idleMonitor
+    enabled: !root.stayAwake
+    timeout: root.screensaverTimeoutSeconds
+    respectInhibitors: true
+    onIsIdleChanged: {
+      if (idleMonitor.isIdle) root.show()
+      else root.hide()
     }
   }
 
-  Component.onCompleted: root.loadAtlas()
+  FileView {
+    path: root.stayAwakePath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.stayAwake = true
+    onLoadFailed: root.stayAwake = false
+  }
 
   IpcHandler {
-    target: "higgsfield.pet"
+    target: "higgsfield.signals"
 
-    function setMode(mode: string): void { root.setMode(mode) }
-    function clearOverride(): void { root.clearOverride() }
-    function setFollow(enabled: string): void { root.setFollow(enabled) }
-    function setPlacement(value: string): void { root.setPlacement(value) }
-    function setDesktopVisible(enabled: string): void { root.setDesktopVisible(enabled) }
-    function pinHere(): void { root.pinHere() }
+    function show(): string { root.show(); return "ok" }
+    function hide(): string { root.hide(); return "ok" }
+    function next(): string { root.next(); return "ok" }
+    function ping(): string { return "ok" }
   }
 }

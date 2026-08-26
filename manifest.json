@@ -1,22 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "higgsfield.pet",
-  "name": "Higgsfield Pet",
-  "version": "0.1.2",
+  "id": "higgsfield.signals",
+  "name": "37signals",
+  "version": "0.2.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "A Tamagotchi overlay on Omarchy. Bar chip for settings; keepLoaded panel for the desktop sprite.",
+  "description": "A random 37signals principle on the Omarchy screensaver overlay.",
   "keepLoaded": true,
-  "kinds": ["bar-widget", "panel", "service"],
+  "kinds": ["overlay", "service"],
   "entryPoints": {
-    "barWidget": "BarWidget.qml",
-    "panel": "DesktopPet.qml",
+    "overlay": "Overlay.qml",
     "service": "Service.qml"
-  },
-  "barWidget": {
-    "displayName": "Higgsfield Pet",
-    "category": "Fun",
-    "allowMultiple": false,
-    "defaultSection": "right"
   }
 }

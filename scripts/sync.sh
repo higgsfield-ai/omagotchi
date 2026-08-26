@@ -11,7 +11,7 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 HOST="${OMARCHY_HOST:?Set OMARCHY_HOST (e.g. omarchy-hp or user@192.168.1.20)}"
-REMOTE_DIR="${OMARCHY_PLUGIN_DIR:-.config/omarchy/plugins/higgsfield.pet}"
+REMOTE_DIR="${OMARCHY_PLUGIN_DIR:-.config/omarchy/plugins/higgsfield.signals}"
 
 rsync -az --delete \
   --exclude .git \

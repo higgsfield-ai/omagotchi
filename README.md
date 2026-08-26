@@ -1,58 +1,58 @@
-# Higgsfield Pet
+# 37signals
 
-A Tamagotchi on the Omarchy Quattro bar. It plays modes from a local sprite atlas (`atlas.png` + `atlas.json`). Higgsfield generation is not wired yet — the bundled sheet is a color-row placeholder so the plugin can be tested without the API.
+A random [37signals](https://37signals.com) principle on the Omarchy screensaver overlay. The catalog is bundled (`signals.json`, 00–37) so nothing is fetched at idle time.
 
-This repo is the plugin. Omarchy installs third-party plugins by cloning a git repo with `manifest.json` at the root. Do not put a symlink in the plugin folder; Quattro refuses those.
+The overlay is a fullscreen layer-shell surface, same class as the image picker. It cannot draw on the PAM lock screen — when idle lock fires, that surface takes over.
 
 ## Install
 
-On an Omarchy machine:
+On an Omarchy machine. If the Tamagotchi plugin was already installed, remove it first — the id changed:
 
 ```sh
+omarchy plugin remove higgsfield.pet
 omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
-omarchy bar move higgsfield.pet --section right
+omarchy-restart-shell
 ```
+
+Turn off the stock ASCII screensaver so it does not stack on top of the overlay:
+
+```sh
+omarchy toggle screensaver
+```
+
+Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`). Stay awake (`Super + Ctrl + I`) also suppresses this overlay.
 
 ## Usage
 
-- Left-click the pet to open the debug panel.
-- The **bar chip** is the settings dropdown. The **overlay pet** is a separate layer-shell window (like the OSD), not a Hyprland tiled window.
-- **Follow focused window** (default): the overlay sits on the bottom-right of the active Hyprland window — the terminal you are typing in. Click-through so typing still works. This is not the text caret.
-- **Follow pointer**: sits next to the mouse.
-- **Pin on desktop**: stops following. Drag the overlay pet. Click the bar chip for settings.
-- Wave and angry play once, then return to sensor mode (idle until sensors exist).
+After the screensaver timeout, a random signal fills the screen. Mouse or any key dismisses it. While it is up, it rotates to another signal every 45 seconds.
 
 ```sh
-omarchy-shell higgsfield.pet setMode dance
-omarchy-shell higgsfield.pet setPlacement focus
-omarchy-shell higgsfield.pet setPlacement pointer
-omarchy-shell higgsfield.pet pinHere
-omarchy-shell higgsfield.pet setDesktopVisible false
-omarchy-shell higgsfield.pet clearOverride
-omarchy-shell shell summon higgsfield.pet '{}'
-omarchy-shell shell hide higgsfield.pet
+omarchy-shell higgsfield.signals show
+omarchy-shell higgsfield.signals next
+omarchy-shell higgsfield.signals hide
+omarchy-shell shell summon higgsfield.signals '{}'
+omarchy-shell shell hide higgsfield.signals
 ```
 
-Placeholder rows: gray idle, orange hurry, green dance, blue sleep, gold happy, red angry, white wave. Brightness walks across each row so the loop is visible.
+`Super + Esc` still launches the stock terminal screensaver. Use the IPC `show` command above for this overlay on demand.
 
 ## Develop
 
-Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin matches the clock contract: one `bar-widget`, `BarWidget.qml` loads `Panel.qml`, same `moduleName` in both.
+Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is an `overlay` plus a headless `service` (`keepLoaded: true`). There is no bar widget.
 
 ```sh
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" BarWidget.qml Panel.qml Pet.qml
+qmllint -I "$OMARCHY_PATH/shell" Overlay.qml Service.qml
 node --test test/model.test.js
-python3 scripts/make-placeholder-atlas.py
 ```
 
-Saved files under `~/.config/omarchy/plugins/` reload automatically.
+Saved files under `~/.config/omarchy/plugins/` reload automatically. Manifest kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
 
 ## Iterate from a Mac
 
 QML only loads inside `omarchy-shell` on the HP. Keep git on the Mac; push files over SSH. Do **not** symlink the plugin directory.
 
-**Fastest for UI:** Cursor Remote SSH, open `~/.config/omarchy/plugins/higgsfield.pet` on the HP. Save → bar reloads. Use this when you are in the QML loop.
+**Fastest for UI:** Cursor Remote SSH, open `~/.config/omarchy/plugins/higgsfield.signals` on the HP. Save → overlay reloads.
 
 **Fastest while git stays on the Mac:** one-time SSH, then watch + rsync.
 
@@ -77,52 +77,20 @@ cp .env.example .env   # set OMARCHY_HOST=omarchy-hp
 On the HP, first time only:
 
 ```sh
-omarchy plugin enable higgsfield.pet
-omarchy bar move higgsfield.pet --section right
-```
-
-This plugin declares `bar-widget`, `panel`, and `service` kinds. The overlay is the keepLoaded `panel` entry (`DesktopPet.qml`). A PanelWindow nested in the bar chip will not appear on the desktop.
-
-After updating, restart the shell once so the new kinds load:
-
-```sh
-omarchy plugin update higgsfield.pet --yes
+omarchy plugin enable higgsfield.signals
 omarchy-restart-shell
 ```
 
-If the overlay is still missing, look for a pink-bordered square (placeholder). Logs:
+Logs:
 
 ```sh
 qs log -p "$OMARCHY_PATH/shell" --tail 100
 ```
 
-If QML errors, on the HP: `qs log -p "$OMARCHY_PATH/shell" --tail 100`. Manifest-only changes need the rescan that `sync.sh` already runs. A wedged shell: `omarchy-restart-shell`.
-
-## Atlas contract
-
-`atlas.json` is the only layout the player reads. A future generator only overwrites `atlas.png` and this file:
-
-```json
-{
-  "cell": 64,
-  "columns": 8,
-  "fps": 8,
-  "modes": {
-    "idle": 0,
-    "hurry": 1,
-    "dance": 2,
-    "sleep": 3,
-    "happy": 4,
-    "angry": 5,
-    "wave": 6
-  }
-}
-```
-
-One mode per row, eight frames. Appearance does not change at runtime.
+A wedged shell: `omarchy-restart-shell`.
 
 ## Remove
 
 ```sh
-omarchy plugin remove higgsfield.pet
+omarchy plugin remove higgsfield.signals
 ```
