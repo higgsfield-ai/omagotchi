@@ -129,6 +129,36 @@ Panel {
           }
         }
 
+        WidgetButton {
+          bar: root.bar
+          text: root.hostWidget && root.hostWidget.followPointer ? "Following pointer" : "Follow pointer"
+          tooltipText: "Sit next to the mouse. Click-through so typing still works."
+          onPressed: function(buttonCode) {
+            if (buttonCode === Qt.LeftButton && root.hostWidget)
+              root.hostWidget.setFollow(true)
+          }
+        }
+
+        WidgetButton {
+          bar: root.bar
+          text: "Pin on desktop"
+          tooltipText: "Stop following. Drag the overlay pet to move it."
+          onPressed: function(buttonCode) {
+            if (buttonCode === Qt.LeftButton && root.hostWidget)
+              root.hostWidget.pinHere()
+          }
+        }
+
+        WidgetButton {
+          bar: root.bar
+          text: root.hostWidget && root.hostWidget.desktopVisible ? "Hide overlay pet" : "Show overlay pet"
+          tooltipText: "Toggle the desktop overlay. The bar chip stays."
+          onPressed: function(buttonCode) {
+            if (buttonCode === Qt.LeftButton && root.hostWidget)
+              root.hostWidget.setDesktopVisible(!(root.hostWidget.desktopVisible === true))
+          }
+        }
+
         Text {
           width: parent.width
           text: "IPC: omarchy-shell higgsfield.pet setMode dance"

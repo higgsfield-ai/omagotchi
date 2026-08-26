@@ -14,6 +14,10 @@ BarWidget {
   property bool locked: false
   property bool mediaPlaying: false
   property real keysPerSec: 0
+  property bool followPointer: true
+  property bool desktopVisible: true
+  property real pinX: -1
+  property real pinY: -1
   property var atlasSpec: null
 
   readonly property var atlas: Model.normalizeAtlas(root.atlasSpec)
@@ -62,6 +66,20 @@ BarWidget {
     root.overrideMode = ""
   }
 
+  function setFollow(enabled) {
+    root.followPointer = enabled === true || enabled === "true"
+  }
+
+  function setDesktopVisible(enabled) {
+    root.desktopVisible = enabled === true || enabled === "true"
+  }
+
+  function pinHere() {
+    root.followPointer = false
+    root.pinX = -1
+    root.pinY = -1
+  }
+
   function loadAtlas() {
     var xhr = new XMLHttpRequest()
     xhr.open("GET", Qt.resolvedUrl("atlas.json"), false)
@@ -103,6 +121,9 @@ BarWidget {
 
     function setMode(mode: string): void { root.setMode(mode) }
     function clearOverride(): void { root.clearOverride() }
+    function setFollow(enabled: string): void { root.setFollow(enabled) }
+    function setDesktopVisible(enabled: string): void { root.setDesktopVisible(enabled) }
+    function pinHere(): void { root.pinHere() }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function show(): void { root.open() }
@@ -134,6 +155,20 @@ BarWidget {
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
+    }
+  }
+
+  DesktopPet {
+    atlas: root.atlas
+    mode: root.mode
+    followPointer: root.followPointer
+    desktopVisible: root.desktopVisible
+    pinX: root.pinX
+    pinY: root.pinY
+    onDraggedTo: function(x, y) {
+      root.followPointer = false
+      root.pinX = x
+      root.pinY = y
     }
   }
 }
