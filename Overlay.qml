@@ -29,7 +29,9 @@ Item {
   component SignalBoard: Item {
     id: board
     property int signalIndex: 0
-    property real carScale: 1
+    property real depthScale: 1
+    property real yaw: 18
+    property real fog: 1
     property var catalog: []
 
     readonly property var entry: {
@@ -42,40 +44,62 @@ Item {
     readonly property string numberText: Model.formatNumber(entry && entry.id)
     readonly property string titleText: entry && entry.title ? String(entry.title) : ""
     readonly property string bodyText: Model.billboardBody(entry && entry.body ? entry.body : "")
+    readonly property real s: Math.max(0.18, board.depthScale)
 
-    width: Math.round(410 * Math.max(0.85, carScale / 0.7))
+    width: Math.round(390 * s)
     height: panel.height + post.height
+    opacity: 0.28 + 0.72 * board.fog
+    transform: Rotation {
+      origin.x: board.width * 0.55
+      origin.y: board.height
+      axis { x: 0; y: 1; z: 0 }
+      angle: board.yaw
+    }
 
     Rectangle {
       id: post
-      width: Math.max(10, Math.round(12 * board.carScale / 0.7))
-      height: Math.round(86 * board.carScale / 0.7)
+      width: Math.max(6, Math.round(11 * board.s))
+      height: Math.round(78 * board.s)
       anchors.bottom: parent.bottom
       anchors.horizontalCenter: parent.horizontalCenter
       color: "#2a2318"
+      transform: Scale {
+        origin.x: post.width / 2
+        origin.y: 0
+        yScale: 1.15
+      }
     }
     Rectangle {
       id: panel
       anchors.bottom: post.top
       anchors.horizontalCenter: parent.horizontalCenter
       width: parent.width
-      height: col.height + 28
+      height: col.height + Math.round(24 * board.s)
       color: "#12100c"
       border.color: "#f5c518"
-      border.width: 3
+      border.width: Math.max(2, Math.round(3 * board.s))
       radius: 2
+
+      Rectangle {
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: Math.max(4, Math.round(6 * board.s))
+        color: "#000000"
+        opacity: 0.35
+      }
 
       Column {
         id: col
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 14
-        spacing: 8
+        anchors.margins: Math.round(12 * board.s)
+        spacing: Math.round(6 * board.s)
         Text {
           text: board.numberText
           color: "#f5c518"
-          font.pixelSize: Math.max(18, Math.round(22 * board.carScale / 0.7))
+          font.pixelSize: Math.max(11, Math.round(22 * board.s))
           font.bold: true
           font.family: "monospace"
         }
@@ -84,15 +108,16 @@ Item {
           text: board.titleText
           color: "#f4f1ea"
           wrapMode: Text.WordWrap
-          font.pixelSize: Math.max(16, Math.round(20 * board.carScale / 0.7))
+          font.pixelSize: Math.max(10, Math.round(18 * board.s))
           font.bold: true
         }
         Text {
           width: parent.width
+          visible: board.s > 0.45
           text: board.bodyText
           color: "#c8c0b0"
           wrapMode: Text.WordWrap
-          font.pixelSize: Math.max(12, Math.round(13 * board.carScale / 0.7))
+          font.pixelSize: Math.max(9, Math.round(12 * board.s))
         }
       }
     }
@@ -113,25 +138,33 @@ Item {
     mask: Region {}
     anchors { top: true; bottom: true; left: true; right: true }
 
-    readonly property real carScale: Math.max(0.48, Math.min(0.82, Math.min(width * 0.40, 720) / root.car.width))
+    readonly property real carScale: Math.max(0.48, Math.min(0.78, Math.min(width * 0.38, 680) / root.car.width))
     readonly property real carW: root.car.width * carScale
     readonly property real carH: root.car.height * carScale
-    readonly property real roadH: Math.max(88, Math.round(height * 0.15))
-    readonly property real speed: 3.2
+    readonly property real speed: 0.0017
     readonly property var catalog: Catalog.all()
     readonly property int catalogCount: catalog && catalog.length ? catalog.length : 0
+    readonly property real vpX: width * 0.09
+    readonly property real vpY: height * 0.31
+    readonly property real nearX: width * 0.57
+    readonly property real nearY: height - 28
+    readonly property real nearHalf: width * 0.52
 
     property int tick: 0
     property real scroll: 0
     property real wheelAngle: 0
-    property real boardAX: 40
-    property real boardBX: -900
+    property real boardAT: 0.2
+    property real boardBT: 0.7
     property int boardIndexA: 0
     property int boardIndexB: 1
 
-    readonly property real carX: width * 0.52
-    readonly property real carY: height - roadH - carH * 0.70 + Math.round(Math.sin(tick * 0.28) * 2)
-    readonly property real boardSpacing: Math.max(width * 0.9, 860)
+    readonly property var carGround: Model.projectTrack(0.90, vpX, vpY, nearX, nearY)
+    readonly property real carX: carGround.x - carW * 0.42
+    readonly property real carY: carGround.y - carH * 0.84 + Math.round(Math.sin(tick * 0.28) * 2)
+
+    function project(t) {
+      return Model.projectTrack(t, window.vpX, window.vpY, window.nearX, window.nearY)
+    }
 
     function resetScene() {
       window.tick = 0
@@ -140,27 +173,39 @@ Item {
       var start = root.svc && root.svc.currentId >= 0 ? root.svc.currentId : 0
       window.boardIndexA = start
       window.boardIndexB = window.catalogCount > 0 ? (start + 1) % window.catalogCount : 0
-      window.boardAX = 36
-      window.boardBX = 36 - window.boardSpacing
+      window.boardAT = 0.2
+      window.boardBT = 0.7
+    }
+
+    function wrapBoard(t, indexA, indexB) {
+      var nextT = t + window.speed
+      var idx = indexA
+      if (nextT > 1) {
+        nextT -= 1
+        idx = Model.nextBillboardIndex(indexA, indexB, window.catalogCount)
+      }
+      return { t: nextT, index: idx }
     }
 
     function step() {
       window.tick += 1
-      window.scroll += window.speed
+      window.scroll += 1.8
       window.wheelAngle = (window.wheelAngle + 17) % 360
-      window.boardAX += window.speed
-      window.boardBX += window.speed
-      if (window.boardAX > window.width + 60) {
-        window.boardAX = window.boardBX - window.boardSpacing
-        window.boardIndexA = Model.nextBillboardIndex(window.boardIndexA, window.boardIndexB, window.catalogCount)
-      }
-      if (window.boardBX > window.width + 60) {
-        window.boardBX = window.boardAX - window.boardSpacing
-        window.boardIndexB = Model.nextBillboardIndex(window.boardIndexA, window.boardIndexB, window.catalogCount)
-      }
+      var a = window.wrapBoard(window.boardAT, window.boardIndexA, window.boardIndexB)
+      window.boardAT = a.t
+      window.boardIndexA = a.index
+      var b = window.wrapBoard(window.boardBT, window.boardIndexB, window.boardIndexA)
+      window.boardBT = b.t
+      window.boardIndexB = b.index
+      roadCanvas.requestPaint()
     }
 
-    onVisibleChanged: if (window.visible) window.resetScene()
+    onVisibleChanged: {
+      if (window.visible) {
+        window.resetScene()
+        roadCanvas.requestPaint()
+      }
+    }
 
     Timer {
       interval: 16
@@ -169,90 +214,178 @@ Item {
       onTriggered: window.step()
     }
 
-    // Billboard road — world scrolls right because the car faces left.
-    SignalBoard {
-      x: Math.round(window.boardAX)
-      y: Math.round(window.height - window.roadH - height + 18)
-      z: 1
-      signalIndex: window.boardIndexA
-      carScale: window.carScale
-      catalog: window.catalog
-    }
-    SignalBoard {
-      x: Math.round(window.boardBX)
-      y: Math.round(window.height - window.roadH - height + 18)
-      z: 1
-      signalIndex: window.boardIndexB
-      carScale: window.carScale
-      catalog: window.catalog
+    Canvas {
+      id: roadCanvas
+      anchors.fill: parent
+      z: 0
+      renderStrategy: Canvas.Cooperative
+      onPaint: {
+        var ctx = getContext("2d")
+        var w = roadCanvas.width
+        var h = roadCanvas.height
+        ctx.clearRect(0, 0, w, h)
+        var vpX = window.vpX
+        var vpY = window.vpY
+        var nearX = window.nearX
+        var nearY = window.nearY
+        var segments = 22
+        var scroll = window.scroll
+        for (var i = 0; i < segments; i++) {
+          var t0 = i / segments
+          var t1 = (i + 1) / segments
+          var p0 = Model.projectTrack(t0, vpX, vpY, nearX, nearY)
+          var p1 = Model.projectTrack(t1, vpX, vpY, nearX, nearY)
+          var half0 = 14 + t0 * t0 * window.nearHalf
+          var half1 = 14 + t1 * t1 * window.nearHalf
+          var stripe = (i + Math.floor(scroll / 7)) % 2 === 0
+          ctx.beginPath()
+          ctx.moveTo(p0.x - half0, p0.y)
+          ctx.lineTo(p0.x + half0, p0.y)
+          ctx.lineTo(p1.x + half1, p1.y)
+          ctx.lineTo(p1.x - half1, p1.y)
+          ctx.closePath()
+          ctx.fillStyle = stripe ? "#1c1c20" : "#151518"
+          ctx.fill()
+
+          var curb0 = 10 + t0 * t0 * 22
+          var curb1 = 10 + t1 * t1 * 22
+          ctx.beginPath()
+          ctx.moveTo(p0.x - half0 - curb0, p0.y)
+          ctx.lineTo(p0.x - half0, p0.y)
+          ctx.lineTo(p1.x - half1, p1.y)
+          ctx.lineTo(p1.x - half1 - curb1, p1.y)
+          ctx.closePath()
+          ctx.fillStyle = stripe ? "#d92b2b" : "#f2f2f2"
+          ctx.fill()
+          ctx.beginPath()
+          ctx.moveTo(p0.x + half0, p0.y)
+          ctx.lineTo(p0.x + half0 + curb0, p0.y)
+          ctx.lineTo(p1.x + half1 + curb1, p1.y)
+          ctx.lineTo(p1.x + half1, p1.y)
+          ctx.closePath()
+          ctx.fillStyle = stripe ? "#d92b2b" : "#f2f2f2"
+          ctx.fill()
+
+          if (stripe && t1 > 0.08) {
+            var d0 = 3 + t0 * t0 * 10
+            var d1 = 3 + t1 * t1 * 10
+            ctx.beginPath()
+            ctx.moveTo(p0.x - d0, p0.y)
+            ctx.lineTo(p0.x + d0, p0.y)
+            ctx.lineTo(p1.x + d1, p1.y)
+            ctx.lineTo(p1.x - d1, p1.y)
+            ctx.closePath()
+            ctx.fillStyle = "#e6c84a"
+            ctx.fill()
+          }
+        }
+      }
     }
 
-    // Speed lines behind the car (to the right).
+    // Fog toward the vanishing point so the ASCII still reads above the horizon.
+    Rectangle {
+      z: 1
+      x: window.vpX - 90
+      y: window.vpY - 70
+      width: 180
+      height: 110
+      radius: 80
+      opacity: 0.22
+      gradient: Gradient {
+        GradientStop { position: 0.0; color: "#000000" }
+        GradientStop { position: 1.0; color: "#00000000" }
+      }
+    }
+
     Repeater {
-      model: 9
+      model: 2
+      SignalBoard {
+        required property int index
+        readonly property real t: index === 0 ? window.boardAT : window.boardBT
+        readonly property var p: window.project(t)
+        z: 2 + Math.round(t * 10)
+        x: Math.round(p.x - width * 0.52)
+        y: Math.round(p.y - height + 8)
+        signalIndex: index === 0 ? window.boardIndexA : window.boardIndexB
+        depthScale: p.scale
+        yaw: 16 + t * 10
+        fog: p.fog
+        catalog: window.catalog
+      }
+    }
+
+    Repeater {
+      model: 8
       Rectangle {
         required property int index
-        z: 2
-        width: 18 + (index * 7 + window.tick * 3) % 70
+        z: 3
+        readonly property real t: 0.55 + (index / 20)
+        readonly property var p: window.project(t)
+        width: 10 + t * 50
         height: 2
-        color: index % 2 === 0 ? "#80fff6d0" : "#55ff8a3a"
-        x: window.carX + window.carW * 0.72 + ((window.tick * 14 + index * 97) % Math.max(120, window.width - window.carX))
-        y: window.carY + window.carH * 0.28 + (index * 14) % Math.round(window.carH * 0.55)
+        color: index % 2 === 0 ? "#66fff6d0" : "#44ff8a3a"
+        x: p.x + window.carW * 0.25 + ((window.tick * 10 + index * 80) % 140)
+        y: p.y - 40 - index * 8
         visible: window.visible
+        opacity: 0.35 + 0.4 * t
       }
     }
 
     Rectangle {
-      id: road
-      z: 3
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      height: window.roadH
-      color: "#161616"
-      Rectangle {
-        anchors.top: parent.top
-        width: parent.width
-        height: 4
-        color: "#2c2c2c"
-      }
-      Repeater {
-        model: Math.ceil(window.width / 72) + 3
-        Rectangle {
-          required property int index
-          width: 36
-          height: 5
-          color: "#e6c84a"
-          y: Math.round(road.height * 0.46)
-          x: -40 + ((index * 72 + Math.floor(window.scroll)) % (window.width + 72))
-        }
+      id: shadow
+      z: 12
+      x: Math.round(window.carX + window.carW * 0.10)
+      y: Math.round(window.carY + window.carH * 0.78)
+      width: window.carW * 0.82
+      height: Math.round(window.carH * 0.18)
+      radius: height / 2
+      color: "#000000"
+      opacity: 0.42
+      transform: Scale {
+        origin.x: shadow.width / 2
+        origin.y: shadow.height / 2
+        yScale: 0.38
+        xScale: 1.08
       }
     }
 
     Item {
       id: carItem
-      z: 4
+      z: 13
       x: Math.round(window.carX)
       y: Math.round(window.carY)
       width: window.carW
       height: window.carH
+      transform: [
+        Rotation {
+          origin.x: carItem.width * 0.78
+          origin.y: carItem.height * 0.92
+          axis { x: 0; y: 1; z: 0 }
+          angle: -18
+        },
+        Rotation {
+          origin.x: carItem.width / 2
+          origin.y: carItem.height
+          axis { x: 1; y: 0; z: 0 }
+          angle: 9
+        }
+      ]
 
-      // Underglow
       Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round(parent.height * 0.08)
-        width: parent.width * 0.72
-        height: Math.round(18 * window.carScale / 0.7)
+        anchors.bottomMargin: Math.round(parent.height * 0.10)
+        width: parent.width * 0.68
+        height: Math.round(16 * window.carScale / 0.7)
         radius: height / 2
         color: "#ff3b00"
-        opacity: 0.28 + 0.18 * Math.sin(window.tick * 0.2)
+        opacity: 0.22 + 0.16 * Math.sin(window.tick * 0.2)
       }
 
       Image {
         id: rearWheel
         source: Qt.resolvedUrl("wheel.png")
-        width: (root.car.wheels[1].r * 2 + 1) * window.carScale
+        width: (root.car.wheels[1].r * 2 + 1) * window.carScale * 1.08
         height: width
         x: root.car.wheels[1].cx * window.carScale - width / 2
         y: root.car.wheels[1].cy * window.carScale - height / 2
@@ -268,13 +401,14 @@ Item {
       Image {
         id: frontWheel
         source: Qt.resolvedUrl("wheel.png")
-        width: (root.car.wheels[0].r * 2 + 1) * window.carScale
+        width: (root.car.wheels[0].r * 2 + 1) * window.carScale * 0.86
         height: width
         x: root.car.wheels[0].cx * window.carScale - width / 2
-        y: root.car.wheels[0].cy * window.carScale - height / 2
+        y: root.car.wheels[0].cy * window.carScale - height / 2 + 6
         smooth: true
         mipmap: false
         asynchronous: false
+        opacity: 0.95
         transform: Rotation {
           origin.x: frontWheel.width / 2
           origin.y: frontWheel.height / 2
@@ -287,30 +421,28 @@ Item {
         anchors.fill: parent
         source: Qt.resolvedUrl("car-body.png")
         fillMode: Image.Stretch
-        smooth: false
+        smooth: true
         mipmap: false
         asynchronous: false
         cache: true
       }
 
-      // Headlight cone (nose is on the left).
       Rectangle {
         x: root.car.headlight.x * window.carScale - width
         y: root.car.headlight.y * window.carScale - height / 2
-        width: Math.round(160 * window.carScale / 0.7)
-        height: Math.round(28 * window.carScale / 0.7)
-        radius: 8
-        rotation: 0
-        opacity: 0.35 + 0.12 * Math.sin(window.tick * 0.15)
+        width: Math.round(220 * window.carScale / 0.7)
+        height: Math.round(36 * window.carScale / 0.7)
+        radius: 12
+        rotation: -8
+        opacity: 0.32 + 0.12 * Math.sin(window.tick * 0.15)
         gradient: Gradient {
           orientation: Gradient.Horizontal
           GradientStop { position: 0.0; color: "#00ffe08a" }
-          GradientStop { position: 0.45; color: "#88ffe9a0" }
+          GradientStop { position: 0.55; color: "#77ffe9a0" }
           GradientStop { position: 1.0; color: "#ccfff6d8" }
         }
       }
 
-      // Exhaust flames — rear is on the right.
       Repeater {
         model: 8
         Rectangle {
@@ -326,7 +458,6 @@ Item {
         }
       }
 
-      // Sparks off the rear tire.
       Repeater {
         model: 6
         Rectangle {
@@ -340,7 +471,6 @@ Item {
         }
       }
 
-      // Taillight pulse.
       Rectangle {
         x: parent.width - Math.round(18 * window.carScale / 0.7)
         y: parent.height * 0.38

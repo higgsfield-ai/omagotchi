@@ -160,6 +160,22 @@ function billboardBody(text) {
   return out.join("\n")
 }
 
+// t=0 is the vanishing point (far), t=1 is the camera (near).
+function projectTrack(t, vpX, vpY, nearX, nearY) {
+  var u = Number(t)
+  if (!isFinite(u)) u = 0
+  if (u < 0) u = 0
+  if (u > 1.25) u = 1.25
+  var scale = 0.12 + u * u * 1.15
+  return {
+    x: vpX + u * (nearX - vpX),
+    y: vpY + u * (nearY - vpY),
+    scale: scale,
+    fog: Math.max(0, Math.min(1, u * 1.05)),
+    half: 10 + u * u * 420
+  }
+}
+
 function framesForMode(atlas, modeName) {
   var spec = normalizeAtlas(atlas)
   var key = String(modeName || "run")
@@ -189,6 +205,7 @@ if (typeof module !== "undefined") {
     framesForMode: framesForMode,
     defaultCar: defaultCar,
     nextBillboardIndex: nextBillboardIndex,
-    billboardBody: billboardBody
+    billboardBody: billboardBody,
+    projectTrack: projectTrack
   }
 }

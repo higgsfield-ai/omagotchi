@@ -87,3 +87,13 @@ test("defaultCar faces left with two wheels", () => {
   assert.equal(car.wheels.length, 2)
   assert.ok(car.wheels[0].r > 40)
 })
+
+test("projectTrack recedes toward the vanishing point", () => {
+  const far = Model.projectTrack(0, 100, 80, 800, 700)
+  const near = Model.projectTrack(1, 100, 80, 800, 700)
+  assert.equal(far.x, 100)
+  assert.equal(far.y, 80)
+  assert.ok(far.scale < near.scale)
+  assert.ok(near.x > far.x)
+  assert.ok(near.fog > far.fog)
+})

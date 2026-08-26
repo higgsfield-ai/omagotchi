@@ -1,6 +1,6 @@
 # 37signals
 
-A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), with DHH’s JOTA LMP2 driving a billboard road over it. Each billboard is one signal (00–37). The car is `car-body.png` + spinning `wheel.png`; exhaust and speed lines are drawn in the overlay.
+A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), with DHH’s JOTA LMP2 driving a billboard road over it. The road is a fake-3D vanishing-point track: boards recede and grow as they approach, the car is yawed toward the camera, and each billboard is one signal (00–37).
 
 On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. If the screensaver is already up, it only restarts `ttfx`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The car appears once the screensaver windows exist (`org.omarchy.screensaver`) and disappears when they do. The overlay is click-through, so a key or mouse still dismisses `ttfx`.
 
