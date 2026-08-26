@@ -9,6 +9,18 @@ test("catalog has 38 signals", () => {
   assert.equal(signals[37].slug, "37")
 })
 
+test("bodies are the full website paragraphs", () => {
+  assert.match(signals[0].body, /Have fun/)
+  assert.match(signals[16].body, /Henry Ford/)
+  assert.match(signals[21].body, /Yes” is no to a lot of things/)
+  assert.match(signals[37].body, /remain unexplained/)
+  for (const signal of signals) {
+    assert.ok(signal.title.length > 0, signal.slug)
+    assert.ok(signal.body.length > 20, signal.slug)
+    assert.equal(signal.url, `https://37signals.com/${signal.slug}`)
+  }
+})
+
 test("formatNumber pads ids", () => {
   assert.equal(Model.formatNumber(1), "01")
   assert.equal(Model.formatNumber(37), "37")

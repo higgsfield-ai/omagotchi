@@ -44,7 +44,7 @@ Item {
       root.current = {
         id: 37,
         title: "What's in a name?",
-        body: "37 signals remain unexplained."
+        body: "Mankind constantly analyzes radio waves from outer space in the search for extraterrestrial intelligence. Since this analysis started, almost all of the signal sources have been identified. 37 signals, however, remain unexplained."
       }
     }
   }
@@ -124,59 +124,75 @@ Item {
       color: Color.background
     }
 
-    MouseArea {
+    Item {
       id: keyCatcher
       anchors.fill: parent
-      enabled: root.opened
       focus: root.opened
-      onClicked: root.close()
       Keys.onPressed: function(event) {
         root.close()
         event.accepted = true
       }
 
-      Column {
-        width: Math.min(640, parent.width - 96)
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 16
+      Flickable {
+        id: scroller
+        anchors.fill: parent
+        anchors.leftMargin: Math.max(48, width * 0.12)
+        anchors.rightMargin: Math.max(48, width * 0.12)
+        anchors.topMargin: 64
+        anchors.bottomMargin: 64
+        contentWidth: width
+        contentHeight: essay.height
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
 
-        Text {
-          width: parent.width
-          text: root.numberText
-          color: Color.muted
-          font.family: Style.font.family
-          font.pixelSize: Style.font.title
+        Column {
+          id: essay
+          width: Math.min(680, scroller.width)
+          spacing: 20
+
+          Text {
+            text: "37signals"
+            color: Color.muted
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+          }
+
+          Text {
+            width: parent.width
+            text: root.numberText + "."
+            color: Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Style.font.heading
+            topPadding: 28
+          }
+
+          Text {
+            width: parent.width
+            text: root.titleText
+            color: Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Style.font.display
+            font.bold: true
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            width: parent.width
+            text: root.bodyText
+            color: Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Style.font.title
+            wrapMode: Text.WordWrap
+            lineHeight: 1.45
+            topPadding: 8
+          }
         }
 
-        Text {
-          width: parent.width
-          text: root.titleText
-          color: Color.foreground
-          font.family: Style.font.family
-          font.pixelSize: Style.font.displayLarge
-          font.bold: true
-          wrapMode: Text.WordWrap
-        }
-
-        Text {
-          width: parent.width
-          text: root.bodyText
-          color: Color.foreground
-          opacity: 0.88
-          font.family: Style.font.family
-          font.pixelSize: Style.font.heading
-          wrapMode: Text.WordWrap
-          lineHeight: 1.35
-        }
-
-        Text {
-          width: parent.width
-          text: "37signals"
-          color: Color.muted
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-          topPadding: 24
+        MouseArea {
+          width: essay.width
+          height: Math.max(essay.height, scroller.height)
+          onClicked: root.close()
         }
       }
     }
