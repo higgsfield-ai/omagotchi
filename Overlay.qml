@@ -25,11 +25,11 @@ Item {
   readonly property string bodyText: root.current && root.current.body ? String(root.current.body) : ""
 
   function loadSignals() {
-    var xhr = new XMLHttpRequest()
-    xhr.open("GET", Qt.resolvedUrl("signals.json"), false)
-    xhr.send()
-    if (xhr.status !== 200 && xhr.status !== 0) return
     try {
+      var xhr = new XMLHttpRequest()
+      xhr.open("GET", Qt.resolvedUrl("signals.json"), false)
+      xhr.send()
+      if (xhr.status !== 200 && xhr.status !== 0) return
       root.signals = Model.loadSignals(JSON.parse(xhr.responseText))
     } catch (e) {
       root.signals = []
@@ -50,14 +50,18 @@ Item {
   }
 
   function open(payloadJson) {
-    if (!root.signals.length) root.loadSignals()
-    var payload = null
-    if (payloadJson) {
-      try { payload = JSON.parse(payloadJson) } catch (e) { payload = null }
+    try {
+      if (!root.signals.length) root.loadSignals()
+      var payload = null
+      if (payloadJson) {
+        try { payload = JSON.parse(payloadJson) } catch (e) { payload = null }
+      }
+      if (payload && payload.title && payload.body) root.current = payload
+      else root.pickNew()
+      root.opened = true
+    } catch (e) {
+      console.warn("higgsfield.signals open() threw:", e)
     }
-    if (payload && payload.title && payload.body) root.current = payload
-    else root.pickNew()
-    root.opened = true
   }
 
   function close() {
@@ -69,12 +73,19 @@ Item {
   IpcHandler {
     target: "higgsfield.signals"
 
-    function show(): string {
+    // No-arg show/hide collide with Qt Window.show/hide and return empty.
+    // OSD takes a string payload for the same reason.
+    function show(payloadJson: string): string {
+      root.open(payloadJson)
+      return "ok"
+    }
+
+    function reveal(): string {
       root.open("{}")
       return "ok"
     }
 
-    function hide(): string {
+    function close(): string {
       root.close()
       return "ok"
     }

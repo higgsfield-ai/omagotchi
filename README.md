@@ -27,14 +27,17 @@ Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `i
 After the screensaver timeout, a random signal fills the screen. Click or any key dismisses it. While it is up, it rotates to another signal every 45 seconds.
 
 ```sh
-omarchy-shell higgsfield.signals show
+omarchy-shell higgsfield.signals reveal
+omarchy-shell higgsfield.signals show '{}'
 omarchy-shell higgsfield.signals next
-omarchy-shell higgsfield.signals hide
+omarchy-shell higgsfield.signals close
 omarchy-shell shell summon higgsfield.signals '{}'
 omarchy-shell shell hide higgsfield.signals
 ```
 
-`Super + Esc` still launches the stock terminal screensaver. Use the IPC `show` command above for this overlay on demand.
+Bare `show` with no argument is swallowed by Qt `Window.show()`. Pass `'{}'` or use `reveal`.
+
+`Super + Esc` still launches the stock terminal screensaver.
 
 ## Develop
 
