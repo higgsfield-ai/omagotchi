@@ -10,6 +10,7 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property bool dismissArmed: false
   property var signals: []
   property var current: null
 
@@ -33,9 +34,17 @@ Item {
     var exceptId = root.current ? root.current.id : undefined
     var next = Model.pickRandom(root.signals, exceptId)
     if (next) root.current = next
+    if (!root.current) {
+      root.current = {
+        id: 37,
+        title: "What's in a name?",
+        body: "37 signals remain unexplained."
+      }
+    }
   }
 
-  function showFromPayload(payloadJson) {
+  function open(payloadJson) {
+    if (!root.signals.length) root.loadSignals()
     var payload = null
     if (payloadJson) {
       try { payload = JSON.parse(payloadJson) } catch (e) { payload = null }
@@ -43,33 +52,34 @@ Item {
     if (payload && payload.title && payload.body) root.current = payload
     else root.pickNew()
     root.opened = true
-  }
-
-  function open(payloadJson) {
-    if (!root.signals.length) root.loadSignals()
-    root.showFromPayload(payloadJson)
+    root.dismissArmed = false
+    armTimer.restart()
   }
 
   function close() {
     root.opened = false
+    root.dismissArmed = false
+    armTimer.stop()
   }
 
   Component.onCompleted: root.loadSignals()
 
+  Timer {
+    id: armTimer
+    interval: 400
+    repeat: false
+    onTriggered: root.dismissArmed = true
+  }
+
   PanelWindow {
     id: window
     visible: root.opened
-    color: "transparent"
+    color: Color.background
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "higgsfield-signals"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-
-    Rectangle {
-      anchors.fill: parent
-      color: Color.background
-    }
 
     MouseArea {
       id: keyCatcher
@@ -78,6 +88,7 @@ Item {
       hoverEnabled: true
       focus: root.opened
       onClicked: root.close()
+      onPositionChanged: if (root.dismissArmed) root.close()
       Keys.onPressed: function(event) {
         root.close()
         event.accepted = true

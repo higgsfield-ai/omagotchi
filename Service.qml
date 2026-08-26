@@ -15,26 +15,45 @@ Item {
     ? shell.shellConfig.idle
     : ({})
   readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
-  readonly property string stayAwakePath: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake"
+
+  function overlayItem() {
+    if (!root.shell || !root.shell.panelLoaders) return null
+    var loader = root.shell.panelLoaders["higgsfield.signals"]
+    return loader && loader.item ? loader.item : null
+  }
 
   function show() {
-    if (root.stayAwake) return
+    var item = overlayItem()
+    if (item && typeof item.open === "function") {
+      item.open("{}")
+      return "ok"
+    }
     if (root.shell && typeof root.shell.summon === "function")
-      root.shell.summon("higgsfield.signals", "{}")
+      return root.shell.summon("higgsfield.signals", "{}") ? "ok" : "unknown"
+    return "no-overlay"
   }
 
   function hide() {
-    if (root.shell && typeof root.shell.hide === "function")
+    var item = overlayItem()
+    if (item && typeof item.close === "function") {
+      item.close()
+      return "ok"
+    }
+    if (root.shell && typeof root.shell.hide === "function") {
       root.shell.hide("higgsfield.signals")
+      return "ok"
+    }
+    return "no-overlay"
   }
 
   function next() {
-    if (root.stayAwake) return
-    if (root.shell && typeof root.shell.summon === "function")
-      root.shell.summon("higgsfield.signals", "{}")
+    var item = overlayItem()
+    if (item && typeof item.open === "function") {
+      item.open("{}")
+      return "ok"
+    }
+    return root.show()
   }
-
-  onStayAwakeChanged: if (root.stayAwake) root.hide()
 
   IdleMonitor {
     id: idleMonitor
@@ -42,25 +61,43 @@ Item {
     timeout: root.screensaverTimeoutSeconds
     respectInhibitors: true
     onIsIdleChanged: {
+      // Mapping the overlay can look like activity. Only auto-show on idle;
+      // the overlay dismisses itself on key, click, or pointer motion.
       if (idleMonitor.isIdle) root.show()
-      else root.hide()
+    }
+  }
+
+  Process {
+    id: stayAwakeProbe
+    command: ["bash", "-c", "if [[ -f $HOME/.local/state/omarchy/indicators/stay-awake ]]; then echo yes; else echo no; fi"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var enabled = String(line).trim() === "yes"
+        if (root.stayAwake === enabled) return
+        root.stayAwake = enabled
+        if (enabled) root.hide()
+      }
     }
   }
 
   FileView {
-    path: root.stayAwakePath
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/indicators"
     watchChanges: true
     printErrors: false
-    onLoaded: root.stayAwake = true
-    onLoadFailed: root.stayAwake = false
+    onFileChanged: {
+      stayAwakeProbe.running = false
+      stayAwakeProbe.running = true
+    }
   }
+
+  Component.onCompleted: stayAwakeProbe.running = true
 
   IpcHandler {
     target: "higgsfield.signals"
 
-    function show(): string { root.show(); return "ok" }
-    function hide(): string { root.hide(); return "ok" }
-    function next(): string { root.next(); return "ok" }
+    function show(): string { return root.show() }
+    function hide(): string { return root.hide() }
+    function next(): string { return root.next() }
     function ping(): string { return "ok" }
   }
 }
