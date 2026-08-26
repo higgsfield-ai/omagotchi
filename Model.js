@@ -126,6 +126,40 @@ function normalizeAtlas(raw) {
   }
 }
 
+function defaultCar() {
+  return {
+    width: 919,
+    height: 276,
+    facing: "left",
+    scale: 0.7,
+    wheels: [
+      { cx: 195.7, cy: 199.0, r: 89 },
+      { cx: 760.6, cy: 198.3, r: 89 }
+    ],
+    exhaust: { x: 809.6, y: 182.3 },
+    headlight: { x: 18, y: 191.0 }
+  }
+}
+
+function nextBillboardIndex(indexA, indexB, count) {
+  var n = Math.floor(Number(count))
+  if (!isFinite(n) || n <= 0) return 0
+  var a = Number(indexA)
+  var b = Number(indexB)
+  if (!isFinite(a)) a = -1
+  if (!isFinite(b)) b = -1
+  return (Math.max(a, b) + 1) % n
+}
+
+function billboardBody(text) {
+  var wrapped = wrapLine(text, 32)
+  var lines = wrapped.split("\n")
+  if (lines.length <= 6) return wrapped
+  var out = []
+  for (var i = 0; i < 6; i++) out.push(lines[i])
+  return out.join("\n")
+}
+
 function framesForMode(atlas, modeName) {
   var spec = normalizeAtlas(atlas)
   var key = String(modeName || "run")
@@ -152,6 +186,9 @@ if (typeof module !== "undefined") {
     screensaverSeconds: screensaverSeconds,
     defaultAtlas: defaultAtlas,
     normalizeAtlas: normalizeAtlas,
-    framesForMode: framesForMode
+    framesForMode: framesForMode,
+    defaultCar: defaultCar,
+    nextBillboardIndex: nextBillboardIndex,
+    billboardBody: billboardBody
   }
 }

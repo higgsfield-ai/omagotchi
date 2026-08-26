@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "A random 37signals principle on Omarchy's ASCII screensaver, with DHH running over it.",
+  "description": "A 37signals billboard road on Omarchy's ASCII screensaver, with DHH's JOTA driving past.",
   "keepLoaded": true,
   "kinds": ["overlay", "service"],
   "entryPoints": {

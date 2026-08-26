@@ -68,14 +68,22 @@ test("screensaverSeconds reads Omarchy idle config", () => {
   assert.equal(Model.screensaverSeconds({}, 150), 150)
 })
 
-test("default atlas slices DHH's run cycle from the top-right of row 0", () => {
-  const atlas = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "atlas.json"), "utf8"))
-  const frames = Model.framesForMode(atlas, "run")
-  assert.equal(frames.frameX, 512)
-  assert.equal(frames.frameY, 0)
-  assert.equal(frames.frameCount, 8)
-  assert.equal(frames.frameWidth, 64)
-  assert.equal(frames.frameHeight, 72)
-  assert.equal(frames.displayWidth, 256)
-  assert.equal(Model.framesForMode(null, "walk").frameX, 0)
+test("nextBillboardIndex walks the catalog without repeating the pair", () => {
+  assert.equal(Model.nextBillboardIndex(0, 1, 38), 2)
+  assert.equal(Model.nextBillboardIndex(36, 37, 38), 0)
+  assert.equal(Model.nextBillboardIndex(-1, 4, 38), 5)
+})
+
+test("billboardBody wraps and caps the essay", () => {
+  const text = Model.billboardBody("We have no investors, no board of directors, no eyes on an exit. We feel a moral obligation to exercise our independence.")
+  const lines = text.split("\n")
+  assert.ok(lines.length <= 6)
+  assert.ok(lines.every((line) => line.length <= 32))
+})
+
+test("defaultCar faces left with two wheels", () => {
+  const car = Model.defaultCar()
+  assert.equal(car.facing, "left")
+  assert.equal(car.wheels.length, 2)
+  assert.ok(car.wheels[0].r > 40)
 })
