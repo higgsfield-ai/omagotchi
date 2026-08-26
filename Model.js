@@ -1,7 +1,16 @@
 // 37signals catalog helpers. Qt-free so it can be tested under node.
 
 function loadSignals(raw) {
-  return Array.isArray(raw) ? raw : []
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  // QML JSON.parse can yield an array-like object that fails Array.isArray.
+  var n = Number(raw.length)
+  if (!isFinite(n) || n <= 0) return []
+  var out = []
+  for (var i = 0; i < n; i++) {
+    if (raw[i] !== undefined) out.push(raw[i])
+  }
+  return out
 }
 
 function formatNumber(id) {
@@ -13,8 +22,10 @@ function formatNumber(id) {
 function pickRandom(signals, exceptId) {
   var list = loadSignals(signals)
   var filtered = []
+  var except = exceptId === undefined || exceptId === null ? undefined : Number(exceptId)
   for (var i = 0; i < list.length; i++) {
-    if (exceptId === undefined || list[i].id !== exceptId) filtered.push(list[i])
+    if (except !== undefined && Number(list[i].id) === except) continue
+    filtered.push(list[i])
   }
   if (filtered.length === 0) filtered = list
   if (filtered.length === 0) return null

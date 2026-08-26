@@ -37,26 +37,29 @@ Item {
   }
 
   function pickNew() {
-    var exceptId = root.current ? root.current.id : undefined
-    var next = Model.pickRandom(root.signals, exceptId)
-    if (next) root.current = next
-    if (!root.current) {
-      root.current = {
-        id: 37,
-        title: "What's in a name?",
-        body: "Mankind constantly analyzes radio waves from outer space in the search for extraterrestrial intelligence. Since this analysis started, almost all of the signal sources have been identified. 37 signals, however, remain unexplained."
-      }
+    var list = Model.loadSignals(root.signals)
+    if (list.length === 0) {
+      root.loadSignals()
+      list = Model.loadSignals(root.signals)
     }
+    var exceptId = root.current ? root.current.id : undefined
+    var next = Model.pickRandom(list, exceptId)
+    if (!next && list.length) next = list[Math.floor(Math.random() * list.length)]
+    if (next) root.current = next
   }
 
   function open(payloadJson) {
     try {
-      if (!root.signals.length) root.loadSignals()
-      var payload = null
-      if (payloadJson) {
-        try { payload = JSON.parse(payloadJson) } catch (e) { payload = null }
+      if (!root.signals || !root.signals.length) root.loadSignals()
+      // Empty "{}" must not count as a chosen essay — every reveal/next rolls again.
+      var requested = null
+      if (payloadJson && payloadJson !== "{}") {
+        try { requested = JSON.parse(payloadJson) } catch (e) { requested = null }
       }
-      if (payload && payload.title && payload.body) root.current = payload
+      var chosen = requested && requested.title && requested.body
+        && String(requested.title).length > 0
+        && String(requested.body).length > 0
+      if (chosen) root.current = requested
       else root.pickNew()
       root.opened = true
     } catch (e) {

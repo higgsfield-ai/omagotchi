@@ -35,6 +35,13 @@ test("pickRandom never returns the excluded id when others exist", () => {
   }
 })
 
+test("loadSignals accepts array-like objects from QML", () => {
+  const like = { 0: signals[4], 1: signals[5], length: 2 }
+  assert.equal(Model.loadSignals(like).length, 2)
+  const picked = Model.pickRandom(like, 4)
+  assert.equal(picked.id, 5)
+})
+
 test("screensaverSeconds reads Omarchy idle config", () => {
   assert.equal(Model.screensaverSeconds({ screensaver: 150 }, 150), 150)
   assert.equal(Model.screensaverSeconds({ screensaver: "90" }, 150), 90)
