@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.pet",
   "name": "Higgsfield Pet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "A Tamagotchi overlay on Omarchy. Bar chip for settings; keepLoaded panel for the desktop sprite.",

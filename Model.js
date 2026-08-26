@@ -33,6 +33,52 @@ var ONESHOT_MODES = {
 
 var HURRY_KEYS_PER_SEC = 4
 
+var PLACEMENTS = ["pointer", "focus", "pin"]
+
+function normalizePlacement(value) {
+  var name = String(value === undefined || value === null ? "" : value)
+  if (name === "true" || name === "pointer") return "pointer"
+  if (name === "false" || name === "pin") return "pin"
+  if (name === "focus") return "focus"
+  return "focus"
+}
+
+function isClickThrough(placement) {
+  var name = normalizePlacement(placement)
+  return name === "pointer" || name === "focus"
+}
+
+function parseActiveWindow(jsonText) {
+  var raw = String(jsonText === undefined || jsonText === null ? "" : jsonText).trim()
+  if (!raw || raw.charAt(0) !== "{") return null
+  var win
+  try {
+    win = JSON.parse(raw)
+  } catch (e) {
+    return null
+  }
+  if (!win || !win.at || !win.size) return null
+  var x = Number(win.at[0])
+  var y = Number(win.at[1])
+  var width = Number(win.size[0])
+  var height = Number(win.size[1])
+  if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) return null
+  if (width <= 0 || height <= 0) return null
+  return { x: x, y: y, w: width, h: height }
+}
+
+function focusAnchor(box, petSize, inset) {
+  var size = Number(petSize)
+  var pad = Number(inset)
+  if (!isFinite(size) || size <= 0) size = 96
+  if (!isFinite(pad) || pad < 0) pad = 12
+  if (!box) return { x: 0, y: 0 }
+  return {
+    x: box.x + box.w - size - pad,
+    y: box.y + box.h - size - pad
+  }
+}
+
 function normalizeAtlas(raw) {
   var src = raw && typeof raw === "object" ? raw : {}
   var modes = {}
@@ -87,6 +133,11 @@ if (typeof module !== "undefined") {
     DEFAULT_ATLAS: DEFAULT_ATLAS,
     MODE_ORDER: MODE_ORDER,
     HURRY_KEYS_PER_SEC: HURRY_KEYS_PER_SEC,
+    PLACEMENTS: PLACEMENTS,
+    normalizePlacement: normalizePlacement,
+    isClickThrough: isClickThrough,
+    parseActiveWindow: parseActiveWindow,
+    focusAnchor: focusAnchor,
     normalizeAtlas: normalizeAtlas,
     isKnownMode: isKnownMode,
     isOneShot: isOneShot,

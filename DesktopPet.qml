@@ -17,15 +17,20 @@ Item {
     : null
   readonly property var atlas: petService ? petService.atlas : Model.normalizeAtlas(null)
   readonly property string mode: petService ? petService.mode : "idle"
-  readonly property bool followPointer: petService ? petService.followPointer : true
+  readonly property string placement: petService ? petService.placement : "focus"
+  readonly property bool followPointer: root.placement === "pointer"
+  readonly property bool followFocus: root.placement === "focus"
   readonly property bool desktopVisible: petService ? petService.desktopVisible : true
   readonly property real pinX: petService ? petService.pinX : -1
   readonly property real pinY: petService ? petService.pinY : -1
+  readonly property bool clickThrough: Model.isClickThrough(root.placement)
 
   property int displaySize: 96
   property int cursorOffset: 20
   property real cursorX: 0
   property real cursorY: 0
+  property real focusX: 0
+  property real focusY: 0
 
   property bool opened: root.desktopVisible
 
@@ -42,8 +47,18 @@ Item {
   readonly property real restY: root.pinY >= 0
     ? root.pinY
     : Math.max(0, window.height - root.displaySize - 24)
-  readonly property real followX: root.cursorX + root.cursorOffset
-  readonly property real followY: root.cursorY + root.cursorOffset
+
+  readonly property real targetX: {
+    if (root.followPointer) return root.cursorX + root.cursorOffset
+    if (root.followFocus) return root.focusX
+    return root.restX
+  }
+
+  readonly property real targetY: {
+    if (root.followPointer) return root.cursorY + root.cursorOffset
+    if (root.followFocus) return root.focusY
+    return root.restY
+  }
 
   function clampX(x) {
     return Math.max(0, Math.min(x, Math.max(0, window.width - root.displaySize)))
@@ -51,6 +66,14 @@ Item {
 
   function clampY(y) {
     return Math.max(0, Math.min(y, Math.max(0, window.height - root.displaySize)))
+  }
+
+  function applyFocusJson(text) {
+    var box = Model.parseActiveWindow(text)
+    if (!box) return
+    var pos = Model.focusAnchor(box, root.displaySize, 12)
+    root.focusX = pos.x
+    root.focusY = pos.y
   }
 
   PanelWindow {
@@ -62,7 +85,7 @@ Item {
     WlrLayershell.namespace: "higgsfield-pet"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    mask: root.followPointer ? emptyMask : petMask
+    mask: root.clickThrough ? emptyMask : petMask
 
     Region { id: emptyMask }
 
@@ -80,12 +103,12 @@ Item {
       border.color: "#ff4db8"
 
       Binding on x {
-        value: root.clampX(root.followPointer ? root.followX : root.restX)
+        value: root.clampX(root.targetX)
         when: !dragArea.pressed
       }
 
       Binding on y {
-        value: root.clampY(root.followPointer ? root.followY : root.restY)
+        value: root.clampY(root.targetY)
         when: !dragArea.pressed
       }
 
@@ -100,13 +123,13 @@ Item {
       MouseArea {
         id: dragArea
         anchors.fill: parent
-        enabled: !root.followPointer
+        enabled: !root.clickThrough
         acceptedButtons: Qt.LeftButton
         cursorShape: Qt.OpenHandCursor
         drag.target: petFrame
         onReleased: {
           if (!root.petService) return
-          root.petService.followPointer = false
+          root.petService.placement = "pin"
           root.petService.pinX = petFrame.x
           root.petService.pinY = petFrame.y
         }
@@ -124,6 +147,16 @@ Item {
     }
   }
 
+  Timer {
+    interval: 80
+    running: root.desktopVisible && root.followFocus
+    repeat: true
+    onTriggered: {
+      focusProc.running = false
+      focusProc.running = true
+    }
+  }
+
   Process {
     id: cursorProc
     command: ["hyprctl", "cursorpos"]
@@ -138,6 +171,14 @@ Item {
         root.cursorX = x
         root.cursorY = y
       }
+    }
+  }
+
+  Process {
+    id: focusProc
+    command: ["hyprctl", "-j", "activewindow"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyFocusJson(this.text)
     }
   }
 }

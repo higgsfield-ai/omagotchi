@@ -14,7 +14,9 @@ BarWidget {
 
   readonly property var atlas: petService ? petService.atlas : Model.normalizeAtlas(null)
   readonly property string mode: petService ? petService.mode : "idle"
-  readonly property bool followPointer: petService ? petService.followPointer : true
+  readonly property string placement: petService ? petService.placement : "focus"
+  readonly property bool followPointer: petService ? petService.followPointer : false
+  readonly property bool followFocus: petService ? petService.followFocus : true
   readonly property bool desktopVisible: petService ? petService.desktopVisible : true
 
   readonly property bool opened: panelLoader.item
@@ -55,6 +57,10 @@ BarWidget {
 
   function setFollow(enabled) {
     if (root.petService) root.petService.setFollow(enabled)
+  }
+
+  function setPlacement(value) {
+    if (root.petService) root.petService.setPlacement(value)
   }
 
   function setDesktopVisible(enabled) {

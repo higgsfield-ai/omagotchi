@@ -17,13 +17,15 @@ omarchy bar move higgsfield.pet --section right
 
 - Left-click the pet to open the debug panel.
 - The **bar chip** is the settings dropdown. The **overlay pet** is a separate layer-shell window (like the OSD), not a Hyprland tiled window.
-- **Follow pointer** (default): the overlay sits next to the mouse. The window is click-through so typing still goes to the terminal. This is the pointer, not the text caret — Wayland does not expose the I-beam.
+- **Follow focused window** (default): the overlay sits on the bottom-right of the active Hyprland window — the terminal you are typing in. Click-through so typing still works. This is not the text caret.
+- **Follow pointer**: sits next to the mouse.
 - **Pin on desktop**: stops following. Drag the overlay pet. Click the bar chip for settings.
 - Wave and angry play once, then return to sensor mode (idle until sensors exist).
 
 ```sh
 omarchy-shell higgsfield.pet setMode dance
-omarchy-shell higgsfield.pet setFollow true
+omarchy-shell higgsfield.pet setPlacement focus
+omarchy-shell higgsfield.pet setPlacement pointer
 omarchy-shell higgsfield.pet pinHere
 omarchy-shell higgsfield.pet setDesktopVisible false
 omarchy-shell higgsfield.pet clearOverride

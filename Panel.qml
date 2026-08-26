@@ -131,11 +131,21 @@ Panel {
 
         WidgetButton {
           bar: root.bar
+          text: root.hostWidget && root.hostWidget.followFocus ? "Following focused window" : "Follow focused window"
+          tooltipText: "Sit on the bottom-right of the active Hyprland window (the terminal you are typing in). Not the text caret."
+          onPressed: function(buttonCode) {
+            if (buttonCode === Qt.LeftButton && root.hostWidget)
+              root.hostWidget.setPlacement("focus")
+          }
+        }
+
+        WidgetButton {
+          bar: root.bar
           text: root.hostWidget && root.hostWidget.followPointer ? "Following pointer" : "Follow pointer"
           tooltipText: "Sit next to the mouse. Click-through so typing still works."
           onPressed: function(buttonCode) {
             if (buttonCode === Qt.LeftButton && root.hostWidget)
-              root.hostWidget.setFollow(true)
+              root.hostWidget.setPlacement("pointer")
           }
         }
 
@@ -161,7 +171,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "IPC: omarchy-shell higgsfield.pet setFollow true"
+          text: "IPC: omarchy-shell higgsfield.pet setPlacement focus"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle

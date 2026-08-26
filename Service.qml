@@ -13,7 +13,7 @@ Item {
   property bool locked: false
   property bool mediaPlaying: false
   property real keysPerSec: 0
-  property bool followPointer: true
+  property string placement: "focus"
   property bool desktopVisible: true
   property real pinX: -1
   property real pinY: -1
@@ -26,6 +26,8 @@ Item {
     mediaPlaying: root.mediaPlaying,
     keysPerSec: root.keysPerSec
   })
+  readonly property bool followPointer: root.placement === "pointer"
+  readonly property bool followFocus: root.placement === "focus"
 
   function setMode(mode) {
     var name = String(mode || "")
@@ -38,7 +40,11 @@ Item {
   }
 
   function setFollow(enabled) {
-    root.followPointer = enabled === true || enabled === "true"
+    root.setPlacement(enabled)
+  }
+
+  function setPlacement(value) {
+    root.placement = Model.normalizePlacement(value)
   }
 
   function setDesktopVisible(enabled) {
@@ -46,7 +52,7 @@ Item {
   }
 
   function pinHere() {
-    root.followPointer = false
+    root.placement = "pin"
     root.pinX = -1
     root.pinY = -1
   }
@@ -71,6 +77,7 @@ Item {
     function setMode(mode: string): void { root.setMode(mode) }
     function clearOverride(): void { root.clearOverride() }
     function setFollow(enabled: string): void { root.setFollow(enabled) }
+    function setPlacement(value: string): void { root.setPlacement(value) }
     function setDesktopVisible(enabled: string): void { root.setDesktopVisible(enabled) }
     function pinHere(): void { root.pinHere() }
   }

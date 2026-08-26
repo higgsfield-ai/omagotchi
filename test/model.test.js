@@ -28,3 +28,22 @@ test("one-shots vs loops", () => {
   assert.equal(Model.isLoop("dance"), true)
   assert.equal(Model.isLoop("wave"), false)
 })
+
+test("normalizePlacement defaults to focus", () => {
+  assert.equal(Model.normalizePlacement("focus"), "focus")
+  assert.equal(Model.normalizePlacement("pointer"), "pointer")
+  assert.equal(Model.normalizePlacement("pin"), "pin")
+  assert.equal(Model.normalizePlacement("true"), "pointer")
+  assert.equal(Model.normalizePlacement(""), "focus")
+  assert.equal(Model.isClickThrough("focus"), true)
+  assert.equal(Model.isClickThrough("pin"), false)
+})
+
+test("focusAnchor sits inside the bottom-right of the active window", () => {
+  const box = Model.parseActiveWindow(
+    JSON.stringify({ at: [100, 40], size: [800, 600] })
+  )
+  assert.deepEqual(box, { x: 100, y: 40, w: 800, h: 600 })
+  assert.deepEqual(Model.focusAnchor(box, 96, 12), { x: 792, y: 532 })
+  assert.equal(Model.parseActiveWindow("Invalid"), null)
+})
