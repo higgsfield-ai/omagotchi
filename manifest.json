@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "A random 37signals principle on the Omarchy screensaver overlay.",

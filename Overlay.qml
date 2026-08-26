@@ -4,76 +4,43 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "Model.js" as Model
+import "Catalog.js" as Catalog
 
 // keepLoaded panel. Same shape as omarchy.osd: IpcHandler + PanelWindow
-// on one Item. A separate service looking up panelLoaders returned empty IPC.
+// on one Item. Catalog.js holds the essays as a real JS array.
 Item {
   id: root
 
   property var shell: null
   property var manifest: null
   property bool opened: false
-  property var signals: []
-  property var current: null
+  property int currentId: -1
+  property string currentTitle: ""
+  property string currentBody: ""
 
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle
     : ({})
   readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
-  readonly property string numberText: root.current ? Model.formatNumber(root.current.id) : ""
-  readonly property string titleText: root.current && root.current.title ? String(root.current.title) : ""
-  readonly property string bodyText: root.current && root.current.body ? String(root.current.body) : ""
+  readonly property string numberText: root.currentId >= 0 ? Model.formatNumber(root.currentId) : ""
+  readonly property string titleText: root.currentTitle
+  readonly property string bodyText: root.currentBody
 
-  function copyList(raw) {
-    var out = []
-    if (!raw) return out
-    var n = Number(raw.length)
-    if (!isFinite(n) || n <= 0) return out
-    for (var i = 0; i < n; i++) {
-      var item = raw[i]
-      if (item && item.title && item.body) out.push(item)
-    }
-    return out
-  }
-
-  function loadSignals() {
-    try {
-      var xhr = new XMLHttpRequest()
-      xhr.open("GET", Qt.resolvedUrl("signals.json"), false)
-      xhr.send()
-      root.signals = root.copyList(JSON.parse(xhr.responseText))
-    } catch (e) {
-      root.signals = []
-    }
+  function applySignal(signal) {
+    if (!signal) return false
+    root.currentId = Number(signal.id)
+    root.currentTitle = String(signal.title || "")
+    root.currentBody = String(signal.body || "")
+    return root.currentTitle.length > 0
   }
 
   function pickNew() {
-    if (!root.signals || root.signals.length === 0) root.loadSignals()
-    var count = root.signals ? root.signals.length : 0
-    if (count === 0) return
-    var exceptId = root.current ? Number(root.current.id) : NaN
-    var next = null
-    for (var t = 0; t < 16; t++) {
-      next = root.signals[Math.floor(Math.random() * count)]
-      if (!next) continue
-      if (!isFinite(exceptId) || Number(next.id) !== exceptId || count === 1) break
-    }
-    if (next) root.current = next
+    root.applySignal(Catalog.pick(root.currentId))
   }
 
   function open(payloadJson) {
     try {
-      if (!root.signals || !root.signals.length) root.loadSignals()
-      // Empty "{}" must not count as a chosen essay — every reveal/next rolls again.
-      var requested = null
-      if (payloadJson && payloadJson !== "{}") {
-        try { requested = JSON.parse(payloadJson) } catch (e) { requested = null }
-      }
-      var chosen = requested && requested.title && requested.body
-        && String(requested.title).length > 0
-        && String(requested.body).length > 0
-      if (chosen) root.current = requested
-      else root.pickNew()
+      root.pickNew()
       root.opened = true
     } catch (e) {
       console.warn("higgsfield.signals open() threw:", e)
@@ -83,8 +50,6 @@ Item {
   function close() {
     root.opened = false
   }
-
-  Component.onCompleted: root.loadSignals()
 
   IpcHandler {
     target: "higgsfield.signals"

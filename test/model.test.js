@@ -1,10 +1,20 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const Model = require("../Model.js")
+const Catalog = require("../Catalog.js")
 const signals = require("../signals.json")
+
+test("Catalog.pick returns a full essay", () => {
+  const first = Catalog.pick(-1)
+  assert.ok(first.title.length > 0)
+  assert.ok(first.body.length > 20)
+  const second = Catalog.pick(first.id)
+  assert.notEqual(second.id, first.id)
+})
 
 test("catalog has 38 signals", () => {
   assert.equal(signals.length, 38)
+  assert.equal(Catalog.all().length, 38)
   assert.equal(signals[0].slug, "00")
   assert.equal(signals[37].slug, "37")
 })
