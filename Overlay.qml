@@ -1,19 +1,25 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "Model.js" as Model
 
+// keepLoaded panel. Same shape as omarchy.osd: IpcHandler + PanelWindow
+// on one Item. A separate service looking up panelLoaders returned empty IPC.
 Item {
   id: root
 
   property var shell: null
   property var manifest: null
   property bool opened: false
-  property bool dismissArmed: false
   property var signals: []
   property var current: null
 
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
+    ? shell.shellConfig.idle
+    : ({})
+  readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
   readonly property string numberText: root.current ? Model.formatNumber(root.current.id) : ""
   readonly property string titleText: root.current && root.current.title ? String(root.current.title) : ""
   readonly property string bodyText: root.current && root.current.body ? String(root.current.body) : ""
@@ -52,54 +58,77 @@ Item {
     if (payload && payload.title && payload.body) root.current = payload
     else root.pickNew()
     root.opened = true
-    root.dismissArmed = false
-    armTimer.restart()
   }
 
   function close() {
     root.opened = false
-    root.dismissArmed = false
-    armTimer.stop()
   }
 
   Component.onCompleted: root.loadSignals()
 
-  Timer {
-    id: armTimer
-    interval: 400
-    repeat: false
-    onTriggered: root.dismissArmed = true
+  IpcHandler {
+    target: "higgsfield.signals"
+
+    function show(): string {
+      root.open("{}")
+      return "ok"
+    }
+
+    function hide(): string {
+      root.close()
+      return "ok"
+    }
+
+    function next(): string {
+      root.open("{}")
+      return "ok"
+    }
+
+    function ping(): string {
+      return "ok"
+    }
+  }
+
+  IdleMonitor {
+    id: idleMonitor
+    timeout: root.screensaverTimeoutSeconds
+    respectInhibitors: true
+    onIsIdleChanged: {
+      if (idleMonitor.isIdle) root.open("{}")
+    }
   }
 
   PanelWindow {
     id: window
     visible: root.opened
-    color: Color.background
+    color: "transparent"
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "higgsfield-signals"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+    Rectangle {
+      anchors.fill: parent
+      color: Color.background
+    }
+
     MouseArea {
       id: keyCatcher
       anchors.fill: parent
       enabled: root.opened
-      hoverEnabled: true
       focus: root.opened
       onClicked: root.close()
-      onPositionChanged: if (root.dismissArmed) root.close()
       Keys.onPressed: function(event) {
         root.close()
         event.accepted = true
       }
 
       Column {
-        id: essay
-        width: Math.min(Style.space(640), parent.width - Style.space(96))
+        width: Math.min(640, parent.width - 96)
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: Style.space(16)
+        spacing: 16
 
         Text {
           width: parent.width
@@ -107,7 +136,6 @@ Item {
           color: Color.muted
           font.family: Style.font.family
           font.pixelSize: Style.font.title
-          font.letterSpacing: 2
         }
 
         Text {
@@ -137,7 +165,7 @@ Item {
           color: Color.muted
           font.family: Style.font.family
           font.pixelSize: Style.font.body
-          topPadding: Style.space(24)
+          topPadding: 24
         }
       }
     }

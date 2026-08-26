@@ -20,11 +20,11 @@ Turn off the stock ASCII screensaver so it does not stack on top of the overlay:
 omarchy toggle screensaver
 ```
 
-Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`). Stay awake (`Super + Ctrl + I`) also suppresses this overlay.
+Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`).
 
 ## Usage
 
-After the screensaver timeout, a random signal fills the screen. Mouse or any key dismisses it. While it is up, it rotates to another signal every 45 seconds.
+After the screensaver timeout, a random signal fills the screen. Click or any key dismisses it. While it is up, it rotates to another signal every 45 seconds.
 
 ```sh
 omarchy-shell higgsfield.signals show
@@ -38,11 +38,11 @@ omarchy-shell shell hide higgsfield.signals
 
 ## Develop
 
-Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is an `overlay` plus a headless `service` (`keepLoaded: true`). There is no bar widget.
+Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a keepLoaded `panel` (same contract as the OSD). There is no bar widget.
 
 ```sh
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" Overlay.qml Service.qml
+qmllint -I "$OMARCHY_PATH/shell" Overlay.qml
 node --test test/model.test.js
 ```
 
