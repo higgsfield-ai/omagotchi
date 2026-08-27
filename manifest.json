@@ -2,14 +2,13 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "37signals",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Random 37signals ASCII essays, a desktop Tamagotchi, and Higgsfield DHH clips on commit, fail, and idle.",
+  "description": "Random 37signals essays plus Higgsfield DHH clips on commit, fail, and idle.",
   "keepLoaded": true,
-  "kinds": ["overlay", "service"],
+  "kinds": ["service"],
   "entryPoints": {
-    "overlay": "Overlay.qml",
     "service": "Service.qml"
   }
 }

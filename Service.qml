@@ -2,8 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Services.Mpris
-import Quickshell.Services.Pipewire
 import "Model.js" as Model
 import "Catalog.js" as Catalog
 
@@ -15,45 +13,15 @@ Item {
   property int currentId: -1
   property string currentTitle: ""
   property string currentBody: ""
-  property bool screensaverActive: false
   property string focusedMonitor: ""
-  property real winX: 0
-  property real winY: 0
-  property real winW: 0
-  property real winH: 0
-  property bool collapsed: false
-  property int keyCount: 0
-  property double lastKeyMs: 0
-  property int nowMs: 0
-  property real audioPeak: 0
   property string clipKind: ""
   property string lastClipKind: ""
   property double lastClipMs: 0
 
-  readonly property bool petVisible: !root.screensaverActive && root.clipKind === ""
-  readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
-  readonly property bool mediaPlaying: {
-    if (root.media && root.media.activePlayer)
-      return !!root.media.activePlayer.isPlaying
-    var list = Mpris.players ? Mpris.players.values : []
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].isPlaying) return true
-    }
-    return false
-  }
-  onMediaPlayingChanged: if (!root.mediaPlaying) root.audioPeak = 0
-  readonly property bool keysRecent: (root.nowMs - root.lastKeyMs) < 500
-  readonly property string mode: Model.resolveMode({
-    collapsed: root.collapsed,
-    keysRecent: root.keysRecent,
-    mediaPlaying: root.mediaPlaying,
-    audioPeak: root.audioPeak
-  })
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle
     : ({})
   readonly property int screensaverTimeoutSeconds: Model.screensaverSeconds(idleConfig, 150)
-  readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
 
   function filePath(name) {
     var url = String(Qt.resolvedUrl(name))
@@ -110,23 +78,9 @@ Item {
     return k
   }
 
-  function onKey() {
-    root.keyCount += 1
-    root.lastKeyMs = Date.now()
-  }
-
-  function toggleCollapsed() {
-    root.collapsed = !root.collapsed
-    return root.collapsed ? "collapsed" : "expanded"
-  }
-
   function applyFocus(monitorsRaw, windowRaw) {
     var focus = Model.focusWindow(monitorsRaw, windowRaw)
     root.focusedMonitor = focus.monitor
-    root.winX = focus.x
-    root.winY = focus.y
-    root.winW = focus.w
-    root.winH = focus.h
   }
 
   function applyMonitors(raw) {
@@ -155,30 +109,15 @@ Item {
   }
 
   Timer {
-    interval: 80
-    running: true
-    repeat: true
-    onTriggered: root.nowMs = Date.now()
-  }
-
-  Timer {
     interval: 250
     running: true
     repeat: true
     onTriggered: {
-      presence.running = false
-      presence.running = true
       monProc.running = false
       monProc.running = true
       winProc.running = false
       winProc.running = true
     }
-  }
-
-  Process {
-    id: presence
-    command: ["pgrep", "-f", "[o]rg.omarchy.screensaver"]
-    onExited: root.screensaverActive = (exitCode === 0)
   }
 
   Process {
@@ -197,26 +136,6 @@ Item {
       id: winOut
       onStreamFinished: root.applyWindow(winOut.text)
     }
-  }
-
-  Process {
-    id: keyWatch
-    command: ["python3", "-u", root.filePath("watch-keys.py")]
-    running: true
-    stdout: SplitParser {
-      onRead: function(line) {
-        if (String(line).indexOf("k") !== -1) root.onKey()
-      }
-    }
-  }
-
-  PwObjectTracker { objects: root.sinkList }
-
-  PwNodePeakMonitor {
-    id: peakMon
-    node: Pipewire.defaultAudioSink
-    enabled: root.mediaPlaying && root.petVisible
-    onPeakChanged: root.audioPeak = peakMon.peak
   }
 
   IdleMonitor {

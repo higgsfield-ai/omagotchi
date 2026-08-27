@@ -1,12 +1,10 @@
 # 37signals
 
-A random [37signals](https://37signals.com) principle on Omarchy’s native ASCII screensaver (`ttfx`), plus a desktop Tamagotchi of DHH in the racing suit.
+A random [37signals](https://37signals.com) principle for Omarchy, plus prebuilt Higgsfield clips of DHH on commit, fail, and idle.
 
-On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The screensaver is ASCII only — no car overlay.
+On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and plays the landscape screensaver clip once (fullscreen). The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. `Super + Esc` still launches stock `ttfx` with that essay.
 
-The pet stays on the **bottom of the focused window** (`hyprctl activewindow`) and turns before it can leave that window’s edges. It walks on every keypress (evdev), idles with a looping stand animation, and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a dash. Drag it; click it to collapse (lie down) or expand. The pet hides while a clip or the screensaver is up.
-
-Prebuilt Higgsfield clips of DHH play on events. **Commit** and **fail** are a centered floating overlay: one play (~5s), then the window closes. **Idle / reveal** plays the landscape screensaver clip fullscreen, also once. `Super + Esc` still launches stock `ttfx` with the latest essay (the plugin writes `screensaver.txt` first).
+**Commit** and **fail** play as a centered floating overlay: one play (~5s), then the window closes. They do not generate video at runtime — the clips ship in `clips/`.
 
 This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 
@@ -18,17 +16,9 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-Leave the stock screensaver **on**. This plugin uses it for the essays.
+Leave the stock screensaver **on**. This plugin writes essays into it and plays its own clips on idle.
 
 Idle timings stay in `~/.config/omarchy/shell.json` (`idle.screensaver`, then `idle.lock`). Kind changes need `omarchy plugin update … --yes` then `omarchy-restart-shell`.
-
-If walking does not react to keys, add your user to the `input` group so `watch-keys.py` can read `/dev/input`:
-
-```sh
-sudo usermod -aG input "$USER"
-```
-
-Then log out and back in.
 
 ## Usage
 
@@ -54,13 +44,22 @@ omarchy-shell higgsfield.signals event screensaver
 
 Need `mpv` on the path (Omarchy ships it). Overlay clips need Hyprland so the player can float and pin; they do not steal keyboard focus.
 
+A plain `git commit` does nothing until the hook is installed in that repo:
+
+```sh
+PLUGIN=$(ls -d ~/.local/share/omarchy/plugins/higgsfield.signals \
+             ~/.config/omarchy/plugins/higgsfield.signals 2>/dev/null | head -1)
+cp "$PLUGIN/hooks/post-commit" .git/hooks/post-commit
+chmod +x .git/hooks/post-commit
+```
+
 ## Develop
 
-Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a keepLoaded `overlay` plus a `service`.
+Follow [Develop a Plugin](https://omarchyplugins.com/develop.html). This plugin is a keepLoaded `service`.
 
 ```sh
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" Service.qml Overlay.qml
+qmllint -I "$OMARCHY_PATH/shell" Service.qml
 node --test test/model.test.js
 ```
 
