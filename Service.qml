@@ -17,6 +17,8 @@ Item {
   property string clipKind: ""
   property string lastClipKind: ""
   property double lastClipMs: 0
+  property string lastClipLog: ""
+  property int lastClipExit: 0
 
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle
@@ -63,19 +65,28 @@ Item {
     var now = Date.now()
     if (!Model.shouldPlayClip(k, root.lastClipKind, root.lastClipMs, now, 8000))
       return "debounced"
+    var clipPath = root.filePath(Model.clipFile(k))
     root.clipKind = k
     root.lastClipKind = k
     root.lastClipMs = now
+    root.lastClipLog = ""
+    root.lastClipExit = 0
     clipProc.command = [
       "bash",
       root.filePath("play.sh"),
       k,
-      root.filePath(Model.clipFile(k)),
+      clipPath,
       root.focusedMonitor
     ]
     clipProc.running = false
     clipProc.running = true
-    return k
+    return k + " " + clipPath
+  }
+
+  function playLog() {
+    return root.lastClipLog && root.lastClipLog.length
+      ? root.lastClipLog
+      : ("exit=" + root.lastClipExit + " (see /tmp/higgsfield-signals-play.log on the machine)")
   }
 
   function applyFocus(monitorsRaw, windowRaw) {
@@ -105,7 +116,24 @@ Item {
 
   Process {
     id: clipProc
-    onExited: root.clipKind = ""
+    stdout: StdioCollector {
+      id: clipOut
+      onStreamFinished: {
+        if (clipOut.text && String(clipOut.text).trim().length)
+          root.lastClipLog = String(clipOut.text)
+      }
+    }
+    stderr: StdioCollector {
+      id: clipErr
+      onStreamFinished: {
+        if (clipErr.text && String(clipErr.text).trim().length)
+          root.lastClipLog = String(clipErr.text)
+      }
+    }
+    onExited: {
+      root.lastClipExit = exitCode
+      root.clipKind = ""
+    }
   }
 
   Timer {
@@ -156,5 +184,6 @@ Item {
     function close(): string { return root.hide() }
     function ping(): string { return "ok" }
     function event(kind: string): string { return root.playEvent(kind) }
+    function playLog(): string { return root.playLog() }
   }
 }

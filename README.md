@@ -44,6 +44,15 @@ omarchy-shell higgsfield.signals event screensaver
 
 Need `mpv` on the path (Omarchy ships it). Overlay clips need Hyprland so the player can float and pin; they do not steal keyboard focus.
 
+If IPC returns `commit` / `screensaver` but nothing appears:
+
+```sh
+omarchy-shell higgsfield.signals event commit
+omarchy-shell higgsfield.signals playLog
+cat /tmp/higgsfield-signals-play.log
+ls -l ~/.config/omarchy/plugins/higgsfield.signals/clips/
+```
+
 A plain `git commit` does nothing until the hook is installed in that repo:
 
 ```sh
