@@ -26,8 +26,11 @@ Item {
   property double lastKeyMs: 0
   property int nowMs: 0
   property real audioPeak: 0
+  property string clipKind: ""
+  property string lastClipKind: ""
+  property double lastClipMs: 0
 
-  readonly property bool petVisible: !root.screensaverActive
+  readonly property bool petVisible: !root.screensaverActive && root.clipKind === ""
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
   readonly property bool mediaPlaying: {
     if (root.media && root.media.activePlayer)
@@ -73,16 +76,38 @@ Item {
   function reveal() {
     root.pickNew()
     var text = Model.formatScreensaver(root.currentId, root.currentTitle, root.currentBody)
-    launcher.command = ["bash", root.filePath("launch.sh"), text]
+    launcher.command = ["bash", root.filePath("launch.sh"), text, "write-only"]
     launcher.running = false
     launcher.running = true
-    return "ok"
+    return root.playEvent("screensaver")
   }
 
   function hide() {
     hideProc.running = false
     hideProc.running = true
+    root.clipKind = ""
     return "ok"
+  }
+
+  function playEvent(kind) {
+    var k = Model.normalizeClipKind(kind)
+    if (!k) return "unknown"
+    var now = Date.now()
+    if (!Model.shouldPlayClip(k, root.lastClipKind, root.lastClipMs, now, 8000))
+      return "debounced"
+    root.clipKind = k
+    root.lastClipKind = k
+    root.lastClipMs = now
+    clipProc.command = [
+      "bash",
+      root.filePath("play.sh"),
+      k,
+      root.filePath(Model.clipFile(k)),
+      root.focusedMonitor
+    ]
+    clipProc.running = false
+    clipProc.running = true
+    return k
   }
 
   function onKey() {
@@ -121,7 +146,12 @@ Item {
 
   Process {
     id: hideProc
-    command: ["bash", "-lc", "pkill -x ttfx 2>/dev/null; pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null; true"]
+    command: ["bash", "-lc", "pkill -x ttfx 2>/dev/null; pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null; pkill -f '[m]pv --title=higgsfield-signals-clip' 2>/dev/null; true"]
+  }
+
+  Process {
+    id: clipProc
+    onExited: root.clipKind = ""
   }
 
   Timer {
@@ -206,5 +236,6 @@ Item {
     function next(): string { return root.reveal() }
     function close(): string { return root.hide() }
     function ping(): string { return "ok" }
+    function event(kind: string): string { return root.playEvent(kind) }
   }
 }

@@ -130,3 +130,19 @@ test("danceFps follows the waveform peak", () => {
   assert.equal(Model.danceFps(0), 7)
   assert.equal(Model.danceFps(1), 23)
 })
+
+test("clip kinds map to shipped files", () => {
+  assert.equal(Model.normalizeClipKind("commit"), "commit")
+  assert.equal(Model.normalizeClipKind("success"), "commit")
+  assert.equal(Model.normalizeClipKind("error"), "fail")
+  assert.equal(Model.normalizeClipKind("reveal"), "screensaver")
+  assert.equal(Model.normalizeClipKind("nope"), "")
+  assert.equal(Model.clipFile("fail"), "clips/fail.mp4")
+})
+
+test("commit and fail clips debounce, screensaver always plays", () => {
+  assert.equal(Model.shouldPlayClip("commit", "commit", 1000, 2000, 8000), false)
+  assert.equal(Model.shouldPlayClip("commit", "commit", 1000, 10000, 8000), true)
+  assert.equal(Model.shouldPlayClip("fail", "commit", 1000, 2000, 8000), true)
+  assert.equal(Model.shouldPlayClip("screensaver", "screensaver", 1000, 1100, 8000), true)
+})

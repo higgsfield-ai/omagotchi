@@ -289,6 +289,34 @@ function danceFps(peak) {
   return Math.round(7 + p * 16)
 }
 
+function normalizeClipKind(kind) {
+  var k = String(kind || "").trim().toLowerCase()
+  if (k === "commit" || k === "ok" || k === "success") return "commit"
+  if (k === "fail" || k === "error" || k === "failed") return "fail"
+  if (k === "screensaver" || k === "idle" || k === "reveal") return "screensaver"
+  return ""
+}
+
+function clipFile(kind) {
+  var k = normalizeClipKind(kind)
+  if (!k) return ""
+  return "clips/" + k + ".mp4"
+}
+
+function shouldPlayClip(kind, lastKind, lastMs, nowMs, cooldownMs) {
+  var k = normalizeClipKind(kind)
+  if (!k) return false
+  if (k === "screensaver") return true
+  var cool = Number(cooldownMs)
+  if (!isFinite(cool) || cool < 0) cool = 8000
+  var last = String(lastKind || "")
+  var then = Number(lastMs)
+  var now = Number(nowMs)
+  if (!isFinite(then) || !isFinite(now)) return true
+  if (k === last && (now - then) < cool) return false
+  return true
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     loadSignals: loadSignals,
@@ -306,6 +334,9 @@ if (typeof module !== "undefined") {
     clampPetX: clampPetX,
     petBottomY: petBottomY,
     clipWindowRect: clipWindowRect,
-    focusWindow: focusWindow
+    focusWindow: focusWindow,
+    normalizeClipKind: normalizeClipKind,
+    clipFile: clipFile,
+    shouldPlayClip: shouldPlayClip
   }
 }

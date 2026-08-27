@@ -4,7 +4,9 @@ A random [37signals](https://37signals.com) principle on Omarchy’s native ASCI
 
 On reveal or idle, the plugin writes an essay to `~/.config/omarchy/branding/screensaver.txt` and launches `omarchy-launch-screensaver force`. The first write copies your previous branding file to `screensaver.txt.higgsfield-bak`. The screensaver is ASCII only — no car overlay.
 
-The pet stays on the **bottom of the focused window** (`hyprctl activewindow`) and turns before it can leave that window’s edges. It walks on every keypress (evdev), idles with a looping stand animation, and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a dash. Drag it; click it to collapse (lie down) or expand. The pet hides while the screensaver is up.
+The pet stays on the **bottom of the focused window** (`hyprctl activewindow`) and turns before it can leave that window’s edges. It walks on every keypress (evdev), idles with a looping stand animation, and when media is playing it dances to the PipeWire waveform (`PwNodePeakMonitor` on the default sink). Loud peaks trigger a dash. Drag it; click it to collapse (lie down) or expand. The pet hides while a clip or the screensaver is up.
+
+Prebuilt Higgsfield clips of DHH play on events. **Commit** and **fail** are a centered floating overlay: one play (~5s), then the window closes. **Idle / reveal** plays the landscape screensaver clip fullscreen, also once. `Super + Esc` still launches stock `ttfx` with the latest essay (the plugin writes `screensaver.txt` first).
 
 This cannot draw on the PAM lock screen. When `idle.lock` fires, the lock takes over.
 
@@ -35,9 +37,22 @@ omarchy-shell higgsfield.signals reveal
 omarchy-shell higgsfield.signals next
 omarchy-shell higgsfield.signals close
 omarchy-shell higgsfield.signals ping
+omarchy-shell higgsfield.signals event commit
+omarchy-shell higgsfield.signals event fail
+omarchy-shell higgsfield.signals event screensaver
 ```
 
-`reveal` picks a random signal and starts `ttfx`. Any key or mouse dismisses the screensaver. `Super + Esc` also launches it.
+`reveal` / `next` pick a random essay, write it to `screensaver.txt`, and play the screensaver clip. Commit and fail debounce for 8 seconds so a burst of hooks does not stack windows.
+
+### Trigger each clip
+
+| Clip | How to play it |
+|---|---|
+| **1. commit** (centered overlay, once) | `omarchy-shell higgsfield.signals event commit` — or copy `hooks/post-commit` into a repo’s `.git/hooks/post-commit`, then `git commit`. |
+| **2. fail** (centered overlay, once) | `omarchy-shell higgsfield.signals event fail` — or call that from a test/CI wrapper on non-zero exit. |
+| **3. screensaver** (fullscreen, once) | Wait for Omarchy idle, or `omarchy-shell higgsfield.signals reveal`. Stock ASCII is still `Super + Esc`. |
+
+Need `mpv` on the path (Omarchy ships it). Overlay clips need Hyprland so the player can float and pin; they do not steal keyboard focus.
 
 ## Develop
 
