@@ -1,0 +1,17 @@
+{
+  "file": "atlas.png",
+  "cellWidth": 80,
+  "cellHeight": 98,
+  "columns": 13,
+  "rows": 6,
+  "fps": 10,
+  "scale": 1,
+  "modes": {
+    "walk": { "row": 0, "start": 0, "count": 13 },
+    "idle": { "row": 1, "start": 7, "count": 4 },
+    "dance": { "row": 2, "start": 8, "count": 3 },
+    "flip": { "row": 4, "start": 0, "count": 6 },
+    "collapse": { "row": 1, "start": 6, "count": 1 },
+    "drag": { "row": 2, "start": 1, "count": 1 }
+  }
+}

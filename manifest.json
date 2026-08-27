@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "higgsfield.signals",
-  "name": "37signals",
-  "version": "0.10.1",
+  "name": "Tamagotchi",
+  "version": "0.11.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Random 37signals essays plus Higgsfield DHH clips on commit, fail, and idle.",
+  "description": "Desktop Tamagotchi on the focused window: walks on keys, dances to audio, drag and click to collapse.",
   "keepLoaded": true,
-  "kinds": ["service"],
+  "kinds": ["overlay", "service"],
   "entryPoints": {
+    "overlay": "Overlay.qml",
     "service": "Service.qml"
   }
 }

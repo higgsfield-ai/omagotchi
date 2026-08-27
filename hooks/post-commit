@@ -1,5 +1,0 @@
-#!/bin/sh
-# Optional. Copy or symlink into a repo's .git/hooks/post-commit.
-# Does not block git: the clip is fire-and-forget.
-omarchy-shell higgsfield.signals event commit >/dev/null 2>&1 &
-exit 0
