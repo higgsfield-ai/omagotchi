@@ -186,9 +186,56 @@ def extract_uuid(text: str) -> str:
     return found.group(0) if found else ""
 
 
+JOB_OK = frozenset({"completed", "complete", "succeeded", "success", "done", "finished"})
+JOB_BAD = frozenset({"failed", "cancelled", "canceled", "rejected"})
+
+
 def is_generic_job_status(text: str) -> bool:
     low = (text or "").lower()
     return "ended with status" in low or low in ("failed", "error", "cancelled", "canceled")
+
+
+def is_transport_error(text: str) -> bool:
+    low = (text or "").lower()
+    return any(tok in low for tok in (
+        "503",
+        "502",
+        "504",
+        "service unavailable",
+        "bad gateway",
+        "gateway timeout",
+        "timed out",
+        "timeout",
+        "temporar",
+        "try again",
+        "econnreset",
+        "connection reset",
+        "connection refused",
+        "broken pipe",
+    ))
+
+
+def extract_status(node, depth: int = 0) -> str:
+    if node is None or depth > 8:
+        return ""
+    if isinstance(node, list):
+        for item in node:
+            found = extract_status(item, depth + 1)
+            if found:
+                return found
+        return ""
+    if not isinstance(node, dict):
+        return ""
+    for key in ("status", "state", "job_status"):
+        val = node.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip().lower()
+    for key in ("job", "data", "result", "results"):
+        if key in node:
+            found = extract_status(node.get(key), depth + 1)
+            if found:
+                return found
+    return ""
 
 
 def job_reason_from_node(node, depth: int = 0) -> str:
@@ -245,8 +292,9 @@ def fetch_job(hf: str, job_id: str, log: Path):
         capture_output=True,
         text=True,
     )
-    append_log(log, (proc.stderr or "") + (proc.stdout or ""))
-    return last_json((proc.stdout or "") + "\n" + (proc.stderr or ""))
+    blob = (proc.stderr or "") + (proc.stdout or "")
+    append_log(log, blob)
+    return parse_job(proc.stdout or "") or last_json(proc.stdout or "") or last_json(blob)
 
 
 def explain_job_failure(hf: str, job_id: str, fallback: str, log: Path) -> str:
@@ -299,11 +347,24 @@ def find_hf(out_dir: Path | None = None) -> str:
     return ""
 
 
+def looks_like_media_url(url: str) -> bool:
+    low = (url or "").lower()
+    path = low.split("?")[0]
+    if re.search(r"\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v)$", path):
+        return True
+    if re.search(r"https?://(www\.)?higgsfield\.ai(/|$)", low):
+        return False
+    return any(tok in low for tok in (
+        "cdn.", "s3.", "storage.", "cloudfront", "blob.", "/media",
+        "googleapis", "x-amz", "r2.", "files.", "fal.", "higgsfield",
+    ))
+
+
 def extract_url(node) -> str:
     if node is None:
         return ""
     if isinstance(node, str):
-        return node if node.startswith("http") else ""
+        return node if node.startswith("http") and looks_like_media_url(node) else ""
     if isinstance(node, list):
         for item in node:
             url = extract_url(item)
@@ -311,16 +372,35 @@ def extract_url(node) -> str:
                 return url
         return ""
     if isinstance(node, dict):
-        for key in ("result_url", "url", "output_url", "image_url", "video_url"):
+        for key in (
+            "result_url", "output_url", "image_url", "video_url",
+            "download_url", "signed_url", "file_url", "media_url", "asset_url", "url",
+        ):
             val = node.get(key)
             if isinstance(val, str) and val.startswith("http"):
-                return val
-        for key in ("results", "output", "outputs", "assets", "data", "job", "jobs", "media", "images", "files"):
+                if key != "url" or looks_like_media_url(val):
+                    return val
+        for key in (
+            "results", "output", "outputs", "assets", "data", "job", "jobs",
+            "media", "images", "files", "video", "image",
+        ):
             if key in node:
                 url = extract_url(node.get(key))
                 if url:
                     return url
+        for val in node.values():
+            if isinstance(val, (dict, list, str)):
+                url = extract_url(val)
+                if url:
+                    return url
     return ""
+
+
+def job_result(job_id: str, data) -> dict | None:
+    url = extract_url(data)
+    if url:
+        return {"url": url, "raw": data, "id": job_id}
+    return None
 
 
 def parse_job(raw: str):
@@ -428,6 +508,39 @@ def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
     raise RuntimeError(last_err)
 
 
+POLL_SECONDS = 20 * 60
+
+
+def poll_job(hf: str, job_id: str, log: Path) -> dict:
+    deadline = time.time() + POLL_SECONDS
+    delay = 2.0
+    last_data = None
+    while time.time() < deadline:
+        last_data = fetch_job(hf, job_id, log)
+        found = job_result(job_id, last_data)
+        if found:
+            return found
+        status = extract_status(last_data)
+        if status in JOB_BAD:
+            blob = json.dumps(last_data) if last_data else ""
+            if not any(tok in blob.lower() for tok in ("503", "502", "504", "service unavailable", "bad gateway")):
+                raise RuntimeError(explain_job_failure(hf, job_id, status, log))
+        extra = 0.0
+        try:
+            extra = (int(job_id.replace("-", "")[:4], 16) % 800) / 1000.0
+        except ValueError:
+            extra = (hash(job_id) % 800) / 1000.0
+        time.sleep(delay + extra)
+        delay = min(delay * 1.4, 10)
+    found = job_result(job_id, last_data)
+    if found:
+        return found
+    status = extract_status(last_data)
+    if status in JOB_OK:
+        raise RuntimeError(explain_job_failure(hf, job_id, "completed but no media URL", log))
+    raise RuntimeError(explain_job_failure(hf, job_id, status or "wait timed out", log))
+
+
 # One Higgsfield create per call. Failures surface to the panel; only Retry starts again.
 def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
     proc = subprocess.run(
@@ -435,47 +548,38 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
         capture_output=True,
         text=True,
     )
-    append_log(log, (proc.stderr or "") + (proc.stdout or ""))
-    data = parse_job(proc.stdout or "")
+    blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    append_log(log, blob)
+    data = parse_job(proc.stdout or "") or last_json(blob)
     job_id = extract_job_id(data)
-    if not job_id:
-        lines = (proc.stdout or "").strip().splitlines()
-        if lines:
-            job_id = extract_job_id(lines[-1])
-    if proc.returncode == 0 and job_id:
+    if not job_id and proc.returncode == 0:
+        job_id = extract_uuid(blob)
+    if job_id and proc.returncode == 0:
         return job_id
+    if extract_job_id(data) and is_transport_error(blob):
+        return extract_job_id(data)
     raise RuntimeError(describe_hf_error(proc.stderr or proc.stdout or "higgsfield create failed"))
 
 
 def wait_job(hf: str, job_id: str, log: Path) -> dict:
+    # Wait can 503 or print "failed" after the job already completed. Confirm via get.
     try:
         data = hf_with_wait_flags(
             hf,
             [hf, "generate", "wait", job_id, "--json"],
             log,
         )
-    except RuntimeError as exc:
-        if is_unknown_flag_error(str(exc)):
-            raise
-        raise RuntimeError(explain_job_failure(hf, job_id, str(exc), log)) from exc
-    url = extract_url(data)
-    if url:
-        return {"url": url, "raw": data, "id": job_id}
-    raise RuntimeError(explain_job_failure(hf, job_id, "no result URL in CLI JSON", log))
+        found = job_result(job_id, data)
+        if found:
+            return found
+    except RuntimeError:
+        pass
+    return poll_job(hf, job_id, log)
 
 
 def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
-    # Single create --wait. Do not pass timeout flags: probing them re-submits the job.
-    data = run_hf(
-        hf,
-        [hf, "generate", "create", model, *args, "--wait", "--json"],
-        log,
-    )
-    url = extract_url(data)
-    if url:
-        return {"url": url, "raw": data}
-    jid = extract_job_id(data) or extract_uuid(json.dumps(data))
-    raise RuntimeError(explain_job_failure(hf, jid, "no result URL in CLI JSON", log))
+    job_id = start_job(hf, model, args, log)
+    return wait_job(hf, job_id, log)
 
 
 def pick_key_color(path: Path) -> str:

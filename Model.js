@@ -441,7 +441,7 @@ function classifyGenerateError(raw) {
   } else if (/503|502|504|service unavailable|bad gateway|higgsfield api error/.test(blob)) {
     kind = "unavailable"
     title = "Higgsfield is busy"
-    message = "The Higgsfield API is temporarily unavailable. Retry in a moment."
+    message = "The plugin lost contact while waiting. The job may already be finished on higgsfield.ai."
   } else if (/unknown flag|unknown shorthand/.test(blob)) {
     kind = "cli"
     title = "CLI mismatch"
