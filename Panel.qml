@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Dialogs
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -72,7 +71,7 @@ Panel {
       if (root.svc) root.svc.login()
       return
     }
-    photoDialog.open()
+    if (root.svc) root.svc.pickPhoto()
   }
 
   function submitAvatar() {
@@ -86,17 +85,6 @@ Panel {
       return
     }
     root.svc.generateSprite(root.photoPath, "", false)
-  }
-
-  FileDialog {
-    id: photoDialog
-    title: "Choose a character photo"
-    fileMode: FileDialog.OpenFile
-    nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp)", "All files (*)"]
-    onAccepted: {
-      if (!root.svc) return
-      root.svc.photoPath = Model.fileUrlToPath(photoDialog.selectedFile)
-    }
   }
 
   KeyboardPanel {

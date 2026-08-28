@@ -13,10 +13,10 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-If the HF chip is missing:
+If the HF chip is missing, the plugin was already on as an overlay. Enable does not add a bar slot. Put it on the bar:
 
 ```sh
-omarchy plugin enable higgsfield.signals
+omarchy bar put higgsfield.signals --section right
 omarchy-restart-shell
 ```
 

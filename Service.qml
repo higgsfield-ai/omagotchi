@@ -39,10 +39,11 @@ Item {
   property bool runtimeReady: false
   property string hfPath: ""
   property bool pendingLogin: false
+  property bool hasGeneratedPet: false
 
   readonly property string photoName: Model.fileBaseName(root.photoPath)
 
-  readonly property bool petVisible: true
+  readonly property bool petVisible: root.hasGeneratedPet
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
   readonly property bool mediaPlaying: {
     if (root.media && root.media.activePlayer)
@@ -102,10 +103,12 @@ Item {
 
   function loadAtlas() {
     var generated = root.readJsonFile("file://" + root.dataDir() + "/atlas.json")
-    if (generated && generated.file) {
+    if (generated && generated.file && String(generated.file).charAt(0) === "/") {
       root.atlasSpec = generated
+      root.hasGeneratedPet = true
       return
     }
+    root.hasGeneratedPet = false
     root.atlasSpec = root.readJsonFile(Qt.resolvedUrl("atlas.json"))
   }
 
@@ -152,6 +155,7 @@ Item {
   }
 
   function pickPhoto() {
+    if (!root.loggedIn) return "login"
     if (root.picking || root.generating) return "busy"
     root.picking = true
     pickProc.command = ["bash", root.filePath("scripts/pick-image.sh")]
