@@ -155,22 +155,38 @@ Item {
     return "started"
   }
 
+  function setPhoto(path) {
+    var p = Model.fileUrlToPath(Model.trimPrompt(path))
+    if (!p) return "empty"
+    root.photoPath = p
+    root.lastError = ""
+    root.generateStatus = ""
+    return "ok"
+  }
+
   function pickPhoto() {
     if (!root.loggedIn) return "login"
     if (root.picking || root.generating) return "busy"
     root.picking = true
+    root.lastError = ""
     pickProc.command = ["bash", root.filePath("scripts/pick-image.sh")]
     pickProc.running = false
     pickProc.running = true
     return "started"
   }
 
-  function onPickedPhoto(code, stdout) {
+  function onPickedPhoto(code, stdout, stderr) {
     root.picking = false
-    var path = Model.trimPrompt(stdout)
-    if (Number(code) !== 0 || !path) return
-    if (path.indexOf("file://") === 0) path = path.slice(7)
-    root.photoPath = path
+    var path = Model.fileUrlToPath(Model.trimPrompt(stdout))
+    if (path) {
+      root.setPhoto(path)
+      return
+    }
+    var err = Model.trimPrompt(stderr)
+    if (Number(code) !== 0 && err) {
+      root.lastError = err
+      root.generateStatus = err
+    }
   }
 
   function onKey() {
@@ -384,8 +400,11 @@ Item {
     stdout: StdioCollector {
       id: pickOut
     }
+    stderr: StdioCollector {
+      id: pickErr
+    }
     onExited: function(exitCode) {
-      root.onPickedPhoto(exitCode, pickOut.text)
+      root.onPickedPhoto(exitCode, pickOut.text, pickErr.text)
     }
   }
 
@@ -438,6 +457,7 @@ Item {
     function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
     function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
     function pickPhoto(): string { return root.pickPhoto() }
+    function setPhoto(path: string): string { return root.setPhoto(path) }
     function login(): string { return root.login() }
   }
 }

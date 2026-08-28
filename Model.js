@@ -251,7 +251,7 @@ function parseGenerateResult(raw) {
 
 function isImagePath(path) {
   var p = String(path || "").toLowerCase().split("?")[0]
-  return /\.(png|jpe?g|webp|gif)$/.test(p)
+  return /\.(png|jpe?g|webp|gif|bmp)$/.test(p)
 }
 
 function atlasImageSource(file) {

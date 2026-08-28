@@ -71,7 +71,30 @@ Panel {
       if (root.svc) root.svc.login()
       return
     }
-    if (root.svc) root.svc.pickPhoto()
+    if (root.svc && typeof root.svc.pickPhoto === "function") {
+      root.svc.pickPhoto()
+      return
+    }
+    var dlg = photoDialogLoader.item
+    if (dlg && typeof dlg.open === "function") dlg.open()
+  }
+
+  function onDialogPicked(path) {
+    if (root.svc && typeof root.svc.setPhoto === "function") root.svc.setPhoto(path)
+  }
+
+  Loader {
+    id: photoDialogLoader
+    source: Qt.resolvedUrl("PhotoDialog.qml")
+    onStatusChanged: {
+      if (status === Loader.Error && String(source).indexOf("PhotoDialogNative.qml") === -1)
+        source = Qt.resolvedUrl("PhotoDialogNative.qml")
+    }
+  }
+
+  Connections {
+    target: photoDialogLoader.item
+    function onPicked(path) { root.onDialogPicked(path) }
   }
 
   function submitAvatar() {
@@ -165,6 +188,7 @@ Panel {
 
           MouseArea {
             anchors.fill: parent
+            z: 2
             cursorShape: root.loggedIn ? Qt.PointingHandCursor : Qt.ArrowCursor
             enabled: root.loggedIn && !root.generating
             onClicked: root.choosePhoto()
@@ -197,6 +221,17 @@ Panel {
             if (buttonCode !== Qt.LeftButton) return
             root.submitAvatar()
           }
+        }
+
+        Text {
+          width: parent.width
+          visible: root.lastError !== "" && !root.generating
+          text: root.lastError
+          color: root.barForeground
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.subtitle
+          wrapMode: Text.WordWrap
+          opacity: 0.85
         }
 
         Column {

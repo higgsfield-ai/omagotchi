@@ -1,38 +1,76 @@
 #!/usr/bin/env bash
-# Open a native file picker and print the chosen image path.
-set -euo pipefail
+# Open Omarchy's image picker (then a desktop dialog if needed) and print the path.
+set -u
 
 HOME_DIR="${HOME:-/tmp}"
-START="${HOME_DIR}/Pictures"
-if [[ ! -d $START ]]; then
-  START="$HOME_DIR"
-fi
+
+collect_dirs() {
+  local d sub n=0
+  for d in "$HOME_DIR/Pictures" "$HOME_DIR/Downloads" "$HOME_DIR/Desktop"; do
+    [[ -d $d ]] && printf '%s\0' "$d"
+  done
+  if [[ -d $HOME_DIR/Pictures ]]; then
+    while IFS= read -r -d '' sub; do
+      printf '%s\0' "$sub"
+      n=$((n + 1))
+      (( n >= 40 )) && break
+    done < <(find -L "$HOME_DIR/Pictures" -mindepth 1 -maxdepth 2 -type d -print0 2>/dev/null)
+  fi
+}
+
+pick_omarchy() {
+  command -v omarchy-menu-images >/dev/null 2>&1 || return 1
+  local dirs=()
+  while IFS= read -r -d '' d; do
+    dirs+=("$d")
+  done < <(collect_dirs)
+  (( ${#dirs[@]} > 0 )) || return 1
+  omarchy-menu-images --filterable --show-labels "${dirs[@]}"
+}
 
 pick_zenity() {
+  command -v zenity >/dev/null 2>&1 || return 1
+  local start="$HOME_DIR/Pictures"
+  [[ -d $start ]] || start="$HOME_DIR"
   zenity --file-selection \
     --title="Choose a character photo" \
-    --filename="${START}/" \
+    --filename="${start}/" \
     --file-filter="Images | *.png *.jpg *.jpeg *.webp *.gif *.bmp *.PNG *.JPG *.JPEG *.WEBP" \
     --file-filter="All files | *"
 }
 
 pick_kdialog() {
+  command -v kdialog >/dev/null 2>&1 || return 1
+  local start="$HOME_DIR/Pictures"
+  [[ -d $start ]] || start="$HOME_DIR"
   kdialog --title "Choose a character photo" \
-    --getopenfilename "$START/" "*.png *.jpg *.jpeg *.webp *.gif *.bmp"
+    --getopenfilename "$start/" "*.png *.jpg *.jpeg *.webp *.gif *.bmp"
 }
 
 pick_yad() {
-  yad --file --filename="${START}/" --title="Choose a character photo" \
+  command -v yad >/dev/null 2>&1 || return 1
+  local start="$HOME_DIR/Pictures"
+  [[ -d $start ]] || start="$HOME_DIR"
+  yad --file --filename="${start}/" --title="Choose a character photo" \
     --file-filter="Images | *.png *.jpg *.jpeg *.webp *.gif *.bmp"
 }
 
-if command -v zenity >/dev/null 2>&1; then
-  pick_zenity
-elif command -v kdialog >/dev/null 2>&1; then
-  pick_kdialog
-elif command -v yad >/dev/null 2>&1; then
-  pick_yad
-else
-  echo "Install zenity to pick a photo: pacman -S zenity" >&2
-  exit 1
+if out=$(pick_omarchy); then
+  [[ -n $out ]] && printf '%s\n' "$out"
+  exit 0
 fi
+if out=$(pick_zenity); then
+  [[ -n $out ]] && printf '%s\n' "$out"
+  exit 0
+fi
+if out=$(pick_kdialog); then
+  [[ -n $out ]] && printf '%s\n' "$out"
+  exit 0
+fi
+if out=$(pick_yad); then
+  [[ -n $out ]] && printf '%s\n' "$out"
+  exit 0
+fi
+
+echo "Could not open a photo picker" >&2
+exit 1
