@@ -11,9 +11,14 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+LOG_LOCK = threading.Lock()
+PROGRESS_LOCK = threading.Lock()
 
 STYLE = (
     "8-bit pixel art, chunky low-resolution pixels on a coarse pixel grid, "
@@ -81,14 +86,16 @@ CLIPS = [
 
 
 def progress(msg: str, *, phase: str = "", step: int = 0, steps: int = 0) -> None:
-    print(json.dumps({
+    payload = json.dumps({
         "t": "progress",
         "phase": phase,
         "step": step,
         "steps": steps,
         "label": msg,
         "percent": int(round(100.0 * step / steps)) if steps else 0,
-    }), flush=True)
+    })
+    with PROGRESS_LOCK:
+        print(payload, flush=True)
 
 
 def fail(msg: str, extra: dict | None = None) -> None:
@@ -194,19 +201,96 @@ def download(url: str, dest: Path) -> None:
             fh.write(chunk)
 
 
-def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
-    cmd = [hf, "generate", "create", model, *args, "--wait", "--json", "--wait-timeout", "15m"]
+def append_log(log: Path, text: str) -> None:
+    with LOG_LOCK:
+        with log.open("a") as fh:
+            fh.write(text or "")
+            if text and not text.endswith("\n"):
+                fh.write("\n")
+
+
+def extract_job_id(node) -> str:
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        s = node.strip()
+        if s and " " not in s and len(s) >= 8:
+            return s
+        return ""
+    if isinstance(node, list) and node:
+        return extract_job_id(node[0])
+    if isinstance(node, dict):
+        for key in ("id", "job_id", "jobId", "request_id"):
+            val = node.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        for key in ("job", "jobs", "data", "result", "results"):
+            if key in node:
+                found = extract_job_id(node.get(key))
+                if found:
+                    return found
+    return ""
+
+
+def run_hf(hf: str, cmd: list[str], log: Path) -> dict:
     proc = subprocess.run(cmd, capture_output=True, text=True)
-    with log.open("a") as fh:
-        fh.write(proc.stderr or "")
-        fh.write(proc.stdout or "")
-        fh.write("\n")
+    append_log(log, (proc.stderr or "") + (proc.stdout or ""))
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "higgsfield generate failed").strip()[-800:]
         raise RuntimeError(err)
     data = parse_job(proc.stdout or "")
     if not data:
         raise RuntimeError("could not parse CLI JSON")
+    return data
+
+
+def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
+    last_err = "higgsfield create failed"
+    for delay in (0, 1, 3, 6):
+        if delay:
+            time.sleep(delay)
+        proc = subprocess.run(
+            [hf, "generate", "create", model, *args, "--json"],
+            capture_output=True,
+            text=True,
+        )
+        append_log(log, (proc.stderr or "") + (proc.stdout or ""))
+        lines = (proc.stdout or "").strip().splitlines()
+        data = parse_job(proc.stdout or "")
+        job_id = extract_job_id(data)
+        if not job_id and lines:
+            job_id = extract_job_id(lines[-1])
+        if proc.returncode == 0 and job_id:
+            return job_id
+        last_err = (proc.stderr or proc.stdout or last_err).strip()[-800:] or last_err
+        if proc.returncode == 0 and not job_id:
+            last_err = "no job id from higgsfield create"
+        low = last_err.lower()
+        if "429" in low or "rate" in low or "too many" in low or "timeout" in low or "temporar" in low:
+            continue
+        if proc.returncode != 0:
+            raise RuntimeError(last_err)
+    raise RuntimeError(last_err)
+
+
+def wait_job(hf: str, job_id: str, log: Path) -> dict:
+    data = run_hf(
+        hf,
+        [hf, "generate", "wait", job_id, "--json", "--wait-timeout", "15m"],
+        log,
+    )
+    url = extract_url(data)
+    if not url:
+        raise RuntimeError("no result URL in CLI JSON")
+    return {"url": url, "raw": data, "id": job_id}
+
+
+def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
+    data = run_hf(
+        hf,
+        [hf, "generate", "create", model, *args, "--wait", "--json", "--wait-timeout", "15m"],
+        log,
+    )
     url = extract_url(data)
     if not url:
         raise RuntimeError("no result URL in CLI JSON")
@@ -248,6 +332,37 @@ def base_prompt(key: str, notes: str) -> str:
         f"character's recognizable traits (hair, outfit colors, distinctive features) "
         f"translated into 8-bit.{extra}"
     )
+
+
+def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
+    args = [
+        "--prompt", video_prompt(clip["spec"], key, clip["loop"]),
+        "--image", str(base_path),
+        "--start-image", str(base_path),
+        "--aspect_ratio", "1:1",
+        "--resolution", "480p",
+        "--duration", "5",
+        "--generate_audio", "false",
+    ]
+    if clip["loop"]:
+        args += ["--end-image", str(base_path)]
+    return args
+
+
+def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, log: Path) -> Path:
+    last_err = ""
+    video_args = clip_video_args(clip, key, base_path)
+    for attempt in range(2):
+        try:
+            job_id = start_job(hf, "seedance_2_0_mini", video_args, log)
+            job = wait_job(hf, job_id, log)
+            download(job["url"], dest)
+            return dest
+        except Exception as exc:
+            last_err = str(exc)
+            if attempt == 0:
+                time.sleep(2)
+    raise RuntimeError(f"{clip['name']}: {last_err}")
 
 
 def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: bool) -> Path:
@@ -339,49 +454,50 @@ def main() -> None:
     progress("Base sprite ready", phase="base", step=1, steps=total)
 
     plan_rows = {}
-    for i, clip in enumerate(jobs, start=1):
-        progress(
-            f"Animating {clip['name']} ({i}/{len(jobs)})…",
-            phase="clip",
-            step=1 + i,
-            steps=total,
-        )
-        video_args = [
-            "--prompt", video_prompt(clip["spec"], key, clip["loop"]),
-            "--image", str(base_path),
-            "--start-image", str(base_path),
-            "--aspect_ratio", "1:1",
-            "--resolution", "480p",
-            "--duration", "5",
-            "--generate_audio", "false",
-        ]
-        if clip["loop"]:
-            video_args += ["--end-image", str(base_path)]
-        last_err = ""
+    completed = {"n": 0}
+    finished = {}
+    progress(
+        f"Starting {len(jobs)} clips together…",
+        phase="clip",
+        step=1,
+        steps=total,
+    )
+
+    def run_one(clip: dict) -> tuple[dict, Path]:
         dest = clips_dir / f"r{clip['row']:02d}_{clip['name']}.mp4"
-        for attempt in range(2):
-            try:
-                job = run_generate(hf, "seedance_2_0_mini", video_args, log)
-                download(job["url"], dest)
-                last_err = ""
-                break
-            except Exception as exc:
-                last_err = str(exc)
+        generate_clip(hf, clip, key, base_path, dest, log)
+        return clip, dest
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
+            futures = [pool.submit(run_one, clip) for clip in jobs]
+            for fut in as_completed(futures):
+                clip, dest = fut.result()
+                finished[id(clip)] = dest
+                completed["n"] += 1
+                n = completed["n"]
                 progress(
-                    f"Retrying {clip['name']} ({attempt + 1}/2)…",
+                    f"{n}/{len(jobs)} clips ready · {clip['name']}",
                     phase="clip",
-                    step=1 + i,
+                    step=1 + n,
                     steps=total,
                 )
-        if last_err:
-            fail(f"{clip['name']}: {last_err}")
-        plan_rows.setdefault(clip["row"], {"row": clip["row"], "name": clip["name"], "one_shot": not clip["loop"], "clips": []})
+    except Exception as exc:
+        fail(str(exc))
+
+    for clip in jobs:
+        dest = finished[id(clip)]
+        plan_rows.setdefault(clip["row"], {
+            "row": clip["row"],
+            "name": clip["name"],
+            "one_shot": not clip["loop"],
+            "clips": [],
+        })
         plan_rows[clip["row"]]["clips"].append({
             "path": str(dest),
             "frames": clip["frames"],
             "name": clip["name"],
         })
-        # Row display name: first clip name unless split
         if len(plan_rows[clip["row"]]["clips"]) == 1:
             plan_rows[clip["row"]]["name"] = clip["name"]
 
