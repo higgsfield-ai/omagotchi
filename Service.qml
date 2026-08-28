@@ -28,6 +28,19 @@ Item {
   property string lastResultUrl: ""
   property string lastError: ""
   property var atlasSpec: null
+  property string photoPath: ""
+  property bool picking: false
+  property int generateStep: 0
+  property int generateSteps: 0
+  property int generatePercent: 0
+  property int atlasRev: 0
+  property bool loggedIn: false
+  property bool loggingIn: false
+  property bool runtimeReady: false
+  property string hfPath: ""
+  property bool pendingLogin: false
+
+  readonly property string photoName: Model.fileBaseName(root.photoPath)
 
   readonly property bool petVisible: true
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
@@ -96,6 +109,65 @@ Item {
     root.atlasSpec = root.readJsonFile(Qt.resolvedUrl("atlas.json"))
   }
 
+  function applyRuntime(raw) {
+    var parsed = Model.parseGenLine(raw)
+    var data = null
+    try {
+      data = JSON.parse(parsed.kind === "result" ? parsed.raw : String(raw || "").replace(/^\s+|\s+$/g, ""))
+    } catch (e) {
+      data = null
+    }
+    if (!data) return
+    if (data.hf) root.hfPath = String(data.hf)
+    if (data.ok) root.runtimeReady = true
+    if (typeof data.logged_in === "boolean") root.loggedIn = data.logged_in
+  }
+
+  function ensureRuntime() {
+    ensureProc.command = ["python3", "-u", root.filePath("scripts/runtime.py"), "ensure", "--out", root.dataDir()]
+    ensureProc.running = false
+    ensureProc.running = true
+  }
+
+  function checkAuth() {
+    authProc.command = ["python3", "-u", root.filePath("scripts/runtime.py"), "auth-status", "--out", root.dataDir()]
+    authProc.running = false
+    authProc.running = true
+  }
+
+  function login() {
+    if (root.loggingIn) return "busy"
+    if (!root.hfPath) {
+      root.pendingLogin = true
+      root.ensureRuntime()
+      root.generateStatus = "Installing Higgsfield…"
+      return "setup"
+    }
+    root.loggingIn = true
+    root.generateStatus = "Waiting for browser login…"
+    loginProc.command = [root.hfPath, "auth", "login"]
+    loginProc.running = false
+    loginProc.running = true
+    return "started"
+  }
+
+  function pickPhoto() {
+    if (root.picking || root.generating) return "busy"
+    root.picking = true
+    pickProc.command = ["bash", root.filePath("scripts/pick-image.sh")]
+    pickProc.running = false
+    pickProc.running = true
+    return "started"
+  }
+
+  function onPickedPhoto(code, stdout) {
+    root.picking = false
+    var path = Model.trimPrompt(stdout)
+    if (Number(code) !== 0 || !path) return
+    if (path.indexOf("file://") === 0) path = path.slice(7)
+    root.photoPath = path
+  }
+
   function onKey() {
     root.keyCount += 1
     root.lastKeyMs = Date.now()
@@ -125,11 +197,16 @@ Item {
   function generateSprite(imagePath, notes, smoke) {
     var img = Model.trimPrompt(imagePath)
     if (!img) return "empty"
+    if (!root.loggedIn) return "login"
     if (root.generating) return "busy"
     var n = Model.trimPrompt(notes)
     root.generating = true
-    root.generateStatus = smoke ? "Smoke test: walk clip…" : "Starting sprite pipeline…"
+    root.generateStatus = smoke ? "Walk test…" : "Starting…"
+    root.generateStep = 0
+    root.generateSteps = smoke ? 3 : 20
+    root.generatePercent = 0
     root.lastPrompt = img
+    root.photoPath = img
     root.lastError = ""
     var cmd = [
       "python3", "-u", root.filePath("scripts/generate-sprite.py"),
@@ -155,13 +232,32 @@ Item {
       root.lastResultPath = parsed.path
       root.lastResultUrl = parsed.url
       root.lastError = ""
-      root.generateStatus = "Saved " + parsed.path
+      root.generateStatus = "Tamagotchi ready"
+      root.generatePercent = 100
+      root.atlasRev += 1
       root.loadAtlas()
       return
     }
     var err = parsed.error || ("generate failed (" + code + ")")
     root.lastError = err
     root.generateStatus = err
+    root.generatePercent = 0
+  }
+
+  function onGenLine(line) {
+    var parsed = Model.parseGenLine(line)
+    if (parsed.kind === "progress") {
+      root.generateStatus = parsed.label
+      root.generateStep = parsed.step
+      root.generateSteps = parsed.steps
+      root.generatePercent = parsed.percent
+      return
+    }
+    if (parsed.kind === "result") {
+      root.onGenerateFinished(0, parsed.raw)
+      return
+    }
+    if (parsed.text) root.generateStatus = parsed.text
   }
 
   function applyFocus(monitorsRaw, windowRaw) {
@@ -244,15 +340,55 @@ Item {
   }
 
   Process {
+    id: ensureProc
+    stdout: SplitParser {
+      onRead: function(line) { root.applyRuntime(line) }
+    }
+    onExited: function() {
+      if (root.pendingLogin && root.hfPath) {
+        root.pendingLogin = false
+        root.login()
+      }
+    }
+  }
+
+  Process {
+    id: authProc
+    stdout: SplitParser {
+      onRead: function(line) { root.applyRuntime(line) }
+    }
+  }
+
+  Process {
+    id: loginProc
+    onExited: function() {
+      root.loggingIn = false
+      root.checkAuth()
+    }
+  }
+
+  Timer {
+    interval: 4000
+    running: root.runtimeReady && !root.loggedIn && !root.loggingIn
+    repeat: true
+    onTriggered: root.checkAuth()
+  }
+
+  Process {
+    id: pickProc
+    stdout: StdioCollector {
+      id: pickOut
+    }
+    onExited: function(exitCode) {
+      root.onPickedPhoto(exitCode, pickOut.text)
+    }
+  }
+
+  Process {
     id: genProc
     stdout: SplitParser {
       onRead: function(line) {
-        var s = String(line || "")
-        if (s.indexOf("{") === 0) {
-          root.onGenerateFinished(0, s)
-          return
-        }
-        if (s) root.generateStatus = s
+        root.onGenLine(line)
       }
     }
     onExited: function(exitCode) {
@@ -261,7 +397,10 @@ Item {
     }
   }
 
-  Component.onCompleted: root.loadAtlas()
+  Component.onCompleted: {
+    root.loadAtlas()
+    root.ensureRuntime()
+  }
 
   IpcHandler {
     target: "higgsfield.signals"
@@ -271,5 +410,7 @@ Item {
     function generate(prompt: string): string { return root.generate(prompt) }
     function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
     function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
+    function pickPhoto(): string { return root.pickPhoto() }
+    function login(): string { return root.login() }
   }
 }

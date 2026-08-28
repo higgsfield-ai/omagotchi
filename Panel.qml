@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -19,16 +20,24 @@ Panel {
     return null
   }
   readonly property bool generating: root.svc ? !!root.svc.generating : false
+  readonly property bool picking: root.svc ? !!root.svc.picking : false
+  readonly property bool loggedIn: root.svc ? !!root.svc.loggedIn : false
+  readonly property bool loggingIn: root.svc ? !!root.svc.loggingIn : false
+  readonly property bool runtimeReady: root.svc ? !!root.svc.runtimeReady : false
+  readonly property string photoPath: root.svc ? String(root.svc.photoPath || "") : ""
+  readonly property string photoName: root.svc ? String(root.svc.photoName || "") : ""
+  readonly property bool hasPhoto: Model.isImagePath(root.photoPath)
   readonly property string statusText: root.svc ? String(root.svc.generateStatus || "") : ""
-  readonly property string resultPath: root.svc ? String(root.svc.lastResultPath || "") : ""
-  readonly property bool showPreview: Model.isImagePath(root.resultPath)
+  readonly property int percent: root.svc ? Number(root.svc.generatePercent || 0) : 0
+  readonly property int step: root.svc ? Number(root.svc.generateStep || 0) : 0
+  readonly property int steps: root.svc ? Number(root.svc.generateSteps || 0) : 0
+  readonly property string lastError: root.svc ? String(root.svc.lastError || "") : ""
+  readonly property bool canGenerate: root.loggedIn && root.hasPhoto && !root.generating && !root.loggingIn
 
   function open() {
     root.openedFromHotkey = false
     root.controller.show()
-    Qt.callLater(function() {
-      if (pathField) pathField.forceActiveFocus()
-    })
+    if (root.svc && typeof root.svc.checkAuth === "function") root.svc.checkAuth()
   }
 
   function openFromHotkey() {
@@ -37,8 +46,8 @@ Panel {
     Qt.callLater(function() {
       if (root.opened && root.bar && "centerHoverRevealSuppressed" in root.bar)
         root.bar.centerHoverRevealSuppressed = true
-      if (pathField) pathField.forceActiveFocus()
     })
+    if (root.svc && typeof root.svc.checkAuth === "function") root.svc.checkAuth()
   }
 
   function close() {
@@ -58,11 +67,36 @@ Panel {
     return false
   }
 
-  function submit(smoke) {
-    if (!root.svc || root.generating) return
-    var imagePath = Model.trimPrompt(pathField.text)
-    if (!imagePath) return
-    root.svc.generateSprite(imagePath, notesField.text, smoke === true)
+  function choosePhoto() {
+    if (!root.loggedIn) {
+      if (root.svc) root.svc.login()
+      return
+    }
+    photoDialog.open()
+  }
+
+  function submitAvatar() {
+    if (!root.svc || root.generating || root.loggingIn) return
+    if (!root.loggedIn) {
+      root.svc.login()
+      return
+    }
+    if (!root.hasPhoto) {
+      root.choosePhoto()
+      return
+    }
+    root.svc.generateSprite(root.photoPath, "", false)
+  }
+
+  FileDialog {
+    id: photoDialog
+    title: "Choose a character photo"
+    fileMode: FileDialog.OpenFile
+    nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp)", "All files (*)"]
+    onAccepted: {
+      if (!root.svc) return
+      root.svc.photoPath = Model.fileUrlToPath(photoDialog.selectedFile)
+    }
   }
 
   KeyboardPanel {
@@ -71,25 +105,24 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    focusTarget: pathField
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(340))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: pathField.activeFocus || notesField.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
       Column {
         id: content
         width: parent.width
-        spacing: Style.space(8)
+        spacing: Style.space(10)
 
         Text {
           width: parent.width
-          text: "Sprite sheet"
+          text: "Tamagotchi"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle
@@ -98,114 +131,127 @@ Panel {
 
         Text {
           width: parent.width
-          text: "1 image → nano_banana_2 base + seedance_2_0_mini clips"
+          text: root.loggedIn
+            ? "Upload a photo, then generate. The new pet replaces the one on your desktop."
+            : "Log in to Higgsfield to unlock photo upload and Generate my avatar."
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle
           wrapMode: Text.WordWrap
-          opacity: 0.7
-        }
-
-        TextField {
-          id: pathField
-          width: parent.width
-          placeholderText: "~/Pictures/character.png"
-          foreground: root.barForeground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape) {
-              root.close()
-              event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-              root.submit(false)
-              event.accepted = true
-            }
-          }
+          opacity: 0.75
         }
 
         Rectangle {
           width: parent.width
-          height: Style.space(56)
-          radius: Math.min(6, Style.cornerRadius)
+          height: Style.space(132)
+          radius: Math.min(8, Style.cornerRadius)
+          opacity: root.loggedIn ? 1 : 0.45
           color: Qt.rgba(0, 0, 0, 0.18)
           border.width: 1
-          border.color: Qt.rgba(1, 1, 1, 0.08)
+          border.color: Qt.rgba(1, 1, 1, 0.1)
 
-          Text {
-            anchors.fill: notesField
-            visible: notesField.text.length === 0
-            text: "Optional notes (outfit, hair)…"
-            color: root.barForeground
-            opacity: 0.4
-            font.family: notesField.font.family
-            font.pixelSize: notesField.font.pixelSize
-            wrapMode: Text.WordWrap
+          Image {
+            anchors.fill: parent
+            anchors.margins: Style.space(6)
+            visible: root.loggedIn && root.hasPhoto
+            source: root.hasPhoto ? ("file://" + root.photoPath) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            cache: false
           }
 
-          TextEdit {
-            id: notesField
+          Text {
+            anchors.centerIn: parent
+            visible: !root.hasPhoto || !root.loggedIn
+            width: parent.width - Style.space(16)
+            horizontalAlignment: Text.AlignHCenter
+            text: !root.loggedIn
+              ? "Photo upload unlocks after login"
+              : (root.picking ? "Opening picker…" : "Click to choose a photo")
+            color: root.barForeground
+            opacity: 0.55
+            wrapMode: Text.WordWrap
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.subtitle
+          }
+
+          MouseArea {
             anchors.fill: parent
-            anchors.margins: Style.space(8)
-            wrapMode: TextEdit.Wrap
-            selectByMouse: true
+            cursorShape: root.loggedIn ? Qt.PointingHandCursor : Qt.ArrowCursor
+            enabled: root.loggedIn && !root.generating
+            onClicked: root.choosePhoto()
+          }
+        }
+
+        Text {
+          width: parent.width
+          visible: root.loggedIn && root.hasPhoto
+          text: root.photoName
+          color: root.barForeground
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.subtitle
+          elide: Text.ElideMiddle
+          opacity: 0.7
+        }
+
+        WidgetButton {
+          bar: root.bar
+          text: {
+            if (root.loggingIn) return "Waiting for browser…"
+            if (root.generating) return "Generating…"
+            if (!root.loggedIn) return "Generate my avatar"
+            return "Generate my avatar"
+          }
+          tooltipText: !root.loggedIn
+            ? "Opens the Higgsfield login browser"
+            : (root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first")
+          onPressed: function(buttonCode) {
+            if (buttonCode !== Qt.LeftButton) return
+            root.submitAvatar()
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.generating || root.loggingIn || root.percent > 0 || root.statusText !== ""
+
+          Rectangle {
+            width: parent.width
+            height: 8
+            radius: 4
+            visible: root.generating || root.percent > 0
+            color: Qt.rgba(1, 1, 1, 0.12)
+
+            Rectangle {
+              width: Math.max(8, parent.width * Math.min(1, Math.max(0, root.percent / 100)))
+              height: parent.height
+              radius: 4
+              color: root.barForeground
+            }
+          }
+
+          Text {
+            width: parent.width
+            text: root.generating
+              ? ((root.percent > 0 ? (root.percent + "%  ·  ") : "") + (root.statusText || "Working…"))
+              : root.statusText
             color: root.barForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.subtitle
-            text: ""
-          }
-        }
-
-        Row {
-          spacing: Style.space(8)
-
-          WidgetButton {
-            bar: root.bar
-            text: root.generating ? "Working…" : "Generate sheet"
-            tooltipText: "18 clips · several minutes · Higgsfield CLI"
-            onPressed: function(buttonCode) {
-              if (buttonCode === Qt.LeftButton) root.submit(false)
-            }
+            wrapMode: Text.WordWrap
+            opacity: 0.9
           }
 
-          WidgetButton {
-            bar: root.bar
-            text: "Walk test"
-            tooltipText: "Base sprite + one walk clip only"
-            onPressed: function(buttonCode) {
-              if (buttonCode === Qt.LeftButton) root.submit(true)
-            }
+          Text {
+            width: parent.width
+            visible: root.generating && root.steps > 0
+            text: root.step + " / " + root.steps
+            color: root.barForeground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.subtitle
+            opacity: 0.55
           }
-        }
-
-        Text {
-          width: parent.width
-          visible: root.statusText !== ""
-          text: root.statusText
-          color: root.barForeground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.subtitle
-          wrapMode: Text.WordWrap
-          opacity: 0.85
-        }
-
-        Image {
-          width: parent.width
-          visible: root.showPreview
-          source: root.showPreview ? ("file://" + root.resultPath) : ""
-          fillMode: Image.PreserveAspectFit
-          height: visible ? Style.space(120) : 0
-          asynchronous: true
-        }
-
-        Text {
-          width: parent.width
-          visible: root.resultPath !== ""
-          text: root.resultPath
-          color: root.barForeground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.subtitle
-          wrapMode: Text.WrapAnywhere
-          opacity: 0.7
         }
       }
     }

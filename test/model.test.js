@@ -105,3 +105,16 @@ test("generated 16x12 atlas maps pet modes onto skill rows", () => {
   assert.equal(collapse.frameX, 640)
   assert.equal(Model.atlasImageSource("/tmp/a.png"), "file:///tmp/a.png")
 })
+
+test("parseGenLine splits progress JSON from the final result", () => {
+  const prog = Model.parseGenLine('{"t":"progress","phase":"clip","step":4,"steps":20,"label":"Animating walk","percent":20}')
+  assert.equal(prog.kind, "progress")
+  assert.equal(prog.step, 4)
+  assert.equal(prog.steps, 20)
+  assert.equal(prog.percent, 20)
+  assert.match(prog.label, /walk/)
+  const done = Model.parseGenLine('{"ok":true,"path":"/tmp/sheet.png"}')
+  assert.equal(done.kind, "result")
+  assert.equal(Model.fileBaseName("/home/x/Pictures/cat.png"), "cat.png")
+  assert.equal(Model.fileUrlToPath("file:///home/x/Pictures/cat.png"), "/home/x/Pictures/cat.png")
+})

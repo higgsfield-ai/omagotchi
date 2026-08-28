@@ -80,8 +80,15 @@ CLIPS = [
 ]
 
 
-def progress(msg: str) -> None:
-    print(msg, flush=True)
+def progress(msg: str, *, phase: str = "", step: int = 0, steps: int = 0) -> None:
+    print(json.dumps({
+        "t": "progress",
+        "phase": phase,
+        "step": step,
+        "steps": steps,
+        "label": msg,
+        "percent": int(round(100.0 * step / steps)) if steps else 0,
+    }), flush=True)
 
 
 def fail(msg: str, extra: dict | None = None) -> None:
@@ -92,7 +99,37 @@ def fail(msg: str, extra: dict | None = None) -> None:
     sys.exit(1)
 
 
-def find_hf() -> str:
+def last_json(text: str):
+    for line in reversed((text or "").splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+    return None
+
+
+def bootstrap(plugin_root: Path, out_dir: Path) -> dict:
+    runtime = plugin_root / "scripts" / "runtime.py"
+    progress("Preparing Higgsfield…", phase="setup", step=0, steps=1)
+    proc = subprocess.run(
+        [sys.executable, "-u", str(runtime), "ensure", "--out", str(out_dir)],
+        capture_output=True,
+        text=True,
+    )
+    data = last_json((proc.stdout or "") + "\n" + (proc.stderr or ""))
+    if proc.returncode != 0 or not data or not data.get("ok"):
+        err = (data or {}).get("error") or (proc.stderr or proc.stdout or "runtime setup failed")
+        fail(str(err)[-800:])
+    return data
+
+
+def find_hf(out_dir: Path | None = None) -> str:
+    if out_dir:
+        bundled = Path(out_dir) / "bin" / "higgsfield"
+        if bundled.is_file() and os.access(bundled, os.X_OK):
+            return str(bundled)
     for name in ("higgsfield", "hf"):
         found = shutil.which(name)
         if found:
@@ -244,25 +281,27 @@ def main() -> None:
         fail(f"image not found: {image}")
 
     plugin_root = Path(args.plugin_root).resolve()
+    out_dir = Path(os.path.expanduser(args.out)).resolve()
     post = plugin_root / "skill/sprite-sheet-8bit/scripts/postprocess.py"
     if not post.is_file():
         fail(f"postprocess.py missing at {post}")
 
-    for bin_name in ("ffmpeg", "ffprobe"):
-        if not shutil.which(bin_name):
-            fail(f"{bin_name} not found. Install: pacman -S ffmpeg")
+    runtime = bootstrap(plugin_root, out_dir)
+    hf = runtime.get("hf") or find_hf(out_dir)
+    venv_py = runtime.get("python") or sys.executable
+    if not hf:
+        fail("could not install Higgsfield CLI")
+    if not runtime.get("ffmpeg_ok"):
+        fail("ffmpeg not found. Omarchy should ship ffmpeg; install it from the Omarchy menu if video tools are missing.")
 
     try:
+        sys.path.insert(0, str(Path(venv_py).resolve().parent.parent / "lib"))
+        for site in (out_dir / "venv" / "lib").glob("python*/site-packages"):
+            sys.path.insert(0, str(site))
         import numpy  # noqa: F401
         from PIL import Image  # noqa: F401
     except ImportError:
-        fail("python deps missing. Install: pacman -S python-pillow python-numpy")
-
-    hf = find_hf()
-    if not hf:
-        fail("higgsfield CLI not found. Install it and run: higgsfield auth login")
-
-    out_dir = Path(os.path.expanduser(args.out)).resolve()
+        fail("could not load Pillow/numpy after setup")
     clips_dir = out_dir / "clips"
     work_dir = out_dir / "work"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -273,8 +312,9 @@ def main() -> None:
 
     key = pick_key_color(image)
     jobs = CLIPS[:1] if args.smoke else CLIPS
+    total = 2 + len(jobs)  # base + clips + postprocess
 
-    progress(f"Base sprite ({key})…")
+    progress("Drawing the base sprite…", phase="base", step=0, steps=total)
     try:
         base_job = run_generate(hf, "nano_banana_2", [
             "--prompt", base_prompt(key, args.notes),
@@ -286,10 +326,16 @@ def main() -> None:
         fail(str(exc))
     base_path = work_dir / "base.png"
     download(base_job["url"], base_path)
+    progress("Base sprite ready", phase="base", step=1, steps=total)
 
     plan_rows = {}
     for i, clip in enumerate(jobs, start=1):
-        progress(f"Clip {i}/{len(jobs)}: {clip['name']}…")
+        progress(
+            f"Animating {clip['name']} ({i}/{len(jobs)})…",
+            phase="clip",
+            step=1 + i,
+            steps=total,
+        )
         video_args = [
             "--prompt", video_prompt(clip["spec"], key, clip["loop"]),
             "--image", str(base_path),
@@ -311,7 +357,12 @@ def main() -> None:
                 break
             except Exception as exc:
                 last_err = str(exc)
-                progress(f"Retry {clip['name']} ({attempt + 1}/2)…")
+                progress(
+                    f"Retrying {clip['name']} ({attempt + 1}/2)…",
+                    phase="clip",
+                    step=1 + i,
+                    steps=total,
+                )
         if last_err:
             fail(f"{clip['name']}: {last_err}")
         plan_rows.setdefault(clip["row"], {"row": clip["row"], "name": clip["name"], "one_shot": not clip["loop"], "clips": []})
@@ -335,8 +386,8 @@ def main() -> None:
     plan_path = work_dir / "plan.json"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
-    progress("Post-process…")
-    proc = subprocess.run([sys.executable, str(post), str(plan_path)], capture_output=True, text=True)
+    progress("Cutting frames…", phase="post", step=total - 1, steps=total)
+    proc = subprocess.run([venv_py, str(post), str(plan_path)], capture_output=True, text=True)
     with log.open("a") as fh:
         fh.write(proc.stdout or "")
         fh.write(proc.stderr or "")
@@ -356,7 +407,7 @@ def main() -> None:
         shutil.copytree(actions_src, actions_dest)
 
     atlas_path = write_atlas(out_dir, sheet_dest, 1 if args.smoke else 12, args.frame_size, args.smoke)
-    progress("Saved " + str(sheet_dest))
+    progress("Tamagotchi ready", phase="done", step=total, steps=total)
     print(json.dumps({
         "ok": True,
         "path": str(sheet_dest),

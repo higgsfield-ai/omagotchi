@@ -262,6 +262,47 @@ function atlasImageSource(file) {
   return f
 }
 
+function fileUrlToPath(url) {
+  var s = String(url || "")
+  if (s.indexOf("file://") === 0) s = s.slice(7)
+  return decodeURIComponent(s)
+}
+
+function fileBaseName(path) {
+  var p = String(path || "").replace(/\\/g, "/")
+  var i = p.lastIndexOf("/")
+  return i >= 0 ? p.slice(i + 1) : p
+}
+
+function parseGenLine(raw) {
+  var s = String(raw || "")
+  if (s.charAt(0) !== "{") return { kind: "text", text: s }
+  try {
+    var data = JSON.parse(s)
+    if (data && data.t === "progress") {
+      var steps = Number(data.steps) || 0
+      var step = Number(data.step) || 0
+      var percent = Number(data.percent)
+      if (!isFinite(percent) || percent < 0) {
+        percent = steps > 0 ? Math.round(100 * step / steps) : 0
+      }
+      if (percent > 100) percent = 100
+      return {
+        kind: "progress",
+        phase: String(data.phase || ""),
+        step: step,
+        steps: steps,
+        percent: percent,
+        label: String(data.label || "")
+      }
+    }
+    if (data && typeof data.ok === "boolean") {
+      return { kind: "result", raw: s }
+    }
+  } catch (e) {}
+  return { kind: "text", text: s }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     defaultAtlas: defaultAtlas,
@@ -277,6 +318,9 @@ if (typeof module !== "undefined") {
     trimPrompt: trimPrompt,
     parseGenerateResult: parseGenerateResult,
     isImagePath: isImagePath,
-    atlasImageSource: atlasImageSource
+    atlasImageSource: atlasImageSource,
+    fileBaseName: fileBaseName,
+    fileUrlToPath: fileUrlToPath,
+    parseGenLine: parseGenLine
   }
 }

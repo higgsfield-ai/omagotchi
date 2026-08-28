@@ -141,8 +141,9 @@ Item {
           anchors.fill: parent
           source: {
             var abs = Model.atlasImageSource(root.atlas.file)
-            if (abs.indexOf("file://") === 0) return abs
-            return Qt.resolvedUrl(root.atlas.file)
+            var src = abs.indexOf("file://") === 0 ? abs : Qt.resolvedUrl(root.atlas.file)
+            var rev = root.svc ? Number(root.svc.atlasRev || 0) : 0
+            return src + "#r" + rev
           }
           sourceClipRect: Qt.rect(
             window.frames.frameX + window.frame * window.frames.frameWidth,

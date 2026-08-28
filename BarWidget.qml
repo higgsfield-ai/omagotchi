@@ -68,10 +68,14 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.generating ? "…" : "HF"
+    text: {
+      if (!root.generating) return "HF"
+      var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
+      return p > 0 ? (p + "%") : "…"
+    }
     tooltipText: root.generating
-      ? "Generating sprite sheet…"
-      : "Generate 8-bit sprite sheet"
+      ? (root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…")
+      : "Generate my avatar"
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
