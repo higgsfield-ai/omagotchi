@@ -64,3 +64,44 @@ test("danceFps follows the waveform peak", () => {
   assert.equal(Model.danceFps(0), 7)
   assert.equal(Model.danceFps(1), 23)
 })
+
+test("parseGenerateResult reads the last JSON line", () => {
+  const ok = Model.parseGenerateResult('noise\n{"ok":true,"path":"/tmp/a.png","url":"https://x"}')
+  assert.equal(ok.ok, true)
+  assert.equal(ok.path, "/tmp/a.png")
+  assert.equal(ok.url, "https://x")
+  const fail = Model.parseGenerateResult('{"ok":false,"error":"higgsfield CLI not found"}')
+  assert.equal(fail.ok, false)
+  assert.match(fail.error, /not found/)
+  assert.equal(Model.trimPrompt("  hello  "), "hello")
+  assert.equal(Model.isImagePath("/tmp/a.PNG"), true)
+  assert.equal(Model.isImagePath("/tmp/a.mp4"), false)
+})
+
+test("generated 16x12 atlas maps pet modes onto skill rows", () => {
+  const spec = {
+    file: "/tmp/spritesheet_16x12.png",
+    cellWidth: 80,
+    cellHeight: 80,
+    columns: 16,
+    rows: 12,
+    fps: 10,
+    scale: 1,
+    modes: {
+      walk: { row: 0, start: 0, count: 16 },
+      idle: { row: 1, start: 0, count: 8 },
+      dance: { row: 4, start: 0, count: 16 },
+      flip: { row: 5, start: 0, count: 16 },
+      collapse: { row: 2, start: 8, count: 8 },
+      drag: { row: 3, start: 0, count: 8 }
+    }
+  }
+  const walk = Model.framesForMode(spec, "walk")
+  assert.equal(walk.frameCount, 16)
+  assert.equal(walk.frameWidth, 80)
+  assert.equal(walk.frameY, 0)
+  const collapse = Model.framesForMode(spec, "collapse")
+  assert.equal(collapse.frameY, 160)
+  assert.equal(collapse.frameX, 640)
+  assert.equal(Model.atlasImageSource("/tmp/a.png"), "file:///tmp/a.png")
+})

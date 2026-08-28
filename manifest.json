@@ -2,14 +2,21 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Tamagotchi",
-  "version": "0.11.0",
+  "version": "0.13.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Desktop Tamagotchi on the focused window: walks on keys, dances to audio, drag and click to collapse.",
+  "description": "Desktop Tamagotchi. Bar chip builds an 8-bit sprite sheet from one photo via Higgsfield CLI.",
   "keepLoaded": true,
-  "kinds": ["overlay", "service"],
+  "kinds": ["overlay", "service", "bar-widget"],
   "entryPoints": {
     "overlay": "Overlay.qml",
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Higgsfield",
+    "category": "Fun",
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }

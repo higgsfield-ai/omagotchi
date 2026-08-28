@@ -217,6 +217,51 @@ function danceFps(peak) {
   return Math.round(7 + p * 16)
 }
 
+function trimPrompt(raw) {
+  return String(raw || "").replace(/^\s+|\s+$/g, "")
+}
+
+function parseGenerateResult(raw) {
+  var text = String(raw || "").replace(/^\s+|\s+$/g, "")
+  if (!text) return { ok: false, error: "empty output", path: "", url: "" }
+  var lines = text.split(/\n/)
+  var last = lines[lines.length - 1]
+  try {
+    var data = JSON.parse(last)
+    if (data && data.ok) {
+      return {
+        ok: true,
+        path: String(data.path || ""),
+        url: String(data.url || ""),
+        atlas: String(data.atlas || ""),
+        model: String(data.model || ""),
+        error: ""
+      }
+    }
+    return {
+      ok: false,
+      error: String((data && data.error) || "generate failed"),
+      path: "",
+      url: ""
+    }
+  } catch (e) {
+    return { ok: false, error: last.slice(0, 400), path: "", url: "" }
+  }
+}
+
+function isImagePath(path) {
+  var p = String(path || "").toLowerCase().split("?")[0]
+  return /\.(png|jpe?g|webp|gif)$/.test(p)
+}
+
+function atlasImageSource(file) {
+  var f = String(file || "")
+  if (!f) return ""
+  if (f.indexOf("file://") === 0) return f
+  if (f.charAt(0) === "/") return "file://" + f
+  return f
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     defaultAtlas: defaultAtlas,
@@ -228,6 +273,10 @@ if (typeof module !== "undefined") {
     clampPetX: clampPetX,
     petBottomY: petBottomY,
     clipWindowRect: clipWindowRect,
-    focusWindow: focusWindow
+    focusWindow: focusWindow,
+    trimPrompt: trimPrompt,
+    parseGenerateResult: parseGenerateResult,
+    isImagePath: isImagePath,
+    atlasImageSource: atlasImageSource
   }
 }

@@ -1,0 +1,80 @@
+import QtQuick
+import qs.Ui
+
+// Bar chip that opens the generate panel. IPC stays on Service.qml —
+// a second IpcHandler on higgsfield.signals would go silent.
+BarWidget {
+  id: root
+  moduleName: "higgsfield.signals"
+
+  readonly property var svc: root.bar && root.bar.shell && root.bar.shell.serviceFor
+    ? root.bar.shell.serviceFor("higgsfield.signals")
+    : null
+
+  readonly property bool opened: panelLoader.item
+    ? panelLoader.item.opened === true
+    : false
+  readonly property bool popoutSwitchClosing: panelLoader.item
+    ? panelLoader.item.popoutSwitchClosing === true
+    : false
+  readonly property bool generating: root.svc ? !!root.svc.generating : false
+
+  function injectPanel() {
+    var target = panelLoader.item
+    if (!target) return
+    if ("bar" in target) target.bar = root.bar
+    if ("settings" in target) target.settings = root.settings
+    if ("anchorItem" in target) target.anchorItem = button
+    if ("hostWidget" in target) target.hostWidget = root
+  }
+
+  function open() {
+    if (panelLoader.item && panelLoader.item.openFromHotkey)
+      panelLoader.item.openFromHotkey()
+    else if (panelLoader.item)
+      panelLoader.item.open()
+  }
+
+  function close() {
+    if (panelLoader.item) panelLoader.item.close()
+  }
+
+  function toggle() {
+    if (panelLoader.item) panelLoader.item.toggle()
+  }
+
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
+
+  Loader {
+    id: panelLoader
+    active: true
+    source: Qt.resolvedUrl("Panel.qml")
+    visible: false
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
+    }
+  }
+
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: root.generating ? "…" : "HF"
+    tooltipText: root.generating
+      ? "Generating sprite sheet…"
+      : "Generate 8-bit sprite sheet"
+
+    onPressed: function(buttonCode) {
+      if (buttonCode === Qt.LeftButton) root.toggle()
+    }
+  }
+}

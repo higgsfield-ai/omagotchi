@@ -14,7 +14,9 @@ Item {
   readonly property var svc: root.shell && root.shell.serviceFor
     ? root.shell.serviceFor("higgsfield.signals")
     : null
-  readonly property var atlas: Model.normalizeAtlas(null)
+  readonly property var atlas: root.svc && root.svc.atlas
+    ? root.svc.atlas
+    : Model.normalizeAtlas(null)
 
   function open(payloadJson) {}
   function close() {}
@@ -137,7 +139,11 @@ Item {
 
         Image {
           anchors.fill: parent
-          source: Qt.resolvedUrl(root.atlas.file)
+          source: {
+            var abs = Model.atlasImageSource(root.atlas.file)
+            if (abs.indexOf("file://") === 0) return abs
+            return Qt.resolvedUrl(root.atlas.file)
+          }
           sourceClipRect: Qt.rect(
             window.frames.frameX + window.frame * window.frames.frameWidth,
             window.frames.frameY,

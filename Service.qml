@@ -20,6 +20,14 @@ Item {
   property double lastKeyMs: 0
   property int nowMs: 0
   property real audioPeak: 0
+  property bool generating: false
+  property string generateStatus: ""
+  property string generateModel: "nano_banana_2"
+  property string lastPrompt: ""
+  property string lastResultPath: ""
+  property string lastResultUrl: ""
+  property string lastError: ""
+  property var atlasSpec: null
 
   readonly property bool petVisible: true
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
@@ -41,11 +49,51 @@ Item {
     audioPeak: root.audioPeak
   })
   readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
+  readonly property var atlas: Model.normalizeAtlas(root.atlasSpec)
 
   function filePath(name) {
     var url = String(Qt.resolvedUrl(name))
     if (url.indexOf("file://") === 0) url = url.slice(7)
     return decodeURIComponent(url)
+  }
+
+  function pluginRoot() {
+    var p = root.filePath("scripts/generate-sprite.py")
+    var i = p.lastIndexOf("/scripts/")
+    if (i >= 0) return p.slice(0, i)
+    return root.filePath(".")
+  }
+
+  function dataDir() {
+    var home = ""
+    try {
+      home = String(Quickshell.env("HOME") || "")
+    } catch (e) {
+      home = ""
+    }
+    if (!home) home = "/tmp"
+    return home + "/.local/share/higgsfield.signals"
+  }
+
+  function readJsonFile(url) {
+    var xhr = new XMLHttpRequest()
+    xhr.open("GET", url, false)
+    xhr.send()
+    if (xhr.status !== 200 && xhr.status !== 0) return null
+    try {
+      return JSON.parse(xhr.responseText)
+    } catch (e) {
+      return null
+    }
+  }
+
+  function loadAtlas() {
+    var generated = root.readJsonFile("file://" + root.dataDir() + "/atlas.json")
+    if (generated && generated.file) {
+      root.atlasSpec = generated
+      return
+    }
+    root.atlasSpec = root.readJsonFile(Qt.resolvedUrl("atlas.json"))
   }
 
   function onKey() {
@@ -56,6 +104,64 @@ Item {
   function toggleCollapsed() {
     root.collapsed = !root.collapsed
     return root.collapsed ? "collapsed" : "expanded"
+  }
+
+  function generate(prompt, model) {
+    var p = Model.trimPrompt(prompt)
+    if (!p) return "empty"
+    if (root.generating) return "busy"
+    var m = Model.trimPrompt(model)
+    if (!m) m = root.generateModel
+    root.generating = true
+    root.generateStatus = "Generating…"
+    root.lastPrompt = p
+    root.lastError = ""
+    genProc.command = ["bash", root.filePath("generate.sh"), p, m]
+    genProc.running = false
+    genProc.running = true
+    return "started"
+  }
+
+  function generateSprite(imagePath, notes, smoke) {
+    var img = Model.trimPrompt(imagePath)
+    if (!img) return "empty"
+    if (root.generating) return "busy"
+    var n = Model.trimPrompt(notes)
+    root.generating = true
+    root.generateStatus = smoke ? "Smoke test: walk clip…" : "Starting sprite pipeline…"
+    root.lastPrompt = img
+    root.lastError = ""
+    var cmd = [
+      "python3", "-u", root.filePath("scripts/generate-sprite.py"),
+      "--image", img,
+      "--plugin-root", root.pluginRoot(),
+      "--out", root.dataDir()
+    ]
+    if (n) {
+      cmd.push("--notes")
+      cmd.push(n)
+    }
+    if (smoke) cmd.push("--smoke")
+    genProc.command = cmd
+    genProc.running = false
+    genProc.running = true
+    return "started"
+  }
+
+  function onGenerateFinished(code, stdout) {
+    var parsed = Model.parseGenerateResult(stdout)
+    root.generating = false
+    if (parsed.ok && parsed.path) {
+      root.lastResultPath = parsed.path
+      root.lastResultUrl = parsed.url
+      root.lastError = ""
+      root.generateStatus = "Saved " + parsed.path
+      root.loadAtlas()
+      return
+    }
+    var err = parsed.error || ("generate failed (" + code + ")")
+    root.lastError = err
+    root.generateStatus = err
   }
 
   function applyFocus(monitorsRaw, windowRaw) {
@@ -137,10 +243,33 @@ Item {
     onPeakChanged: root.audioPeak = peakMon.peak
   }
 
+  Process {
+    id: genProc
+    stdout: SplitParser {
+      onRead: function(line) {
+        var s = String(line || "")
+        if (s.indexOf("{") === 0) {
+          root.onGenerateFinished(0, s)
+          return
+        }
+        if (s) root.generateStatus = s
+      }
+    }
+    onExited: function(exitCode) {
+      if (!root.generating) return
+      root.onGenerateFinished(exitCode, '{"ok":false,"error":"generate failed (' + exitCode + ')"}')
+    }
+  }
+
+  Component.onCompleted: root.loadAtlas()
+
   IpcHandler {
     target: "higgsfield.signals"
 
     function ping(): string { return "ok" }
     function collapse(): string { return root.toggleCollapsed() }
+    function generate(prompt: string): string { return root.generate(prompt) }
+    function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
+    function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
   }
 }
