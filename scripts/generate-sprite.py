@@ -175,46 +175,6 @@ def describe_hf_error(text: str) -> str:
     return blob[-800:]
 
 
-def is_transient_hf_error(text: str) -> bool:
-    low = (text or "").lower()
-    return any(token in low for token in (
-        "503",
-        "502",
-        "504",
-        "service unavailable",
-        "bad gateway",
-        "gateway timeout",
-        "429",
-        "rate limit",
-        "too many",
-        "timeout",
-        "temporar",
-        "try again",
-        "connection reset",
-        "econnreset",
-        "ended with status",
-        'status "failed"',
-        "status 'failed'",
-    ))
-
-
-def is_policy_hf_error(text: str) -> bool:
-    low = (text or "").lower()
-    return "nsfw" in low or "ip_detected" in low or "content policy" in low
-
-
-def retry_progress(err: str) -> None:
-    if is_job_failed_error(err):
-        progress("That generation failed, retrying…", phase="retry")
-    else:
-        progress("Higgsfield is busy, retrying…", phase="retry")
-
-
-def is_job_failed_error(text: str) -> bool:
-    low = (text or "").lower()
-    return "ended with status" in low or 'status "failed"' in low or "status 'failed'" in low
-
-
 JOB_ID_RE = re.compile(
     r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
     re.I,
@@ -437,9 +397,9 @@ def is_unknown_flag_error(text: str) -> bool:
 
 
 WAIT_FLAG_VARIANTS = (
-    ["--wait-timeout", "15m"],
-    ["--timeout", "15m"],
     [],
+    ["--timeout", "15m"],
+    ["--wait-timeout", "15m"],
 )
 _WAIT_FLAGS = None
 
@@ -468,36 +428,23 @@ def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
     raise RuntimeError(last_err)
 
 
+# One Higgsfield create per call. Failures surface to the panel; only Retry starts again.
 def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
-    last_err = "higgsfield create failed"
-    for delay in (0, 2, 5, 12):
-        if delay:
-            time.sleep(delay)
-        proc = subprocess.run(
-            [hf, "generate", "create", model, *args, "--json"],
-            capture_output=True,
-            text=True,
-        )
-        append_log(log, (proc.stderr or "") + (proc.stdout or ""))
+    proc = subprocess.run(
+        [hf, "generate", "create", model, *args, "--json"],
+        capture_output=True,
+        text=True,
+    )
+    append_log(log, (proc.stderr or "") + (proc.stdout or ""))
+    data = parse_job(proc.stdout or "")
+    job_id = extract_job_id(data)
+    if not job_id:
         lines = (proc.stdout or "").strip().splitlines()
-        data = parse_job(proc.stdout or "")
-        job_id = extract_job_id(data)
-        if not job_id and lines:
+        if lines:
             job_id = extract_job_id(lines[-1])
-        if proc.returncode == 0 and job_id:
-            return job_id
-        last_err = describe_hf_error(proc.stderr or proc.stdout or last_err) or last_err
-        if proc.returncode == 0 and not job_id:
-            last_err = "no job id from higgsfield create"
-        low = last_err.lower()
-        if is_transient_hf_error(last_err):
-            progress("Higgsfield is busy, retrying…", phase="retry")
-            continue
-        if "upgrade_plan" in low or "not_enough_credits" in low or "credits_exhausted" in low:
-            raise RuntimeError(last_err)
-        if proc.returncode != 0:
-            raise RuntimeError(last_err)
-    raise RuntimeError(last_err)
+    if proc.returncode == 0 and job_id:
+        return job_id
+    raise RuntimeError(describe_hf_error(proc.stderr or proc.stdout or "higgsfield create failed"))
 
 
 def wait_job(hf: str, job_id: str, log: Path) -> dict:
@@ -518,30 +465,17 @@ def wait_job(hf: str, job_id: str, log: Path) -> dict:
 
 
 def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
-    last_err = "higgsfield generate failed"
-    for delay in (0, 2, 5, 12):
-        if delay:
-            time.sleep(delay)
-            progress("Higgsfield is busy, retrying…", phase="retry")
-        try:
-            data = hf_with_wait_flags(
-                hf,
-                [hf, "generate", "create", model, *args, "--wait", "--json"],
-                log,
-            )
-            url = extract_url(data)
-            if not url:
-                raise RuntimeError("no result URL in CLI JSON")
-            return {"url": url, "raw": data}
-        except Exception as exc:
-            last_err = str(exc)
-            jid = extract_uuid(last_err)
-            if jid:
-                last_err = explain_job_failure(hf, jid, last_err, log)
-            if is_transient_hf_error(last_err) or is_job_failed_error(last_err):
-                continue
-            raise RuntimeError(last_err) from exc
-    raise RuntimeError(last_err)
+    # Single create --wait. Do not pass timeout flags: probing them re-submits the job.
+    data = run_hf(
+        hf,
+        [hf, "generate", "create", model, *args, "--wait", "--json"],
+        log,
+    )
+    url = extract_url(data)
+    if url:
+        return {"url": url, "raw": data}
+    jid = extract_job_id(data) or extract_uuid(json.dumps(data))
+    raise RuntimeError(explain_job_failure(hf, jid, "no result URL in CLI JSON", log))
 
 
 def pick_key_color(path: Path) -> str:
@@ -597,23 +531,13 @@ def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
 
 
 def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, log: Path) -> Path:
-    last_err = ""
-    video_args = clip_video_args(clip, key, base_path)
-    for attempt in range(3):
-        try:
-            job_id = start_job(hf, "seedance_2_0_mini", video_args, log)
-            job = wait_job(hf, job_id, log)
-            download(job["url"], dest)
-            return dest
-        except Exception as exc:
-            last_err = str(exc)
-            low = last_err.lower()
-            if "upgrade_plan" in low or "not_enough_credits" in low or "credits_exhausted" in low:
-                break
-            if attempt < 2:
-                progress("Higgsfield is busy, retrying…", phase="retry")
-                time.sleep(4 + attempt * 6)
-    raise RuntimeError(f"{clip['name']}: {last_err}")
+    try:
+        job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, base_path), log)
+        job = wait_job(hf, job_id, log)
+        download(job["url"], dest)
+        return dest
+    except Exception as exc:
+        raise RuntimeError(f"{clip['name']}: {exc}") from exc
 
 
 def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: bool) -> tuple[Path, dict]:
