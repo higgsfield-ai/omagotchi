@@ -17,9 +17,13 @@ Item {
   property real winW: 0
   property real winH: 0
   property bool collapsed: false
-  property int keyCount: 0
-  property double lastKeyMs: 0
   property int nowMs: 0
+  property string wander: "idle"
+  property int greetUntil: 0
+  property int grumpyUntil: 0
+  property int sickUntil: 0
+  property int lastClickMs: 0
+  property int clickBurst: 0
   property real audioPeak: 0
   property bool generating: false
   property string generateStatus: ""
@@ -56,12 +60,13 @@ Item {
     return false
   }
   onMediaPlayingChanged: if (!root.mediaPlaying) root.audioPeak = 0
-  readonly property bool keysRecent: (root.nowMs - root.lastKeyMs) < 500
   readonly property string mode: Model.resolveMode({
-    collapsed: root.collapsed,
-    keysRecent: root.keysRecent,
+    sick: root.nowMs < root.sickUntil,
+    grumpy: root.nowMs < root.grumpyUntil,
+    greet: root.nowMs < root.greetUntil,
     mediaPlaying: root.mediaPlaying,
-    audioPeak: root.audioPeak
+    audioPeak: root.audioPeak,
+    wander: root.wander
   })
   readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
   readonly property var atlas: Model.normalizeAtlas(root.atlasSpec)
@@ -220,9 +225,23 @@ Item {
     }
   }
 
-  function onKey() {
-    root.keyCount += 1
-    root.lastKeyMs = Date.now()
+  function onPetClicked() {
+    var next = Model.nextClickState({
+      lastClickMs: root.lastClickMs,
+      clickBurst: root.clickBurst,
+      greetUntil: root.greetUntil,
+      grumpyUntil: root.grumpyUntil
+    }, Date.now())
+    root.lastClickMs = next.lastClickMs
+    root.clickBurst = next.clickBurst
+    root.greetUntil = next.greetUntil
+    root.grumpyUntil = next.grumpyUntil
+    return root.nowMs < root.grumpyUntil ? "grumpy" : "greet"
+  }
+
+  function onDroppedFromHeight() {
+    root.sickUntil = Date.now() + 4500
+    return "sick"
   }
 
   function toggleCollapsed() {
@@ -341,6 +360,17 @@ Item {
   }
 
   Timer {
+    id: wanderTimer
+    interval: 2800
+    running: root.petVisible
+    repeat: true
+    onTriggered: {
+      root.wander = Model.pickWander(Math.random())
+      wanderTimer.interval = 1800 + Math.floor(Math.random() * 2800)
+    }
+  }
+
+  Timer {
     interval: 250
     running: true
     repeat: true
@@ -367,17 +397,6 @@ Item {
     stdout: StdioCollector {
       id: winOut
       onStreamFinished: root.applyWindow(winOut.text)
-    }
-  }
-
-  Process {
-    id: keyWatch
-    command: ["python3", "-u", root.filePath("watch-keys.py")]
-    running: true
-    stdout: SplitParser {
-      onRead: function(line) {
-        if (String(line).indexOf("k") !== -1) root.onKey()
-      }
     }
   }
 
@@ -494,6 +513,7 @@ Item {
   }
 
   Component.onCompleted: {
+    root.wander = Model.pickWander(Math.random())
     root.loadAtlas()
     root.ensureRuntime()
   }

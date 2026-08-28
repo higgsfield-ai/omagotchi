@@ -51,26 +51,35 @@ Item {
       h: window.winH
     }, window.width, window.height)
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
+    readonly property bool airborne: window.dragging || window.falling
     readonly property string mode: {
       if (window.collapsed) return "collapse"
       if (window.dragging) return "drag"
+      if (window.falling) return "sick"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
+    readonly property var pace: Model.movePace(window.mode)
     readonly property real peak: root.svc ? Number(root.svc.audioPeak) : 0
     readonly property int bounce: {
-      if (window.dragging || window.collapsed || window.mode === "walk") return 0
+      if (window.airborne || window.collapsed) return 0
+      if (Model.isMoveMode(window.mode) || window.mode === "greet" || window.mode === "grumpy" || window.mode === "sick")
+        return 0
       return Math.round(Math.max(0, window.peak) * 16)
     }
+    readonly property real floorY: Model.petBottomY(window.frames.displayHeight, window.stageRect.h, 4)
 
     property real petX: 12
     property real petY: 0
+    property real fallVel: 0
     property int facing: 1
     property int frame: 0
     property bool dragging: false
+    property bool falling: false
 
     onModeChanged: window.frame = 0
     onVisibleChanged: if (window.visible) window.snapInside()
+    onFloorYChanged: if (!window.airborne) window.petY = window.floorY
 
     function maxPetX() {
       return Math.max(0, window.stageRect.w - window.frames.displayWidth)
@@ -78,14 +87,41 @@ Item {
 
     function snapInside() {
       window.petX = Model.clampPetX(window.petX, window.frames.displayWidth, window.stageRect.w)
-      if (!window.dragging)
-        window.petY = Model.petBottomY(window.frames.displayHeight, window.stageRect.h, 4)
+      if (!window.airborne)
+        window.petY = window.floorY
     }
 
-    function stepWalk() {
-      if (window.collapsed || window.dragging) return
+    function stopFall() {
+      if (fallAnim.running) fallAnim.stop()
+      window.falling = false
+      window.fallVel = 0
+    }
+
+    function startFall() {
+      if (fallAnim.running) fallAnim.stop()
+      window.falling = true
+      window.dragging = false
+      window.fallVel = 0
+      fallAnim.from = window.petY
+      fallAnim.to = window.floorY
+      fallAnim.duration = Model.fallDurationMs(window.floorY - window.petY)
+      fallAnim.start()
+    }
+
+    function land() {
+      if (!window.falling) return
+      window.petY = window.floorY
+      window.falling = false
+      window.fallVel = 0
+      if (root.svc && root.svc.onDroppedFromHeight)
+        root.svc.onDroppedFromHeight()
+    }
+
+    function stepMove() {
+      if (window.collapsed || window.airborne) return
+      if (!Model.isMoveMode(window.mode)) return
       var maxX = window.maxPetX()
-      window.petX += window.facing * 8
+      window.petX += window.facing * window.pace.step
       if (window.petX > maxX) {
         window.petX = maxX
         window.facing = -1
@@ -96,10 +132,17 @@ Item {
       window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
     }
 
+    NumberAnimation {
+      id: fallAnim
+      target: window
+      property: "petY"
+      easing.type: Easing.InCubic
+      onFinished: window.land()
+    }
+
     Connections {
       target: root.svc
       enabled: window.visible
-      function onKeyCountChanged() { window.stepWalk() }
       function onWinXChanged() { window.snapInside() }
       function onWinYChanged() { window.snapInside() }
       function onWinWChanged() { window.snapInside() }
@@ -107,14 +150,22 @@ Item {
     }
 
     Timer {
+      interval: window.pace.interval
+      running: window.visible && Model.isMoveMode(window.mode) && !window.airborne
+      repeat: true
+      onTriggered: window.stepMove()
+    }
+
+    Timer {
       interval: {
-        if (window.mode === "walk") return 1000
         if (window.mode === "dance" || window.mode === "flip")
           return Math.max(40, Math.round(1000 / Model.danceFps(window.peak)))
-        if (window.mode === "collapse" || window.mode === "drag") return 240
+        if (window.mode === "drag" || window.mode === "collapse") return 240
+        if (window.mode === "look" || window.mode === "greet") return 140
+        if (window.mode === "grumpy" || window.mode === "sick") return 160
         return 180
       }
-      running: window.visible && window.mode !== "walk"
+      running: window.visible && !Model.isMoveMode(window.mode)
       repeat: true
       onTriggered: window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
     }
@@ -133,9 +184,7 @@ Item {
         width: window.frames.displayWidth
         height: window.frames.displayHeight
         x: Math.round(window.petX)
-        y: Math.round(window.dragging
-          ? window.petY
-          : (Model.petBottomY(height, stage.height, 4) - window.bounce))
+        y: Math.round(window.petY - window.bounce)
 
         Image {
           anchors.fill: parent
@@ -170,7 +219,11 @@ Item {
             grabX = mouse.x
             grabY = mouse.y
             didMove = false
-            window.petY = pet.y
+            if (window.falling) {
+              window.stopFall()
+              window.dragging = true
+              didMove = true
+            }
           }
           onPositionChanged: function(mouse) {
             var g = mapToItem(stage, mouse.x, mouse.y)
@@ -179,15 +232,24 @@ Item {
             if (!didMove && Math.abs(nx - window.petX) < 5 && Math.abs(ny - window.petY) < 5)
               return
             didMove = true
+            window.stopFall()
             window.dragging = true
             window.petX = Model.clampPetX(nx, pet.width, stage.width)
             window.petY = Model.clamp(ny, 0, Math.max(0, stage.height - pet.height))
           }
           onReleased: function() {
-            if (!didMove && root.svc && root.svc.toggleCollapsed)
-              root.svc.toggleCollapsed()
+            if (!didMove) {
+              window.dragging = false
+              if (root.svc && root.svc.onPetClicked)
+                root.svc.onPetClicked()
+              return
+            }
+            if (Model.shouldFall(window.petY, window.floorY, 8)) {
+              window.startFall()
+              return
+            }
             window.dragging = false
-            window.snapInside()
+            window.petY = window.floorY
           }
         }
       }

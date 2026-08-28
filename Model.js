@@ -20,7 +20,25 @@ function defaultAtlas() {
   }
 }
 
+function generatedModeMap() {
+  return {
+    walk: { row: 0, start: 0, count: 16 },
+    idle: { row: 1, start: 0, count: 8 },
+    look: { row: 1, start: 8, count: 8 },
+    collapse: { row: 2, start: 8, count: 8 },
+    drag: { row: 3, start: 0, count: 8 },
+    greet: { row: 3, start: 8, count: 8 },
+    dance: { row: 4, start: 0, count: 16 },
+    flip: { row: 5, start: 0, count: 16 },
+    run: { row: 5, start: 0, count: 16 },
+    crawl: { row: 7, start: 0, count: 16 },
+    grumpy: { row: 9, start: 8, count: 8 },
+    sick: { row: 10, start: 8, count: 8 }
+  }
+}
+
 function generatedAtlas(file) {
+  var modes = generatedModeMap()
   return {
     file: String(file || ""),
     cellWidth: 80,
@@ -30,12 +48,18 @@ function generatedAtlas(file) {
     fps: 10,
     scale: 1,
     modes: {
-      walk: { row: 0, start: 0, count: 16 },
-      idle: { row: 1, start: 0, count: 8 },
-      dance: { row: 4, start: 0, count: 16 },
-      flip: { row: 5, start: 0, count: 16 },
-      collapse: { row: 2, start: 8, count: 8 },
-      drag: { row: 3, start: 0, count: 8 }
+      walk: modes.walk,
+      idle: modes.idle,
+      look: modes.look,
+      collapse: modes.collapse,
+      drag: modes.drag,
+      greet: modes.greet,
+      dance: modes.dance,
+      flip: modes.flip,
+      run: modes.run,
+      crawl: modes.crawl,
+      grumpy: modes.grumpy,
+      sick: modes.sick
     }
   }
 }
@@ -62,6 +86,10 @@ function normalizeAtlas(raw) {
   var fps = Number(raw.fps)
   var scale = Number(raw.scale)
   var modes = raw.modes || {}
+  var gen = generatedModeMap()
+  var bundled = d.modes
+  var useGen = isFinite(rows) && rows >= 12
+  var fb = useGen ? gen : bundled
   return {
     file: String(raw.file || d.file),
     cellWidth: isFinite(cellW) && cellW > 0 ? Math.floor(cellW) : d.cellWidth,
@@ -71,12 +99,18 @@ function normalizeAtlas(raw) {
     fps: isFinite(fps) && fps > 0 ? Math.floor(fps) : d.fps,
     scale: isFinite(scale) && scale > 0 ? scale : d.scale,
     modes: {
-      walk: cloneMode(modes.walk, d.modes.walk),
-      idle: cloneMode(modes.idle, d.modes.idle),
-      dance: cloneMode(modes.dance, d.modes.dance),
-      flip: cloneMode(modes.flip, d.modes.flip),
-      collapse: cloneMode(modes.collapse, d.modes.collapse),
-      drag: cloneMode(modes.drag, d.modes.drag)
+      walk: cloneMode(modes.walk, fb.walk || bundled.walk),
+      idle: cloneMode(modes.idle, fb.idle || bundled.idle),
+      look: cloneMode(modes.look, fb.look || bundled.idle),
+      collapse: cloneMode(modes.collapse, fb.collapse || bundled.collapse),
+      drag: cloneMode(modes.drag, fb.drag || bundled.drag),
+      greet: cloneMode(modes.greet, fb.greet || bundled.idle),
+      dance: cloneMode(modes.dance, fb.dance || bundled.dance),
+      flip: cloneMode(modes.flip, fb.flip || bundled.flip),
+      run: cloneMode(modes.run, fb.run || fb.flip || bundled.flip),
+      crawl: cloneMode(modes.crawl, fb.crawl || bundled.walk),
+      grumpy: cloneMode(modes.grumpy, fb.grumpy || bundled.idle),
+      sick: cloneMode(modes.sick, fb.sick || bundled.idle)
     }
   }
 }
@@ -97,17 +131,102 @@ function framesForMode(atlas, modeName) {
   }
 }
 
+function isMoveMode(mode) {
+  return mode === "walk" || mode === "crawl" || mode === "run"
+}
+
+function movePace(mode) {
+  if (mode === "crawl") return { step: 3, interval: 140 }
+  if (mode === "run") return { step: 14, interval: 48 }
+  return { step: 8, interval: 90 }
+}
+
 function resolveMode(opts) {
-  var keysRecent = !!(opts && opts.keysRecent)
-  var playing = !!(opts && opts.mediaPlaying)
-  var peak = Number(opts && opts.audioPeak)
+  var o = opts || {}
+  var playing = !!o.mediaPlaying
+  var peak = Number(o.audioPeak)
   if (!isFinite(peak) || peak < 0) peak = 0
-  if (opts && opts.collapsed) return "collapse"
-  if (opts && opts.dragging) return "drag"
-  if (keysRecent) return "walk"
+  if (o.dragging) return "drag"
+  if (o.falling || o.sick) return "sick"
+  if (o.grumpy) return "grumpy"
+  if (o.greet) return "greet"
+  var wander = String(o.wander || "idle")
+  if (isMoveMode(wander) || wander === "look") return wander
   if (playing && peak > 0.55) return "flip"
   if (playing) return "dance"
   return "idle"
+}
+
+function pickWander(rand) {
+  var r = Number(rand)
+  if (!isFinite(r) || r < 0) r = 0
+  if (r > 1) r = 1
+  if (r < 0.26) return "walk"
+  if (r < 0.46) return "crawl"
+  if (r < 0.68) return "run"
+  if (r < 0.84) return "idle"
+  return "look"
+}
+
+function nextClickState(state, nowMs) {
+  var last = Number(state && state.lastClickMs) || 0
+  var burst = Number(state && state.clickBurst) || 0
+  var now = Number(nowMs)
+  if (!isFinite(now)) now = 0
+  if (now - last < 550) burst += 1
+  else burst = 1
+  if (burst >= 3) {
+    return {
+      clickBurst: 0,
+      lastClickMs: now,
+      greetUntil: 0,
+      grumpyUntil: now + 2800
+    }
+  }
+  return {
+    clickBurst: burst,
+    lastClickMs: now,
+    greetUntil: now + 1800,
+    grumpyUntil: Number(state && state.grumpyUntil) || 0
+  }
+}
+
+function shouldFall(petY, floorY, minDrop) {
+  var y = Number(petY)
+  var floor = Number(floorY)
+  var min = Number(minDrop)
+  if (!isFinite(y) || !isFinite(floor)) return false
+  if (!isFinite(min) || min < 0) min = 12
+  return floor - y > min
+}
+
+function stepFall(y, vel, floorY, gravity, maxVel) {
+  var g = Number(gravity)
+  var cap = Number(maxVel)
+  if (!isFinite(g) || g <= 0) g = 1.35
+  if (!isFinite(cap) || cap <= 0) cap = 24
+  var v = Number(vel)
+  if (!isFinite(v)) v = 0
+  v += g
+  if (v > cap) v = cap
+  var ny = Number(y)
+  if (!isFinite(ny)) ny = 0
+  ny += v
+  var floor = Number(floorY)
+  if (!isFinite(floor)) floor = 0
+  if (ny >= floor) {
+    return { pos: floor, vel: 0, landed: true }
+  }
+  return { pos: ny, vel: v, landed: false }
+}
+
+function fallDurationMs(drop) {
+  var d = Number(drop)
+  if (!isFinite(d) || d < 0) d = 0
+  var ms = Math.round(240 + Math.sqrt(d) * 38)
+  if (ms < 280) ms = 280
+  if (ms > 1100) ms = 1100
+  return ms
 }
 
 function clamp(n, lo, hi) {
@@ -330,6 +449,13 @@ if (typeof module !== "undefined") {
     normalizeAtlas: normalizeAtlas,
     framesForMode: framesForMode,
     resolveMode: resolveMode,
+    isMoveMode: isMoveMode,
+    movePace: movePace,
+    pickWander: pickWander,
+    nextClickState: nextClickState,
+    shouldFall: shouldFall,
+    stepFall: stepFall,
+    fallDurationMs: fallDurationMs,
     danceFps: danceFps,
     clamp: clamp,
     clampPetX: clampPetX,

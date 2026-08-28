@@ -26,23 +26,35 @@ STYLE = (
     "no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette"
 )
 
-# Pet overlay currently plays these six names. The sheet still contains all 12 rows.
+# Overlay plays these names from the 16x12 sheet (look / greet / grumpy / sick included).
 PET_MODES = {
     "walk": {"row": 0, "start": 0, "count": 16},
     "idle": {"row": 1, "start": 0, "count": 8},
-    "dance": {"row": 4, "start": 0, "count": 16},
-    "flip": {"row": 5, "start": 0, "count": 16},
+    "look": {"row": 1, "start": 8, "count": 8},
     "collapse": {"row": 2, "start": 8, "count": 8},
     "drag": {"row": 3, "start": 0, "count": 8},
+    "greet": {"row": 3, "start": 8, "count": 8},
+    "dance": {"row": 4, "start": 0, "count": 16},
+    "flip": {"row": 5, "start": 0, "count": 16},
+    "run": {"row": 5, "start": 0, "count": 16},
+    "crawl": {"row": 7, "start": 0, "count": 16},
+    "grumpy": {"row": 9, "start": 8, "count": 8},
+    "sick": {"row": 10, "start": 8, "count": 8},
 }
 
 SMOKE_MODES = {
     "walk": {"row": 0, "start": 0, "count": 16},
     "idle": {"row": 0, "start": 0, "count": 16},
+    "look": {"row": 0, "start": 0, "count": 16},
     "dance": {"row": 0, "start": 0, "count": 16},
     "flip": {"row": 0, "start": 0, "count": 16},
+    "run": {"row": 0, "start": 0, "count": 16},
+    "crawl": {"row": 0, "start": 0, "count": 16},
     "collapse": {"row": 0, "start": 0, "count": 1},
     "drag": {"row": 0, "start": 0, "count": 1},
+    "greet": {"row": 0, "start": 0, "count": 8},
+    "grumpy": {"row": 0, "start": 0, "count": 8},
+    "sick": {"row": 0, "start": 0, "count": 8},
 }
 
 CLIPS = [
