@@ -172,6 +172,26 @@ def describe_hf_error(text: str) -> str:
     return blob[-800:]
 
 
+def is_transient_hf_error(text: str) -> bool:
+    low = (text or "").lower()
+    return any(token in low for token in (
+        "503",
+        "502",
+        "504",
+        "service unavailable",
+        "bad gateway",
+        "gateway timeout",
+        "429",
+        "rate limit",
+        "too many",
+        "timeout",
+        "temporar",
+        "try again",
+        "connection reset",
+        "econnreset",
+    ))
+
+
 def bootstrap(plugin_root: Path, out_dir: Path) -> dict:
     runtime = plugin_root / "scripts" / "runtime.py"
     progress("Preparing Higgsfield…", phase="setup", step=0, steps=1)
@@ -301,7 +321,7 @@ def run_hf(hf: str, cmd: list[str], log: Path) -> dict:
 
 def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
     last_err = "higgsfield create failed"
-    for delay in (0, 1, 3, 6):
+    for delay in (0, 2, 5, 12):
         if delay:
             time.sleep(delay)
         proc = subprocess.run(
@@ -321,7 +341,8 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
         if proc.returncode == 0 and not job_id:
             last_err = "no job id from higgsfield create"
         low = last_err.lower()
-        if "429" in low or "rate" in low or "too many" in low or "timeout" in low or "temporar" in low:
+        if is_transient_hf_error(last_err):
+            progress("Higgsfield is busy, retrying…", phase="retry")
             continue
         if "upgrade_plan" in low or "not_enough_credits" in low or "credits_exhausted" in low:
             raise RuntimeError(last_err)
@@ -343,15 +364,27 @@ def wait_job(hf: str, job_id: str, log: Path) -> dict:
 
 
 def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
-    data = run_hf(
-        hf,
-        [hf, "generate", "create", model, *args, "--wait", "--json", "--wait-timeout", "15m"],
-        log,
-    )
-    url = extract_url(data)
-    if not url:
-        raise RuntimeError("no result URL in CLI JSON")
-    return {"url": url, "raw": data}
+    last_err = "higgsfield generate failed"
+    for delay in (0, 2, 5, 12):
+        if delay:
+            time.sleep(delay)
+            progress("Higgsfield is busy, retrying…", phase="retry")
+        try:
+            data = run_hf(
+                hf,
+                [hf, "generate", "create", model, *args, "--wait", "--json", "--wait-timeout", "15m"],
+                log,
+            )
+            url = extract_url(data)
+            if not url:
+                raise RuntimeError("no result URL in CLI JSON")
+            return {"url": url, "raw": data}
+        except Exception as exc:
+            last_err = str(exc)
+            if is_transient_hf_error(last_err):
+                continue
+            raise
+    raise RuntimeError(last_err)
 
 
 def pick_key_color(path: Path) -> str:
@@ -409,7 +442,7 @@ def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
 def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, log: Path) -> Path:
     last_err = ""
     video_args = clip_video_args(clip, key, base_path)
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             job_id = start_job(hf, "seedance_2_0_mini", video_args, log)
             job = wait_job(hf, job_id, log)
@@ -417,8 +450,12 @@ def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, lo
             return dest
         except Exception as exc:
             last_err = str(exc)
-            if attempt == 0:
-                time.sleep(2)
+            low = last_err.lower()
+            if "upgrade_plan" in low or "not_enough_credits" in low or "credits_exhausted" in low:
+                break
+            if attempt < 2:
+                progress("Higgsfield is busy, retrying…", phase="retry")
+                time.sleep(4 + attempt * 6)
     raise RuntimeError(f"{clip['name']}: {last_err}")
 
 

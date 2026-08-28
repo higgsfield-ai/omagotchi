@@ -436,6 +436,10 @@ function classifyGenerateError(raw) {
     kind = "rate"
     title = "Rate limited"
     message = "Higgsfield asked us to wait. Retry in a moment."
+  } else if (/503|502|504|service unavailable|bad gateway|higgsfield api error/.test(blob)) {
+    kind = "unavailable"
+    title = "Higgsfield is busy"
+    message = "The Higgsfield API is temporarily unavailable. Retry in a moment."
   } else if (!message || message === "[object Object]") {
     message = "Generate failed. Retry, or upgrade your plan if Higgsfield asked for that."
     actions = ["retry", "upgrade"]
