@@ -129,6 +129,49 @@ def last_json(text: str):
     return None
 
 
+def describe_hf_error(text: str) -> str:
+    data = last_json(text)
+    if not isinstance(data, dict):
+        blob = (text or "higgsfield generate failed").strip()
+        return blob[-800:] if blob else "higgsfield generate failed"
+    err = data.get("error")
+    err_obj = err if isinstance(err, dict) else {}
+    detail = data.get("detail") if isinstance(data.get("detail"), dict) else {}
+    kind = (
+        data.get("error_type")
+        or err_obj.get("error_type")
+        or err_obj.get("type")
+        or detail.get("error_type")
+        or data.get("type")
+        or ""
+    )
+    msg = ""
+    if isinstance(err, str):
+        msg = err
+    else:
+        msg = str(err_obj.get("message") or detail.get("message") or data.get("message") or "")
+    actions = []
+    for node in (data, err_obj, detail, data.get("input") if isinstance(data.get("input"), dict) else {}):
+        raw = node.get("actions") if isinstance(node, dict) else None
+        if isinstance(raw, list):
+            for item in raw:
+                if isinstance(item, dict) and item.get("type"):
+                    actions.append(str(item["type"]))
+    if not kind and actions:
+        kind = actions[0]
+    parts = []
+    if kind:
+        parts.append(str(kind))
+    if msg and msg != kind:
+        parts.append(msg)
+    if actions and kind not in actions:
+        parts.append("actions=" + ",".join(actions))
+    if parts:
+        return ": ".join(parts)[-800:]
+    blob = (text or "higgsfield generate failed").strip()
+    return blob[-800:]
+
+
 def bootstrap(plugin_root: Path, out_dir: Path) -> dict:
     runtime = plugin_root / "scripts" / "runtime.py"
     progress("Preparing Higgsfield…", phase="setup", step=0, steps=1)
@@ -248,7 +291,7 @@ def run_hf(hf: str, cmd: list[str], log: Path) -> dict:
     proc = subprocess.run(cmd, capture_output=True, text=True)
     append_log(log, (proc.stderr or "") + (proc.stdout or ""))
     if proc.returncode != 0:
-        err = (proc.stderr or proc.stdout or "higgsfield generate failed").strip()[-800:]
+        err = describe_hf_error(proc.stderr or proc.stdout or "higgsfield generate failed")
         raise RuntimeError(err)
     data = parse_job(proc.stdout or "")
     if not data:
@@ -274,12 +317,14 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
             job_id = extract_job_id(lines[-1])
         if proc.returncode == 0 and job_id:
             return job_id
-        last_err = (proc.stderr or proc.stdout or last_err).strip()[-800:] or last_err
+        last_err = describe_hf_error(proc.stderr or proc.stdout or last_err) or last_err
         if proc.returncode == 0 and not job_id:
             last_err = "no job id from higgsfield create"
         low = last_err.lower()
         if "429" in low or "rate" in low or "too many" in low or "timeout" in low or "temporar" in low:
             continue
+        if "upgrade_plan" in low or "not_enough_credits" in low or "credits_exhausted" in low:
+            raise RuntimeError(last_err)
         if proc.returncode != 0:
             raise RuntimeError(last_err)
     raise RuntimeError(last_err)

@@ -31,6 +31,7 @@ Panel {
   readonly property int step: root.svc ? Number(root.svc.generateStep || 0) : 0
   readonly property int steps: root.svc ? Number(root.svc.generateSteps || 0) : 0
   readonly property string lastError: root.svc ? String(root.svc.lastError || "") : ""
+  readonly property var generateError: Model.classifyGenerateError(root.lastError)
   readonly property bool canGenerate: root.loggedIn && root.hasPhoto && !root.generating && !root.loggingIn
 
   function open() {
@@ -245,20 +246,59 @@ Panel {
           }
         }
 
-        Text {
+        Column {
           width: parent.width
           visible: root.lastError !== "" && !root.generating
-          text: root.lastError
-          color: root.barForeground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.subtitle
-          wrapMode: Text.WordWrap
-          opacity: 0.85
+          spacing: Style.space(8)
+
+          Text {
+            width: parent.width
+            text: root.generateError.title
+            color: root.barForeground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.subtitle
+            font.bold: true
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            width: parent.width
+            text: root.generateError.message
+            color: root.barForeground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.subtitle
+            wrapMode: Text.WordWrap
+            opacity: 0.85
+          }
+
+          WidgetButton {
+            bar: root.bar
+            text: "Retry"
+            tooltipText: root.hasPhoto ? "Run generate again with the same photo" : "Choose a photo, then retry"
+            onPressed: function(buttonCode) {
+              if (buttonCode !== Qt.LeftButton) return
+              if (root.svc && typeof root.svc.retryGenerate === "function")
+                root.svc.retryGenerate()
+              else
+                root.submitAvatar()
+            }
+          }
+
+          WidgetButton {
+            bar: root.bar
+            visible: !!root.generateError.showUpgrade
+            text: "Upgrade plan"
+            tooltipText: "Open Higgsfield pricing"
+            onPressed: function(buttonCode) {
+              if (buttonCode !== Qt.LeftButton) return
+              Qt.openUrlExternally(root.generateError.pricingUrl)
+            }
+          }
         }
 
         GenerateProgress {
           width: parent.width
-          visible: root.generating || root.loggingIn || root.percent > 0 || root.statusText !== ""
+          visible: (root.generating || root.loggingIn || root.percent > 0 || root.statusText !== "") && root.lastError === ""
           bar: root.bar
           foreground: root.barForeground
           generating: root.generating

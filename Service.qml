@@ -310,8 +310,14 @@ Item {
     }
     var err = parsed.error || ("generate failed (" + code + ")")
     root.lastError = err
-    root.generateStatus = err
+    root.generateStatus = ""
     root.generatePercent = 0
+  }
+
+  function retryGenerate() {
+    if (root.generating) return "busy"
+    if (!root.photoPath) return "empty"
+    return root.generateSprite(root.photoPath, "", false)
   }
 
   function onGenLine(line) {
@@ -529,5 +535,6 @@ Item {
     function pickPhoto(): string { return root.pickPhoto() }
     function setPhoto(path: string): string { return root.setPhoto(path) }
     function login(): string { return root.login() }
+    function retry(): string { return root.retryGenerate() }
   }
 }

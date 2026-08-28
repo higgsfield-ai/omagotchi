@@ -360,6 +360,97 @@ function trimPrompt(raw) {
   return String(raw || "").replace(/^\s+|\s+$/g, "")
 }
 
+function parseJsonBlob(raw) {
+  var text = String(raw || "").replace(/^\s+|\s+$/g, "")
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch (e) {}
+  var start = text.indexOf("{")
+  var end = text.lastIndexOf("}")
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(text.slice(start, end + 1))
+    } catch (e2) {}
+  }
+  return null
+}
+
+function errorTextFromNode(node) {
+  if (node == null) return ""
+  if (typeof node === "string") return node
+  if (typeof node !== "object") return String(node)
+  var msg = node.message || node.error || node.detail || node.reason || ""
+  if (typeof msg === "string" && msg) return msg
+  if (msg && typeof msg === "object") return errorTextFromNode(msg)
+  var kind = node.error_type || node.type || node.code || ""
+  return kind ? String(kind) : ""
+}
+
+function actionTypesFromNode(node) {
+  var out = []
+  if (!node || typeof node !== "object") return out
+  var lists = [node.actions, node.input && node.input.actions]
+  for (var i = 0; i < lists.length; i++) {
+    var list = lists[i]
+    if (!list || typeof list.length !== "number") continue
+    for (var j = 0; j < list.length; j++) {
+      var t = list[j] && list[j].type
+      if (t) out.push(String(t))
+    }
+  }
+  return out
+}
+
+function classifyGenerateError(raw) {
+  var text = String(raw || "")
+  var data = parseJsonBlob(text)
+  var errObj = data && typeof data.error === "object" ? data.error : null
+  var detail = data && typeof data.detail === "object" ? data.detail : null
+  var kindToken = ""
+  var message = ""
+  var actionTypes = []
+  if (data) {
+    kindToken = String(data.error_type || data.type || (errObj && (errObj.error_type || errObj.type)) || (detail && detail.error_type) || "")
+    message = errorTextFromNode(errObj) || errorTextFromNode(detail) || errorTextFromNode(data)
+    actionTypes = actionTypesFromNode(data).concat(actionTypesFromNode(errObj), actionTypesFromNode(detail))
+    if (typeof data.error === "string" && !message) message = data.error
+  }
+  if (!message) message = text
+  var blob = (kindToken + " " + actionTypes.join(" ") + " " + message + " " + text).toLowerCase()
+  var kind = "retry"
+  var title = "Generate failed"
+  var actions = ["retry"]
+  if (/upgrade_plan|upgrade plan|\bupgrade\b|minimum_.*plan|higher .{0,24}plan|requires a higher/.test(blob)) {
+    kind = "upgrade"
+    title = "Upgrade required"
+    if (!message || /^[a-z0-9_]+$/i.test(message))
+      message = "This generation needs a higher Higgsfield plan."
+    actions = ["retry", "upgrade"]
+  } else if (/not_enough_credits|out_of_credits|credits_exhausted|not enough credits|out of credits/.test(blob)) {
+    kind = "credits"
+    title = "Out of credits"
+    message = "Not enough credits for this generate. Top up or upgrade, then retry."
+    actions = ["retry", "upgrade"]
+  } else if (/rate_limit|429|too many/.test(blob)) {
+    kind = "rate"
+    title = "Rate limited"
+    message = "Higgsfield asked us to wait. Retry in a moment."
+  } else if (!message || message === "[object Object]") {
+    message = "Generate failed. Retry, or upgrade your plan if Higgsfield asked for that."
+    actions = ["retry", "upgrade"]
+  }
+  if (message.length > 280) message = message.slice(0, 280)
+  return {
+    kind: kind,
+    title: title,
+    message: message,
+    actions: actions,
+    showUpgrade: kind === "upgrade" || kind === "credits",
+    pricingUrl: "https://higgsfield.ai/pricing"
+  }
+}
+
 function parseGenerateResult(raw) {
   var text = String(raw || "").replace(/^\s+|\s+$/g, "")
   if (!text) return { ok: false, error: "empty output", path: "", url: "" }
@@ -378,9 +469,13 @@ function parseGenerateResult(raw) {
         error: ""
       }
     }
+    var classified = classifyGenerateError(last)
+    var err = typeof data.error === "string" && data.error
+      ? data.error
+      : (classified.kind !== "retry" ? classified.kind + ": " + classified.message : classified.message)
     return {
       ok: false,
-      error: String((data && data.error) || "generate failed"),
+      error: err || "generate failed",
       path: "",
       url: ""
     }
@@ -464,6 +559,7 @@ if (typeof module !== "undefined") {
     focusWindow: focusWindow,
     trimPrompt: trimPrompt,
     parseGenerateResult: parseGenerateResult,
+    classifyGenerateError: classifyGenerateError,
     generatedAtlas: generatedAtlas,
     isImagePath: isImagePath,
     atlasImageSource: atlasImageSource,
