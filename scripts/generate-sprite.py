@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -114,6 +115,8 @@ def fail(msg: str, extra: dict | None = None) -> None:
     payload = {"ok": False, "error": msg}
     if extra:
         payload.update(extra)
+    if "reason" not in payload:
+        payload["reason"] = msg
     print(json.dumps(payload), flush=True)
     sys.exit(1)
 
@@ -189,7 +192,116 @@ def is_transient_hf_error(text: str) -> bool:
         "try again",
         "connection reset",
         "econnreset",
+        "ended with status",
+        'status "failed"',
+        "status 'failed'",
     ))
+
+
+def is_policy_hf_error(text: str) -> bool:
+    low = (text or "").lower()
+    return "nsfw" in low or "ip_detected" in low or "content policy" in low
+
+
+def retry_progress(err: str) -> None:
+    if is_job_failed_error(err):
+        progress("That generation failed, retrying…", phase="retry")
+    else:
+        progress("Higgsfield is busy, retrying…", phase="retry")
+
+
+def is_job_failed_error(text: str) -> bool:
+    low = (text or "").lower()
+    return "ended with status" in low or 'status "failed"' in low or "status 'failed'" in low
+
+
+JOB_ID_RE = re.compile(
+    r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+    re.I,
+)
+
+
+def extract_uuid(text: str) -> str:
+    found = JOB_ID_RE.search(text or "")
+    return found.group(0) if found else ""
+
+
+def is_generic_job_status(text: str) -> bool:
+    low = (text or "").lower()
+    return "ended with status" in low or low in ("failed", "error", "cancelled", "canceled")
+
+
+def job_reason_from_node(node, depth: int = 0) -> str:
+    if node is None or depth > 8:
+        return ""
+    if isinstance(node, str):
+        s = node.strip()
+        if s and not is_generic_job_status(s):
+            return s[:400]
+        return ""
+    if isinstance(node, list):
+        for item in node:
+            found = job_reason_from_node(item, depth + 1)
+            if found:
+                return found
+        return ""
+    if not isinstance(node, dict):
+        return ""
+    for key in (
+        "failure_reason",
+        "fail_reason",
+        "error_message",
+        "error_msg",
+        "status_reason",
+        "reason",
+        "message",
+        "detail",
+        "error",
+    ):
+        val = node.get(key)
+        if isinstance(val, str) and val.strip() and not is_generic_job_status(val):
+            return val.strip()[:400]
+        if isinstance(val, dict) or isinstance(val, list):
+            found = job_reason_from_node(val, depth + 1)
+            if found:
+                return found
+    for flag in ("nsfw", "ip_detected", "moderation"):
+        val = node.get(flag)
+        if val is True or str(val).lower() in ("true", "1", "yes"):
+            return flag
+    for key in ("job", "data", "result", "results", "output"):
+        if key in node:
+            found = job_reason_from_node(node.get(key), depth + 1)
+            if found:
+                return found
+    return ""
+
+
+def fetch_job(hf: str, job_id: str, log: Path):
+    if not hf or not job_id:
+        return None
+    proc = subprocess.run(
+        [hf, "generate", "get", job_id, "--json"],
+        capture_output=True,
+        text=True,
+    )
+    append_log(log, (proc.stderr or "") + (proc.stdout or ""))
+    return last_json((proc.stdout or "") + "\n" + (proc.stderr or ""))
+
+
+def explain_job_failure(hf: str, job_id: str, fallback: str, log: Path) -> str:
+    data = fetch_job(hf, job_id, log) if job_id else None
+    reason = job_reason_from_node(data) if data else ""
+    parts = []
+    if job_id:
+        parts.append("job " + job_id)
+    if reason:
+        parts.append(reason)
+    elif fallback and not is_generic_job_status(fallback):
+        parts.append(fallback)
+    else:
+        parts.append('ended with status "failed"')
+    return ": ".join(parts)[-800:]
 
 
 def bootstrap(plugin_root: Path, out_dir: Path) -> dict:
@@ -352,15 +464,18 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
 
 
 def wait_job(hf: str, job_id: str, log: Path) -> dict:
-    data = run_hf(
-        hf,
-        [hf, "generate", "wait", job_id, "--json", "--wait-timeout", "15m"],
-        log,
-    )
+    try:
+        data = run_hf(
+            hf,
+            [hf, "generate", "wait", job_id, "--json", "--wait-timeout", "15m"],
+            log,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(explain_job_failure(hf, job_id, str(exc), log)) from exc
     url = extract_url(data)
-    if not url:
-        raise RuntimeError("no result URL in CLI JSON")
-    return {"url": url, "raw": data, "id": job_id}
+    if url:
+        return {"url": url, "raw": data, "id": job_id}
+    raise RuntimeError(explain_job_failure(hf, job_id, "no result URL in CLI JSON", log))
 
 
 def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
@@ -381,9 +496,12 @@ def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
             return {"url": url, "raw": data}
         except Exception as exc:
             last_err = str(exc)
-            if is_transient_hf_error(last_err):
+            jid = extract_uuid(last_err)
+            if jid:
+                last_err = explain_job_failure(hf, jid, last_err, log)
+            if is_transient_hf_error(last_err) or is_job_failed_error(last_err):
                 continue
-            raise
+            raise RuntimeError(last_err) from exc
     raise RuntimeError(last_err)
 
 
@@ -542,7 +660,7 @@ def main() -> None:
             "--resolution", "1k",
         ], log)
     except Exception as exc:
-        fail(str(exc))
+        fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
     base_path = work_dir / "base.png"
     download(base_job["url"], base_path)
     progress("Base sprite ready", phase="base", step=1, steps=total)
@@ -577,7 +695,7 @@ def main() -> None:
                     steps=total,
                 )
     except Exception as exc:
-        fail(str(exc))
+        fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
 
     for clip in jobs:
         dest = finished[id(clip)]

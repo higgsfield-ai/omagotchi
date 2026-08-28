@@ -410,9 +410,11 @@ function classifyGenerateError(raw) {
   var kindToken = ""
   var message = ""
   var actionTypes = []
-  if (data) {
+    if (data) {
     kindToken = String(data.error_type || data.type || (errObj && (errObj.error_type || errObj.type)) || (detail && detail.error_type) || "")
-    message = errorTextFromNode(errObj) || errorTextFromNode(detail) || errorTextFromNode(data)
+    message = (typeof data.reason === "string" && data.reason)
+      ? data.reason
+      : (errorTextFromNode(errObj) || errorTextFromNode(detail) || errorTextFromNode(data))
     actionTypes = actionTypesFromNode(data).concat(actionTypesFromNode(errObj), actionTypesFromNode(detail))
     if (typeof data.error === "string" && !message) message = data.error
   }
@@ -443,7 +445,8 @@ function classifyGenerateError(raw) {
   } else if (/ended with status|status ["']failed["']/.test(blob)) {
     kind = "job"
     title = "Generation failed"
-    message = "Higgsfield's model failed this run. Retry — failed jobs usually refund credits."
+    if (!message || /ended with status/.test(String(message).toLowerCase()))
+      message = "Higgsfield's model failed this run. Open generate.log for the job payload, or retry."
   } else if (!message || message === "[object Object]") {
     message = "Generate failed. Retry, or upgrade your plan if Higgsfield asked for that."
     actions = ["retry", "upgrade"]
@@ -479,9 +482,11 @@ function parseGenerateResult(raw) {
       }
     }
     var classified = classifyGenerateError(last)
-    var err = typeof data.error === "string" && data.error
-      ? data.error
-      : (classified.kind !== "retry" ? classified.kind + ": " + classified.message : classified.message)
+    var err = (typeof data.reason === "string" && data.reason)
+      ? data.reason
+      : (typeof data.error === "string" && data.error
+        ? data.error
+        : (classified.kind !== "retry" ? classified.kind + ": " + classified.message : classified.message))
     return {
       ok: false,
       error: err || "generate failed",

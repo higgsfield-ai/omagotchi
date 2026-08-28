@@ -32,6 +32,7 @@ Panel {
   readonly property int steps: root.svc ? Number(root.svc.generateSteps || 0) : 0
   readonly property string lastError: root.svc ? String(root.svc.lastError || "") : ""
   readonly property var generateError: Model.classifyGenerateError(root.lastError)
+  readonly property string generateLog: root.svc ? String(root.svc.generateLog || "") : ""
   readonly property bool canGenerate: root.loggedIn && root.hasPhoto && !root.generating && !root.loggingIn
 
   function open() {
@@ -272,6 +273,17 @@ Panel {
             font.pixelSize: Style.font.subtitle
             wrapMode: Text.WordWrap
             opacity: 0.85
+          }
+
+          Text {
+            width: parent.width
+            visible: root.generateLog !== ""
+            text: "Log: " + root.generateLog
+            color: root.barForeground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.subtitle
+            wrapMode: Text.WrapAnywhere
+            opacity: 0.5
           }
 
           WidgetButton {

@@ -47,6 +47,7 @@ Item {
   property bool hasGeneratedPet: false
 
   readonly property string photoName: Model.fileBaseName(root.photoPath)
+  readonly property string generateLog: root.dataDir() + "/generate.log"
 
   readonly property bool petVisible: root.hasGeneratedPet
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
