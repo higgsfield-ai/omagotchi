@@ -231,6 +231,7 @@ Panel {
 
         WidgetButton {
           bar: root.bar
+          visible: root.lastError === "" || root.generating || root.loggingIn
           text: {
             if (root.loggingIn) return "Waiting for browser…"
             if (root.generating) return "Generating…"
@@ -253,6 +254,7 @@ Panel {
 
           Text {
             width: parent.width
+            visible: !!root.generateError.showTitle
             text: root.generateError.title
             color: root.barForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -263,6 +265,7 @@ Panel {
 
           Text {
             width: parent.width
+            visible: root.generateError.message !== "" && root.generateError.message !== root.generateError.title
             text: root.generateError.message
             color: root.barForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -298,7 +301,7 @@ Panel {
 
         GenerateProgress {
           width: parent.width
-          visible: (root.generating || root.loggingIn || root.percent > 0 || root.statusText !== "") && root.lastError === ""
+          visible: (root.generating || root.loggingIn) && root.lastError === ""
           bar: root.bar
           foreground: root.barForeground
           generating: root.generating

@@ -221,7 +221,7 @@ Item {
     var err = Model.trimPrompt(stderr)
     if (Number(code) !== 0 && err) {
       root.lastError = err
-      root.generateStatus = err
+      root.generateStatus = ""
     }
   }
 
@@ -333,7 +333,12 @@ Item {
       root.onGenerateFinished(0, parsed.raw)
       return
     }
-    if (parsed.text) root.generateStatus = parsed.text
+    if (parsed.text) {
+      var low = parsed.text.toLowerCase()
+      if (low.indexOf("ended with status") >= 0 || low.indexOf("error") >= 0)
+        return
+      root.generateStatus = parsed.text
+    }
   }
 
   function applyFocus(monitorsRaw, windowRaw) {

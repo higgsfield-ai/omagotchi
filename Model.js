@@ -440,6 +440,10 @@ function classifyGenerateError(raw) {
     kind = "unavailable"
     title = "Higgsfield is busy"
     message = "The Higgsfield API is temporarily unavailable. Retry in a moment."
+  } else if (/ended with status|status ["']failed["']/.test(blob)) {
+    kind = "job"
+    title = "Generation failed"
+    message = "Higgsfield's model failed this run. Retry — failed jobs usually refund credits."
   } else if (!message || message === "[object Object]") {
     message = "Generate failed. Retry, or upgrade your plan if Higgsfield asked for that."
     actions = ["retry", "upgrade"]
@@ -451,6 +455,7 @@ function classifyGenerateError(raw) {
     message: message,
     actions: actions,
     showUpgrade: kind === "upgrade" || kind === "credits",
+    showTitle: kind === "upgrade" || kind === "credits" || kind === "unavailable",
     pricingUrl: "https://higgsfield.ai/pricing"
   }
 }
