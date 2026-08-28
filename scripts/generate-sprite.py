@@ -431,6 +431,43 @@ def run_hf(hf: str, cmd: list[str], log: Path) -> dict:
     return data
 
 
+def is_unknown_flag_error(text: str) -> bool:
+    low = (text or "").lower()
+    return "unknown flag" in low or "unknown shorthand" in low or "flag provided but not defined" in low
+
+
+WAIT_FLAG_VARIANTS = (
+    ["--wait-timeout", "15m"],
+    ["--timeout", "15m"],
+    [],
+)
+_WAIT_FLAGS = None
+
+
+def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
+    global _WAIT_FLAGS
+    variants = WAIT_FLAG_VARIANTS
+    if _WAIT_FLAGS is not None:
+        variants = [_WAIT_FLAGS]
+    last_err = "higgsfield wait failed"
+    for flags in variants:
+        cmd = [*base, *flags]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        blob = (proc.stderr or "") + "\n" + (proc.stdout or "")
+        append_log(log, blob)
+        if proc.returncode != 0 and is_unknown_flag_error(blob):
+            last_err = describe_hf_error(blob)
+            continue
+        if proc.returncode != 0:
+            raise RuntimeError(describe_hf_error(blob))
+        data = parse_job(proc.stdout or "")
+        if not data:
+            raise RuntimeError("could not parse CLI JSON")
+        _WAIT_FLAGS = flags
+        return data
+    raise RuntimeError(last_err)
+
+
 def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
     last_err = "higgsfield create failed"
     for delay in (0, 2, 5, 12):
@@ -465,12 +502,14 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
 
 def wait_job(hf: str, job_id: str, log: Path) -> dict:
     try:
-        data = run_hf(
+        data = hf_with_wait_flags(
             hf,
-            [hf, "generate", "wait", job_id, "--json", "--wait-timeout", "15m"],
+            [hf, "generate", "wait", job_id, "--json"],
             log,
         )
     except RuntimeError as exc:
+        if is_unknown_flag_error(str(exc)):
+            raise
         raise RuntimeError(explain_job_failure(hf, job_id, str(exc), log)) from exc
     url = extract_url(data)
     if url:
@@ -485,9 +524,9 @@ def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
             time.sleep(delay)
             progress("Higgsfield is busy, retrying…", phase="retry")
         try:
-            data = run_hf(
+            data = hf_with_wait_flags(
                 hf,
-                [hf, "generate", "create", model, *args, "--wait", "--json", "--wait-timeout", "15m"],
+                [hf, "generate", "create", model, *args, "--wait", "--json"],
                 log,
             )
             url = extract_url(data)

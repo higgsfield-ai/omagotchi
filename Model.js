@@ -442,6 +442,10 @@ function classifyGenerateError(raw) {
     kind = "unavailable"
     title = "Higgsfield is busy"
     message = "The Higgsfield API is temporarily unavailable. Retry in a moment."
+  } else if (/unknown flag|unknown shorthand/.test(blob)) {
+    kind = "cli"
+    title = "CLI mismatch"
+    message = "This Higgsfield CLI build rejected a wait flag. Update the plugin and retry."
   } else if (/ended with status|status ["']failed["']/.test(blob)) {
     kind = "job"
     title = "Generation failed"
