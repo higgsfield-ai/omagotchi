@@ -294,6 +294,16 @@ def main() -> None:
     if not runtime.get("ffmpeg_ok"):
         fail("ffmpeg not found. Omarchy should ship ffmpeg; install it from the Omarchy menu if video tools are missing.")
 
+    progress("Selecting workspace…", phase="setup", step=0, steps=1)
+    ws_proc = subprocess.run(
+        [sys.executable, "-u", str(plugin_root / "scripts" / "runtime.py"), "ensure-workspace", "--out", str(out_dir)],
+        capture_output=True,
+        text=True,
+    )
+    ws = last_json((ws_proc.stdout or "") + "\n" + (ws_proc.stderr or ""))
+    if ws_proc.returncode != 0 or not ws or not ws.get("ok"):
+        fail(str((ws or {}).get("error") or ws_proc.stderr or ws_proc.stdout or "No Higgsfield workspace selected")[-800:])
+
     try:
         sys.path.insert(0, str(Path(venv_py).resolve().parent.parent / "lib"))
         for site in (out_dir / "venv" / "lib").glob("python*/site-packages"):

@@ -155,6 +155,173 @@ def add_venv_site(out_dir: Path) -> None:
         sys.path.insert(0, str(site))
 
 
+def last_json(text: str):
+    for line in reversed((text or "").splitlines()):
+        line = line.strip()
+        if line.startswith("{") or line.startswith("["):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+    blob = (text or "").strip()
+    if blob.startswith("{") or blob.startswith("["):
+        try:
+            return json.loads(blob)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def hf_run(hf: str, args: list[str]) -> tuple[subprocess.CompletedProcess, object, str]:
+    proc = subprocess.run([hf, *args], capture_output=True, text=True)
+    blob = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    return proc, last_json(blob), blob
+
+
+def workspace_id_of(node) -> str:
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node.strip()
+    if isinstance(node, dict):
+        for key in ("id", "workspace_id", "workspaceId", "slug"):
+            val = node.get(key)
+            if val:
+                return str(val).strip()
+        for key in ("workspace", "current", "selected", "active", "data"):
+            found = workspace_id_of(node.get(key))
+            if found:
+                return found
+    return ""
+
+
+def workspace_name_of(node) -> str:
+    if isinstance(node, dict):
+        for key in ("name", "title", "slug"):
+            val = node.get(key)
+            if val:
+                return str(val).strip()
+    return ""
+
+
+def iter_workspaces(data) -> list:
+    if isinstance(data, list):
+        return [item for item in data if item is not None]
+    if isinstance(data, dict):
+        for key in ("workspaces", "items", "data", "results"):
+            val = data.get(key)
+            if isinstance(val, list):
+                return [item for item in val if item is not None]
+        if workspace_id_of(data):
+            return [data]
+    return []
+
+
+def selected_workspace(data) -> dict | None:
+    items = iter_workspaces(data)
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if item.get("selected") or item.get("current") or item.get("active"):
+            return item
+        if item.get("is_selected") or item.get("is_current") or item.get("is_default") or item.get("default"):
+            return item
+    if isinstance(data, dict):
+        for key in ("current", "selected", "active", "workspace"):
+            node = data.get(key)
+            if workspace_id_of(node):
+                return node if isinstance(node, dict) else {"id": workspace_id_of(node)}
+    return None
+
+
+def pick_workspace(items: list) -> dict | None:
+    selected = selected_workspace(items)
+    if selected:
+        return selected
+    ranked = []
+    for item in items:
+        if isinstance(item, str) and item.strip():
+            ranked.append((0, {"id": item.strip()}))
+            continue
+        if not isinstance(item, dict):
+            continue
+        blob = json.dumps(item).lower()
+        score = 0
+        if item.get("default") or item.get("is_default"):
+            score += 3
+        if "personal" in blob:
+            score += 2
+        if "owner" in blob:
+            score += 1
+        ranked.append((score, item))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda row: row[0], reverse=True)
+    return ranked[0][1]
+
+
+def set_workspace(hf: str, workspace_id: str) -> bool:
+    if not workspace_id:
+        return False
+    for verb in ("set", "select", "use"):
+        for extra in ([], ["--json"]):
+            proc, _, blob = hf_run(hf, ["workspace", verb, workspace_id, *extra])
+            if proc.returncode == 0 and "no workspace" not in blob.lower() and "now workspace" not in blob.lower():
+                return True
+    return False
+
+
+def ensure_workspace(hf: str) -> dict:
+    if not hf:
+        return {"ok": False, "error": "Higgsfield CLI missing"}
+    current = None
+    listed = []
+    last_blob = ""
+    for args in (
+        ["workspace", "list", "--json"],
+        ["workspace", "--json"],
+        ["workspace", "current", "--json"],
+        ["workspace", "get", "--json"],
+        ["workspace", "list"],
+    ):
+        proc, data, blob = hf_run(hf, args)
+        last_blob = blob
+        if data is None:
+            continue
+        listed = iter_workspaces(data) or listed
+        current = selected_workspace(data) or current
+        if listed or current:
+            break
+
+    if current and workspace_id_of(current):
+        return {
+            "ok": True,
+            "workspace_id": workspace_id_of(current),
+            "workspace_name": workspace_name_of(current),
+        }
+
+    chosen = pick_workspace(listed)
+    workspace_id = workspace_id_of(chosen)
+    if not workspace_id:
+        err = last_blob[-400:] if last_blob else "no workspace selected"
+        if "not authenticated" in err.lower() or "please login" in err.lower():
+            return {"ok": False, "error": "Log in to Higgsfield first"}
+        return {"ok": False, "error": "No Higgsfield workspace on this account"}
+
+    if not set_workspace(hf, workspace_id):
+        name = workspace_name_of(chosen)
+        if name and name != workspace_id and set_workspace(hf, name):
+            workspace_id = name
+        else:
+            return {"ok": False, "error": f"Could not select workspace {workspace_id}"}
+
+    return {
+        "ok": True,
+        "workspace_id": workspace_id,
+        "workspace_name": workspace_name_of(chosen),
+    }
+
+
 def logged_in(hf: str) -> bool:
     if not hf:
         return False
@@ -177,30 +344,53 @@ def cmd_ensure(out_dir: Path) -> None:
     hf = install_cli(out_dir)
     py = install_venv(out_dir)
     ff = find_ffmpeg()
+    signed_in = logged_in(hf)
+    workspace = ensure_workspace(hf) if signed_in else {}
     out({
         "ok": True,
         "hf": hf,
         "python": py,
         "ffmpeg": ff,
-        "logged_in": logged_in(hf),
+        "logged_in": signed_in,
         "ffmpeg_ok": bool(shutil.which("ffmpeg") and shutil.which("ffprobe")),
+        "workspace_id": workspace.get("workspace_id", ""),
+        "workspace_name": workspace.get("workspace_name", ""),
     })
 
 
 def cmd_auth_status(out_dir: Path) -> None:
     hf = find_hf(out_dir)
-    out({"ok": True, "hf": hf, "logged_in": logged_in(hf)})
+    signed_in = logged_in(hf)
+    workspace = ensure_workspace(hf) if signed_in else {}
+    out({
+        "ok": True,
+        "hf": hf,
+        "logged_in": signed_in,
+        "workspace_id": workspace.get("workspace_id", ""),
+        "workspace_name": workspace.get("workspace_name", ""),
+    })
+
+
+def cmd_ensure_workspace(out_dir: Path) -> None:
+    hf = find_hf(out_dir)
+    result = ensure_workspace(hf)
+    result["hf"] = hf
+    out(result)
+    if not result.get("ok"):
+        sys.exit(1)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("ensure", "auth-status"))
+    parser.add_argument("command", choices=("ensure", "auth-status", "ensure-workspace"))
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     out_dir = Path(os.path.expanduser(args.out)).resolve()
     try:
         if args.command == "ensure":
             cmd_ensure(out_dir)
+        elif args.command == "ensure-workspace":
+            cmd_ensure_workspace(out_dir)
         else:
             cmd_auth_status(out_dir)
     except Exception as exc:
