@@ -255,35 +255,13 @@ Panel {
 
           Text {
             width: parent.width
-            visible: !!root.generateError.showTitle
-            text: root.generateError.title
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
-            wrapMode: Text.WordWrap
-          }
-
-          Text {
-            width: parent.width
-            visible: root.generateError.message !== "" && root.generateError.message !== root.generateError.title
+            visible: root.generateError.message !== ""
             text: root.generateError.message
             color: root.barForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.subtitle
             wrapMode: Text.WordWrap
-            opacity: 0.85
-          }
-
-          Text {
-            width: parent.width
-            visible: root.generateLog !== ""
-            text: "Log: " + root.generateLog
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.subtitle
-            wrapMode: Text.WrapAnywhere
-            opacity: 0.5
+            opacity: 0.9
           }
 
           WidgetButton {

@@ -402,6 +402,27 @@ function actionTypesFromNode(node) {
   return out
 }
 
+function collapseErrorMessage(text) {
+  var drop = /^(service unavailable|bad gateway|internal server error|error|failed|generate failed\.?)$/i
+  var lines = String(text || "").split(/\n+/).map(function(s) {
+    return s.replace(/^\s+|\s+$/g, "")
+  }).filter(function(s) {
+    return s && !drop.test(s)
+  })
+  var out = []
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    var low = line.toLowerCase()
+    var skip = false
+    for (var j = 0; j < out.length; j++) {
+      var prev = out[j].toLowerCase()
+      if (prev === low || prev.indexOf(low) >= 0 || low.indexOf(prev) >= 0) skip = true
+    }
+    if (!skip) out.push(line)
+  }
+  return out.join(" ").replace(/\s+/g, " ").trim()
+}
+
 function classifyGenerateError(raw) {
   var text = String(raw || "")
   var data = parseJsonBlob(text)
@@ -419,6 +440,7 @@ function classifyGenerateError(raw) {
     if (typeof data.error === "string" && !message) message = data.error
   }
   if (!message) message = text
+  message = collapseErrorMessage(message)
   var blob = (kindToken + " " + actionTypes.join(" ") + " " + message + " " + text).toLowerCase()
   var kind = "retry"
   var title = "Generate failed"
@@ -426,7 +448,7 @@ function classifyGenerateError(raw) {
   if (/upgrade_plan|upgrade plan|\bupgrade\b|minimum_.*plan|higher .{0,24}plan|requires a higher/.test(blob)) {
     kind = "upgrade"
     title = "Upgrade required"
-    if (!message || /^[a-z0-9_]+$/i.test(message))
+    if (!message || /^[a-z0-9_]+$/i.test(message) || /ended with status|upgrade_plan/i.test(message))
       message = "This generation needs a higher Higgsfield plan."
     actions = ["retry", "upgrade"]
   } else if (/not_enough_credits|out_of_credits|credits_exhausted|not enough credits|out of credits/.test(blob)) {
@@ -449,12 +471,13 @@ function classifyGenerateError(raw) {
   } else if (/ended with status|status ["']failed["']/.test(blob)) {
     kind = "job"
     title = "Generation failed"
-    if (!message || /ended with status/.test(String(message).toLowerCase()))
+    if (!message || /ended with status|status ["']failed["']/.test(String(message).toLowerCase()))
       message = "Higgsfield's model failed this run. Open generate.log for the job payload, or retry."
   } else if (!message || message === "[object Object]") {
     message = "Generate failed. Retry, or upgrade your plan if Higgsfield asked for that."
     actions = ["retry", "upgrade"]
   }
+  message = collapseErrorMessage(message)
   if (message.length > 280) message = message.slice(0, 280)
   return {
     kind: kind,
@@ -462,7 +485,7 @@ function classifyGenerateError(raw) {
     message: message,
     actions: actions,
     showUpgrade: kind === "upgrade" || kind === "credits",
-    showTitle: kind === "upgrade" || kind === "credits" || kind === "unavailable",
+    showTitle: false,
     pricingUrl: "https://higgsfield.ai/pricing"
   }
 }
@@ -486,19 +509,14 @@ function parseGenerateResult(raw) {
       }
     }
     var classified = classifyGenerateError(last)
-    var err = (typeof data.reason === "string" && data.reason)
-      ? data.reason
-      : (typeof data.error === "string" && data.error
-        ? data.error
-        : (classified.kind !== "retry" ? classified.kind + ": " + classified.message : classified.message))
     return {
       ok: false,
-      error: err || "generate failed",
+      error: classified.message || "generate failed",
       path: "",
       url: ""
     }
   } catch (e) {
-    return { ok: false, error: last.slice(0, 400), path: "", url: "" }
+    return { ok: false, error: collapseErrorMessage(last).slice(0, 400), path: "", url: "" }
   }
 }
 

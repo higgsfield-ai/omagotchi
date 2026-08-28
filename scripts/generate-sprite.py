@@ -360,47 +360,75 @@ def looks_like_media_url(url: str) -> bool:
     ))
 
 
-def extract_url(node) -> str:
-    if node is None:
+INPUT_KEYS = frozenset({
+    "input", "image", "start_image", "end_image", "start-image", "end-image",
+    "init_image", "prompt", "thumbnail", "thumb", "preview", "source",
+    "reference", "ref", "photo", "params", "parameters", "request",
+})
+OUTPUT_URL_KEYS = (
+    "result_url", "output_url", "video_url", "download_url", "signed_url",
+    "file_url", "media_url", "asset_url",
+)
+OUTPUT_CONTAINERS = (
+    "results", "output", "outputs", "assets", "media", "files", "videos", "images",
+)
+PENDING = frozenset({
+    "queued", "pending", "running", "processing", "in_progress", "waiting",
+    "created", "submitted", "started",
+})
+
+
+def extract_url(node, depth: int = 0) -> str:
+    if node is None or depth > 8:
         return ""
     if isinstance(node, str):
         return node if node.startswith("http") and looks_like_media_url(node) else ""
     if isinstance(node, list):
         for item in node:
-            url = extract_url(item)
+            url = extract_url(item, depth + 1)
             if url:
                 return url
         return ""
-    if isinstance(node, dict):
-        for key in (
-            "result_url", "output_url", "image_url", "video_url",
-            "download_url", "signed_url", "file_url", "media_url", "asset_url", "url",
-        ):
-            val = node.get(key)
-            if isinstance(val, str) and val.startswith("http"):
-                if key != "url" or looks_like_media_url(val):
-                    return val
-        for key in (
-            "results", "output", "outputs", "assets", "data", "job", "jobs",
-            "media", "images", "files", "video", "image",
-        ):
-            if key in node:
-                url = extract_url(node.get(key))
-                if url:
-                    return url
-        for val in node.values():
-            if isinstance(val, (dict, list, str)):
-                url = extract_url(val)
-                if url:
-                    return url
+    if not isinstance(node, dict):
+        return ""
+    for key in OUTPUT_URL_KEYS:
+        val = node.get(key)
+        if isinstance(val, str) and val.startswith("http"):
+            return val
+    val = node.get("url")
+    if isinstance(val, str) and val.startswith("http") and looks_like_media_url(val):
+        return val
+    for key in OUTPUT_CONTAINERS:
+        if key in node:
+            url = extract_url(node.get(key), depth + 1)
+            if url:
+                return url
+    if depth > 0:
+        val = node.get("url")
+        if isinstance(val, str) and val.startswith("http") and looks_like_media_url(val):
+            return val
+    for key, val in node.items():
+        if key in INPUT_KEYS or key in OUTPUT_URL_KEYS or key in OUTPUT_CONTAINERS:
+            continue
+        if isinstance(val, (dict, list)):
+            url = extract_url(val, depth + 1)
+            if url:
+                return url
     return ""
 
 
 def job_result(job_id: str, data) -> dict | None:
+    if not data:
+        return None
+    status = extract_status(data)
+    if status in JOB_BAD or status in PENDING:
+        return None
     url = extract_url(data)
-    if url:
-        return {"url": url, "raw": data, "id": job_id}
-    return None
+    if not url:
+        return None
+    if status and status not in JOB_OK:
+        return None
+    return {"url": url, "raw": data, "id": job_id}
 
 
 def parse_job(raw: str):
@@ -515,16 +543,15 @@ def poll_job(hf: str, job_id: str, log: Path) -> dict:
     deadline = time.time() + POLL_SECONDS
     delay = 2.0
     last_data = None
+    status = ""
     while time.time() < deadline:
         last_data = fetch_job(hf, job_id, log)
+        status = extract_status(last_data)
+        if status in JOB_BAD:
+            raise RuntimeError(explain_job_failure(hf, job_id, status, log))
         found = job_result(job_id, last_data)
         if found:
             return found
-        status = extract_status(last_data)
-        if status in JOB_BAD:
-            blob = json.dumps(last_data) if last_data else ""
-            if not any(tok in blob.lower() for tok in ("503", "502", "504", "service unavailable", "bad gateway")):
-                raise RuntimeError(explain_job_failure(hf, job_id, status, log))
         extra = 0.0
         try:
             extra = (int(job_id.replace("-", "")[:4], 16) % 800) / 1000.0
@@ -532,10 +559,6 @@ def poll_job(hf: str, job_id: str, log: Path) -> dict:
             extra = (hash(job_id) % 800) / 1000.0
         time.sleep(delay + extra)
         delay = min(delay * 1.4, 10)
-    found = job_result(job_id, last_data)
-    if found:
-        return found
-    status = extract_status(last_data)
     if status in JOB_OK:
         raise RuntimeError(explain_job_failure(hf, job_id, "completed but no media URL", log))
     raise RuntimeError(explain_job_failure(hf, job_id, status or "wait timed out", log))
@@ -634,9 +657,17 @@ def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
     return args
 
 
+CLIP_STOP = threading.Event()
+CLIP_WORKERS = 4
+
+
 def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, log: Path) -> Path:
+    if CLIP_STOP.is_set():
+        raise RuntimeError(f"{clip['name']}: skipped after a failure")
     try:
         job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, base_path), log)
+        if CLIP_STOP.is_set():
+            raise RuntimeError(f"{clip['name']}: skipped after a failure")
         job = wait_job(hf, job_id, log)
         download(job["url"], dest)
         return dest
@@ -735,6 +766,7 @@ def main() -> None:
     plan_rows = {}
     completed = {"n": 0}
     finished = {}
+    CLIP_STOP.clear()
     progress(
         f"Starting {len(jobs)} clips together…",
         phase="clip",
@@ -747,21 +779,24 @@ def main() -> None:
         generate_clip(hf, clip, key, base_path, dest, log)
         return clip, dest
 
+    pool = ThreadPoolExecutor(max_workers=min(CLIP_WORKERS, len(jobs)))
+    futures = [pool.submit(run_one, clip) for clip in jobs]
     try:
-        with ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
-            futures = [pool.submit(run_one, clip) for clip in jobs]
-            for fut in as_completed(futures):
-                clip, dest = fut.result()
-                finished[id(clip)] = dest
-                completed["n"] += 1
-                n = completed["n"]
-                progress(
-                    f"{n}/{len(jobs)} clips ready · {clip['name']}",
-                    phase="clip",
-                    step=1 + n,
-                    steps=total,
-                )
+        for fut in as_completed(futures):
+            clip, dest = fut.result()
+            finished[id(clip)] = dest
+            completed["n"] += 1
+            n = completed["n"]
+            progress(
+                f"{n}/{len(jobs)} clips ready · {clip['name']}",
+                phase="clip",
+                step=1 + n,
+                steps=total,
+            )
+        pool.shutdown(wait=True)
     except Exception as exc:
+        CLIP_STOP.set()
+        pool.shutdown(wait=False, cancel_futures=True)
         fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
 
     for clip in jobs:
