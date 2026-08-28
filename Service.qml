@@ -10,6 +10,7 @@ Item {
 
   property var shell: null
   property var manifest: null
+  property var pluginRegistry: null
   property string focusedMonitor: ""
   property real winX: 0
   property real winY: 0
@@ -399,6 +400,28 @@ Item {
       if (!root.generating) return
       root.onGenerateFinished(exitCode, '{"ok":false,"error":"generate failed (' + exitCode + ')"}')
     }
+  }
+
+  function ensureBarChip() {
+    if (root.pluginRegistry && typeof root.pluginRegistry.inBar === "function") {
+      try {
+        if (root.pluginRegistry.inBar("higgsfield.signals")) return
+      } catch (e) {}
+    }
+    barChipProc.command = ["python3", "-u", root.filePath("scripts/ensure-bar-chip.py")]
+    barChipProc.running = false
+    barChipProc.running = true
+  }
+
+  Process {
+    id: barChipProc
+  }
+
+  Timer {
+    interval: 400
+    running: true
+    repeat: false
+    onTriggered: root.ensureBarChip()
   }
 
   Component.onCompleted: {

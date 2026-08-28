@@ -13,12 +13,13 @@ omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
 omarchy-restart-shell
 ```
 
-If the HF chip is missing, the plugin was already on as an overlay. Enable does not add a bar slot. Put it on the bar:
+Update:
 
 ```sh
-omarchy bar put higgsfield.signals --section right
-omarchy-restart-shell
+omarchy plugin update higgsfield.signals --yes
 ```
+
+The **HF** chip lands on the right of the bar by itself. Restart the shell only if the chip is still missing after the update.
 
 No extra packages. The plugin downloads the Higgsfield CLI and Python image libs into `~/.local/share/higgsfield.signals` on first use. Omarchy already has `ffmpeg`.
 
