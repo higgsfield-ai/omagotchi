@@ -365,7 +365,7 @@ def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, lo
     raise RuntimeError(f"{clip['name']}: {last_err}")
 
 
-def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: bool) -> Path:
+def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: bool) -> tuple[Path, dict]:
     atlas = {
         "file": str(sheet),
         "cellWidth": frame_size,
@@ -378,7 +378,7 @@ def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: b
     }
     path = out_dir / "atlas.json"
     path.write_text(json.dumps(atlas, indent=2) + "\n")
-    return path
+    return path, atlas
 
 
 def main() -> None:
@@ -532,12 +532,13 @@ def main() -> None:
             shutil.rmtree(actions_dest)
         shutil.copytree(actions_src, actions_dest)
 
-    atlas_path = write_atlas(out_dir, sheet_dest, 1 if args.smoke else 12, args.frame_size, args.smoke)
+    atlas_path, atlas_spec = write_atlas(out_dir, sheet_dest, 1 if args.smoke else 12, args.frame_size, args.smoke)
     progress("Tamagotchi ready", phase="done", step=total, steps=total)
     print(json.dumps({
         "ok": True,
         "path": str(sheet_dest),
         "atlas": str(atlas_path),
+        "atlas_spec": atlas_spec,
         "base": str(base_path),
         "smoke": bool(args.smoke),
         "model": "seedance_2_0_mini",

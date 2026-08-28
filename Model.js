@@ -20,6 +20,26 @@ function defaultAtlas() {
   }
 }
 
+function generatedAtlas(file) {
+  return {
+    file: String(file || ""),
+    cellWidth: 80,
+    cellHeight: 80,
+    columns: 16,
+    rows: 12,
+    fps: 10,
+    scale: 1,
+    modes: {
+      walk: { row: 0, start: 0, count: 16 },
+      idle: { row: 1, start: 0, count: 8 },
+      dance: { row: 4, start: 0, count: 16 },
+      flip: { row: 5, start: 0, count: 16 },
+      collapse: { row: 2, start: 8, count: 8 },
+      drag: { row: 3, start: 0, count: 8 }
+    }
+  }
+}
+
 function cloneMode(mode, fallback) {
   var src = mode || fallback || { row: 0, start: 0, count: 8 }
   var row = Number(src.row)
@@ -234,6 +254,7 @@ function parseGenerateResult(raw) {
         path: String(data.path || ""),
         url: String(data.url || ""),
         atlas: String(data.atlas || ""),
+        atlasSpec: data.atlas_spec && typeof data.atlas_spec === "object" ? data.atlas_spec : null,
         model: String(data.model || ""),
         error: ""
       }
@@ -317,6 +338,7 @@ if (typeof module !== "undefined") {
     focusWindow: focusWindow,
     trimPrompt: trimPrompt,
     parseGenerateResult: parseGenerateResult,
+    generatedAtlas: generatedAtlas,
     isImagePath: isImagePath,
     atlasImageSource: atlasImageSource,
     fileBaseName: fileBaseName,

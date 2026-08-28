@@ -78,6 +78,18 @@ test("parseGenerateResult reads the last JSON line", () => {
   assert.equal(Model.isImagePath("/tmp/a.mp4"), false)
 })
 
+test("generatedAtlas builds the 16x12 overlay spec", () => {
+  const spec = Model.generatedAtlas("/tmp/spritesheet_16x12.png")
+  assert.equal(spec.columns, 16)
+  assert.equal(spec.rows, 12)
+  assert.equal(spec.cellHeight, 80)
+  const walk = Model.framesForMode(spec, "walk")
+  assert.equal(walk.frameCount, 16)
+  const parsed = Model.parseGenerateResult('{"ok":true,"path":"/tmp/sheet.png","atlas_spec":{"file":"/tmp/sheet.png","columns":16}}')
+  assert.equal(parsed.ok, true)
+  assert.equal(parsed.atlasSpec.file, "/tmp/sheet.png")
+})
+
 test("generated 16x12 atlas maps pet modes onto skill rows", () => {
   const spec = {
     file: "/tmp/spritesheet_16x12.png",

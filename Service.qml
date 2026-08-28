@@ -102,11 +102,42 @@ Item {
     }
   }
 
+  function applyGeneratedSheet(path, spec) {
+    var file = Model.fileUrlToPath(path)
+    if (!file || file.charAt(0) !== "/") return false
+    var atlas = spec && typeof spec === "object" && spec.file
+      ? spec
+      : Model.generatedAtlas(file)
+    if (String(atlas.file || "").charAt(0) !== "/")
+      atlas = Model.generatedAtlas(file)
+    root.lastResultPath = file
+    root.atlasSpec = atlas
+    root.hasGeneratedPet = true
+    root.atlasRev += 1
+    return true
+  }
+
   function loadAtlas() {
-    var generated = root.readJsonFile("file://" + root.dataDir() + "/atlas.json")
-    if (generated && generated.file && String(generated.file).charAt(0) === "/") {
-      root.atlasSpec = generated
-      root.hasGeneratedPet = true
+    atlasReadProc.command = ["cat", root.dataDir() + "/atlas.json"]
+    atlasReadProc.running = false
+    atlasReadProc.running = true
+  }
+
+  function applyAtlasText(text) {
+    var raw = String(text || "").replace(/^\s+|\s+$/g, "")
+    if (raw) {
+      try {
+        var generated = JSON.parse(raw)
+        if (generated && generated.file && String(generated.file).charAt(0) === "/") {
+          root.atlasSpec = generated
+          root.hasGeneratedPet = true
+          root.atlasRev += 1
+          return
+        }
+      } catch (e) {}
+    }
+    if (root.lastResultPath) {
+      root.applyGeneratedSheet(root.lastResultPath)
       return
     }
     root.hasGeneratedPet = false
@@ -255,8 +286,7 @@ Item {
       root.lastError = ""
       root.generateStatus = "Tamagotchi ready"
       root.generatePercent = 100
-      root.atlasRev += 1
-      root.loadAtlas()
+      root.applyGeneratedSheet(parsed.path, parsed.atlasSpec)
       return
     }
     var err = parsed.error || ("generate failed (" + code + ")")
@@ -409,6 +439,15 @@ Item {
   }
 
   Process {
+    id: atlasReadProc
+    stdout: StdioCollector {
+      id: atlasReadOut
+      waitForEnd: true
+    }
+    onExited: root.applyAtlasText(atlasReadOut.text)
+  }
+
+  Process {
     id: genProc
     stdout: SplitParser {
       onRead: function(line) {
@@ -416,6 +455,17 @@ Item {
       }
     }
     onExited: function(exitCode) {
+      if (Number(exitCode) === 0) {
+        var sheet = root.lastResultPath || (root.dataDir() + "/spritesheet_16x12.png")
+        root.applyGeneratedSheet(sheet)
+        if (root.generating) {
+          root.generating = false
+          root.generateStatus = "Tamagotchi ready"
+          root.generatePercent = 100
+          root.lastError = ""
+        }
+        return
+      }
       if (!root.generating) return
       root.onGenerateFinished(exitCode, '{"ok":false,"error":"generate failed (' + exitCode + ')"}')
     }
