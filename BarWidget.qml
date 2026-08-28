@@ -81,4 +81,41 @@ BarWidget {
       if (buttonCode === Qt.LeftButton) root.toggle()
     }
   }
+
+  Rectangle {
+    id: chipTrack
+    visible: root.generating
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    height: 3
+    z: 3
+    color: Qt.rgba(1, 1, 1, 0.14)
+    clip: true
+
+    Rectangle {
+      id: chipFill
+      height: parent.height
+      width: {
+        var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
+        if (p <= 0) return Math.max(8, parent.width * 0.3)
+        return parent.width * Math.min(1, p / 100)
+      }
+      color: root.bar && "foreground" in root.bar ? root.bar.foreground : "#fff"
+      x: 0
+      Behavior on width { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+
+      SequentialAnimation on x {
+        running: root.generating && chipTrack.width > 8 && (!root.svc || Number(root.svc.generatePercent || 0) <= 0)
+        loops: Animation.Infinite
+        NumberAnimation {
+          from: -chipFill.width
+          to: chipTrack.width
+          duration: 1100
+          easing.type: Easing.InOutSine
+        }
+        onStopped: chipFill.x = 0
+      }
+    }
+  }
 }

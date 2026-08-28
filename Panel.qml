@@ -160,6 +160,7 @@ Panel {
           color: Qt.rgba(0, 0, 0, 0.18)
           border.width: 1
           border.color: Qt.rgba(1, 1, 1, 0.1)
+          clip: true
 
           Image {
             anchors.fill: parent
@@ -169,6 +170,27 @@ Panel {
             fillMode: Image.PreserveAspectFit
             asynchronous: true
             cache: false
+            opacity: root.generating ? 0.72 : 1
+            Behavior on opacity { NumberAnimation { duration: 240 } }
+          }
+
+          Rectangle {
+            visible: root.generating && root.hasPhoto
+            z: 1
+            width: parent.width
+            height: 10
+            color: Qt.rgba(1, 1, 1, 0.22)
+
+            SequentialAnimation on y {
+              running: root.generating && root.hasPhoto
+              loops: Animation.Infinite
+              NumberAnimation {
+                from: -12
+                to: Style.space(132)
+                duration: 1600
+                easing.type: Easing.InOutSine
+              }
+            }
           }
 
           Text {
@@ -234,47 +256,17 @@ Panel {
           opacity: 0.85
         }
 
-        Column {
+        GenerateProgress {
           width: parent.width
-          spacing: Style.space(6)
           visible: root.generating || root.loggingIn || root.percent > 0 || root.statusText !== ""
-
-          Rectangle {
-            width: parent.width
-            height: 8
-            radius: 4
-            visible: root.generating || root.percent > 0
-            color: Qt.rgba(1, 1, 1, 0.12)
-
-            Rectangle {
-              width: Math.max(8, parent.width * Math.min(1, Math.max(0, root.percent / 100)))
-              height: parent.height
-              radius: 4
-              color: root.barForeground
-            }
-          }
-
-          Text {
-            width: parent.width
-            text: root.generating
-              ? ((root.percent > 0 ? (root.percent + "%  ·  ") : "") + (root.statusText || "Working…"))
-              : root.statusText
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.subtitle
-            wrapMode: Text.WordWrap
-            opacity: 0.9
-          }
-
-          Text {
-            width: parent.width
-            visible: root.generating && root.steps > 0
-            text: root.step + " / " + root.steps
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.subtitle
-            opacity: 0.55
-          }
+          bar: root.bar
+          foreground: root.barForeground
+          generating: root.generating
+          loggingIn: root.loggingIn
+          percent: root.percent
+          step: root.step
+          steps: root.steps
+          statusText: root.statusText
         }
       }
     }
