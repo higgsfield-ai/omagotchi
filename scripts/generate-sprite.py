@@ -294,19 +294,28 @@ def fetch_job(hf: str, job_id: str, log: Path):
     )
     blob = (proc.stderr or "") + (proc.stdout or "")
     append_log(log, blob)
-    return parse_job(proc.stdout or "") or last_json(proc.stdout or "") or last_json(blob)
+    data = parse_job(proc.stdout or "") or last_json(proc.stdout or "") or last_json(blob)
+    if data and is_transport_payload(data):
+        return None
+    return data
 
 
 def explain_job_failure(hf: str, job_id: str, fallback: str, log: Path) -> str:
     data = fetch_job(hf, job_id, log) if job_id else None
+    if data and is_transport_payload(data):
+        data = None
     reason = job_reason_from_node(data) if data else ""
+    if reason and is_transport_error(reason) and not extract_status(data or {}):
+        reason = ""
     parts = []
     if job_id:
         parts.append("job " + job_id)
     if reason:
         parts.append(reason)
-    elif fallback and not is_generic_job_status(fallback):
+    elif fallback and not is_generic_job_status(fallback) and not is_transport_error(fallback):
         parts.append(fallback)
+    elif fallback and not is_generic_job_status(fallback):
+        parts.append("lost contact while waiting — job may still be finished on higgsfield.ai")
     else:
         parts.append('ended with status "failed"')
     return ": ".join(parts)[-800:]
@@ -367,10 +376,12 @@ INPUT_KEYS = frozenset({
 })
 OUTPUT_URL_KEYS = (
     "result_url", "output_url", "video_url", "download_url", "signed_url",
-    "file_url", "media_url", "asset_url",
+    "file_url", "media_url", "asset_url", "raw_url", "playable_url",
+    "mp4_url", "webm_url",
 )
 OUTPUT_CONTAINERS = (
-    "results", "output", "outputs", "assets", "media", "files", "videos", "images",
+    "results", "result", "output", "outputs", "assets", "media", "files",
+    "videos", "images", "video",
 )
 PENDING = frozenset({
     "queued", "pending", "running", "processing", "in_progress", "waiting",
@@ -426,9 +437,26 @@ def job_result(job_id: str, data) -> dict | None:
     url = extract_url(data)
     if not url:
         return None
-    if status and status not in JOB_OK:
-        return None
     return {"url": url, "raw": data, "id": job_id}
+
+
+def is_transport_payload(data) -> bool:
+    if not isinstance(data, dict):
+        return False
+    if extract_status(data) or extract_url(data) or extract_job_id(data):
+        return False
+    return is_transport_error(json.dumps(data))
+
+
+def is_hard_failure(text: str) -> bool:
+    low = (text or "").lower()
+    return any(tok in low for tok in (
+        "upgrade_plan",
+        "not_enough_credits",
+        "credits_exhausted",
+        "out_of_credits",
+        "not enough credits",
+    ))
 
 
 def parse_job(raw: str):
@@ -542,16 +570,18 @@ POLL_SECONDS = 20 * 60
 def poll_job(hf: str, job_id: str, log: Path) -> dict:
     deadline = time.time() + POLL_SECONDS
     delay = 2.0
-    last_data = None
+    last_good = None
     status = ""
     while time.time() < deadline:
-        last_data = fetch_job(hf, job_id, log)
-        status = extract_status(last_data)
-        if status in JOB_BAD:
-            raise RuntimeError(explain_job_failure(hf, job_id, status, log))
-        found = job_result(job_id, last_data)
-        if found:
-            return found
+        data = fetch_job(hf, job_id, log)
+        if data is not None:
+            last_good = data
+            status = extract_status(data)
+            if status in JOB_BAD:
+                raise RuntimeError(explain_job_failure(hf, job_id, status, log))
+            found = job_result(job_id, data)
+            if found:
+                return found
         extra = 0.0
         try:
             extra = (int(job_id.replace("-", "")[:4], 16) % 800) / 1000.0
@@ -559,9 +589,16 @@ def poll_job(hf: str, job_id: str, log: Path) -> dict:
             extra = (hash(job_id) % 800) / 1000.0
         time.sleep(delay + extra)
         delay = min(delay * 1.4, 10)
+    if last_good is not None:
+        found = job_result(job_id, last_good)
+        if found:
+            return found
+        status = extract_status(last_good)
     if status in JOB_OK:
         raise RuntimeError(explain_job_failure(hf, job_id, "completed but no media URL", log))
-    raise RuntimeError(explain_job_failure(hf, job_id, status or "wait timed out", log))
+    raise RuntimeError(explain_job_failure(
+        hf, job_id, "lost contact while waiting — job may still be finished on higgsfield.ai", log,
+    ))
 
 
 # One Higgsfield create per call. Failures surface to the panel; only Retry starts again.
@@ -658,21 +695,8 @@ def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
 
 
 CLIP_STOP = threading.Event()
-CLIP_WORKERS = 4
-
-
-def generate_clip(hf: str, clip: dict, key: str, base_path: Path, dest: Path, log: Path) -> Path:
-    if CLIP_STOP.is_set():
-        raise RuntimeError(f"{clip['name']}: skipped after a failure")
-    try:
-        job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, base_path), log)
-        if CLIP_STOP.is_set():
-            raise RuntimeError(f"{clip['name']}: skipped after a failure")
-        job = wait_job(hf, job_id, log)
-        download(job["url"], dest)
-        return dest
-    except Exception as exc:
-        raise RuntimeError(f"{clip['name']}: {exc}") from exc
+CREATE_WORKERS = 6
+WAIT_WORKERS = 8
 
 
 def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: bool) -> tuple[Path, dict]:
@@ -768,36 +792,88 @@ def main() -> None:
     finished = {}
     CLIP_STOP.clear()
     progress(
-        f"Starting {len(jobs)} clips together…",
+        f"Submitting {len(jobs)} clip jobs…",
         phase="clip",
         step=1,
         steps=total,
     )
 
-    def run_one(clip: dict) -> tuple[dict, Path]:
+    submitted: list[tuple[dict, str, Path]] = []
+    create_errors: list[str] = []
+
+    def create_one(clip: dict) -> tuple[dict, str, Path]:
+        if CLIP_STOP.is_set():
+            raise RuntimeError(f"{clip['name']}: skipped after a billing failure")
         dest = clips_dir / f"r{clip['row']:02d}_{clip['name']}.mp4"
-        generate_clip(hf, clip, key, base_path, dest, log)
+        job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, base_path), log)
+        return clip, job_id, dest
+
+    create_pool = ThreadPoolExecutor(max_workers=min(CREATE_WORKERS, len(jobs)))
+    create_futs = [create_pool.submit(create_one, clip) for clip in jobs]
+    try:
+        for fut in as_completed(create_futs):
+            try:
+                clip, job_id, dest = fut.result()
+                submitted.append((clip, job_id, dest))
+                progress(
+                    f"Submitted {len(submitted)}/{len(jobs)} · {clip['name']}",
+                    phase="clip",
+                    step=1,
+                    steps=total,
+                )
+            except Exception as exc:
+                err = str(exc)
+                create_errors.append(err)
+                if is_hard_failure(err):
+                    CLIP_STOP.set()
+                    create_pool.shutdown(wait=False, cancel_futures=True)
+                    fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
+        create_pool.shutdown(wait=True)
+    except Exception as exc:
+        CLIP_STOP.set()
+        create_pool.shutdown(wait=False, cancel_futures=True)
+        fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
+
+    if not submitted:
+        err = create_errors[0] if create_errors else "no clip jobs submitted"
+        fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
+
+    progress(
+        f"Waiting for {len(submitted)} clips…",
+        phase="clip",
+        step=1,
+        steps=total,
+    )
+
+    wait_errors: list[str] = []
+
+    def wait_one(item: tuple[dict, str, Path]) -> tuple[dict, Path]:
+        clip, job_id, dest = item
+        job = wait_job(hf, job_id, log)
+        download(job["url"], dest)
         return clip, dest
 
-    pool = ThreadPoolExecutor(max_workers=min(CLIP_WORKERS, len(jobs)))
-    futures = [pool.submit(run_one, clip) for clip in jobs]
-    try:
-        for fut in as_completed(futures):
+    wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(submitted)))
+    wait_futs = [wait_pool.submit(wait_one, item) for item in submitted]
+    for fut in as_completed(wait_futs):
+        try:
             clip, dest = fut.result()
             finished[id(clip)] = dest
             completed["n"] += 1
             n = completed["n"]
             progress(
-                f"{n}/{len(jobs)} clips ready · {clip['name']}",
+                f"{n}/{len(submitted)} clips ready · {clip['name']}",
                 phase="clip",
                 step=1 + n,
                 steps=total,
             )
-        pool.shutdown(wait=True)
-    except Exception as exc:
-        CLIP_STOP.set()
-        pool.shutdown(wait=False, cancel_futures=True)
-        fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
+        except Exception as exc:
+            wait_errors.append(str(exc))
+    wait_pool.shutdown(wait=True)
+
+    if wait_errors or len(finished) < len(jobs) or create_errors:
+        err = (wait_errors or create_errors or ["missing clips"])[0]
+        fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
 
     for clip in jobs:
         dest = finished[id(clip)]
