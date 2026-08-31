@@ -64,11 +64,11 @@ Item {
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
     readonly property bool airborne: window.dragging || window.falling || window.recalling || window.releasing
     readonly property string mode: {
-      if (window.recalling) return "drag"
-      if (window.releasing && !window.falling) return "drag"
+      // Any time he is off the ground — held, dragged, lifted, dropped — he
+      // flails arms and legs. The faceplant/woozy faint is landing-only and
+      // comes from the service (trip/sick) after onLanded.
+      if (window.airborne) return "fall"
       if (window.collapsed) return "collapse"
-      if (window.falling) return "fall"
-      if (window.dragging) return "drag"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
