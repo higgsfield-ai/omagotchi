@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 import qs.Ui
 
 // Bar chip that opens the generate panel. IPC stays on Service.qml —
@@ -107,13 +108,18 @@ BarWidget {
       return p > 0 ? (p + "%") : "…"
     }
     hasVisualContent: true
-    fixedWidth: root.generating ? -1 : chipLogo.implicitWidth + 17
+    fixedWidth: root.generating ? -1 : Math.round(chipLogo.implicitWidth * chipLogo.scale) + 17
 
+    // Sized and tinted like the native status icons (wifi, bluetooth):
+    // foreground color, icon-font height, solid strokes instead of fat dots.
     HfLogo {
       id: chipLogo
       anchors.centerIn: parent
       visible: !root.generating
       cell: 1
+      dotInset: 0
+      color: button.foreground
+      scale: Style.font.icon / chipLogo.implicitHeight
     }
     tooltipText: {
       if (panelLoader.status === Loader.Error)
