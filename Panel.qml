@@ -60,6 +60,10 @@ Panel {
   readonly property var nestFrames: Model.framesForMode(root.atlas, root.nestMode)
   readonly property string fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
   readonly property color errorColor: "#ef5350"
+  // Brand lime, matching HfLogo's default; popup background doubles as the
+  // dark text color on filled buttons.
+  readonly property color limeColor: "#d1fe17"
+  readonly property color darkText: Color.popups.background
 
   onGeneratingChanged: {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
@@ -427,6 +431,8 @@ Panel {
 
               ChipButton {
                 visible: root.loggedIn && !root.generating && !root.loggingIn
+                fill: Qt.alpha(root.barForeground, 0.35)
+                textColor: root.darkText
                 text: root.capturing ? "Capturing…" : "Take photo"
                 tooltipText: "Capture a still from the webcam"
                 onChipPressed: function(buttonCode) {
@@ -437,6 +443,8 @@ Panel {
 
               ChipButton {
                 visible: root.lastError === "" || root.generating || root.loggingIn
+                fill: root.limeColor
+                textColor: root.darkText
                 text: {
                   if (root.loggingIn) return "Waiting for browser…"
                   if (root.generating) return "Generating…"
@@ -659,31 +667,33 @@ Panel {
             opacity: 0.7
           }
 
-          WidgetButton {
-            bar: root.bar
+          ChipButton {
             visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && !root.generating && !root.loggingIn
+            fill: Qt.alpha(root.barForeground, 0.35)
+            textColor: root.darkText
             text: root.capturing ? "Capturing…" : "Take photo"
             tooltipText: "Capture a still from the webcam"
-            onPressed: function(buttonCode) {
+            onChipPressed: function(buttonCode) {
               if (buttonCode !== Qt.LeftButton) return
               root.takePhoto()
             }
           }
 
-          WidgetButton {
-            bar: root.bar
+          ChipButton {
             visible: root.showGenerate && !root.hasGeneratedPet && (root.lastError === "" || root.generating || root.loggingIn)
+            fill: root.limeColor
+            textColor: root.darkText
             text: {
               if (root.loggingIn) return "Waiting for browser…"
               if (root.generating) return "Generating…"
-              if (!root.loggedIn) return "Generate my avatar"
               return "Generate my avatar"
             }
             tooltipText: !root.loggedIn
               ? "Opens the Higgsfield login browser"
               : (root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first")
-            onPressed: function(buttonCode) {
+            onChipPressed: function(buttonCode) {
               if (buttonCode !== Qt.LeftButton) return
+              if (root.generating) return
               root.submitAvatar()
             }
           }
@@ -764,11 +774,15 @@ Panel {
     property alias text: chipBtn.text
     property alias tooltipText: chipBtn.tooltipText
     property bool selected: false
+    property color fill: "transparent"
+    property color textColor: root.barForeground
+    readonly property bool filled: chip.fill.a > 0
     signal chipPressed(int button)
     radius: 0
-    color: chip.selected ? Qt.alpha(root.barForeground, 0.16) : "transparent"
+    color: chip.selected ? Qt.alpha(root.barForeground, 0.16) : chip.fill
     border.width: 1
-    border.color: chip.selected ? root.barForeground : Qt.alpha(root.barForeground, 0.35)
+    border.color: chip.selected ? root.barForeground
+      : (chip.filled ? chip.fill : Qt.alpha(root.barForeground, 0.35))
     implicitWidth: chipBtn.implicitWidth + Style.space(6)
     implicitHeight: chipBtn.implicitHeight
 
@@ -776,6 +790,7 @@ Panel {
       id: chipBtn
       anchors.fill: parent
       bar: root.bar
+      foreground: chip.textColor
       onPressed: function(buttonCode) { chip.chipPressed(buttonCode) }
     }
   }
