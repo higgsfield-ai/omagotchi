@@ -484,8 +484,9 @@ function resolveMode(opts) {
   if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
-  // Media preempts wandering, and playing media means DANCING — the laptop
-  // watch pose kept fighting the dance and lost its slot to it.
+  // Media preempts wandering. Music means dancing; speech-like audio (a
+  // podcast, an interview) sits him down with the laptop instead.
+  if (playing && o.speech) return "watch"
   if (playing && peak > flipAt) return "flip"
   if (playing) return "dance"
   var wander = String(o.wander || "idle")
@@ -563,6 +564,55 @@ function pickWander(rand, stats) {
   x -= w.run
   if (x < w.idle) return "idle"
   return "look"
+}
+
+// Beat detection on the peak envelope: a beat is the level jumping well
+// above its own running average, with a 250ms refractory so 16th-note
+// noise cannot machine-gun the frames (~240bpm ceiling).
+function beatStep(state, peak, nowMs) {
+  var st = state || {}
+  var ema = isFinite(Number(st.ema)) ? Number(st.ema) : 0
+  var last = isFinite(Number(st.lastBeatMs)) ? Number(st.lastBeatMs) : 0
+  var now = Number(nowMs) || 0
+  var p = Number(peak)
+  if (!isFinite(p) || p < 0) p = 0
+  var beat = false
+  if (p > 0.06 && p > ema * 1.35 && now - last > 250) {
+    beat = true
+    last = now
+  }
+  return { ema: ema * 0.88 + p * 0.12, lastBeatMs: last, beat: beat }
+}
+
+// Speech vs music from raw peak samples: talk is bursty (syllable and
+// sentence pauses collapse the level constantly), music sustains energy.
+// The gap ratio over a rolling window separates them without any FFT.
+// Hysteresis (enter 0.30 / exit 0.20) keeps him from flip-flopping, and a
+// silent monitor (p90 ~ 0) reads as "unknown" -> music -> dance, which
+// preserves the old behavior when peaks are unavailable.
+function speechLike(samples, wasSpeech) {
+  var arr = []
+  for (var i = 0; i < (samples || []).length; i++) {
+    var v = Number(samples[i])
+    if (isFinite(v) && v >= 0) arr.push(v)
+  }
+  if (arr.length < 20) return !!wasSpeech
+  var sorted = arr.slice().sort(function(a, b) { return a - b })
+  var p90 = sorted[Math.floor(0.9 * (sorted.length - 1))]
+  if (p90 < 0.03) return false
+  var gapThresh = p90 * 0.18
+  var gaps = 0
+  for (var j = 0; j < arr.length; j++) {
+    if (arr[j] < gapThresh) gaps++
+  }
+  var ratio = gaps / arr.length
+  return wasSpeech ? ratio > 0.2 : ratio > 0.3
+}
+
+function podcastMeta(title, album) {
+  var blob = (String(title || "") + " " + String(album || "")).toLowerCase()
+  if (!blob.trim()) return false
+  return /podcast|episode\b|\bep\.? ?\d|interview|audiobook|talk show|lecture/.test(blob)
 }
 
 function isVideoPlayerId(blob) {
@@ -1108,6 +1158,9 @@ if (typeof module !== "undefined") {
     isBrowserPlayerId: isBrowserPlayerId,
     creditsFromBlob: creditsFromBlob,
     costFromBlob: costFromBlob,
+    speechLike: speechLike,
+    beatStep: beatStep,
+    podcastMeta: podcastMeta,
     movePace: movePace,
     pickWander: pickWander,
     nextClickState: nextClickState,

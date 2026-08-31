@@ -149,7 +149,50 @@ Item {
   readonly property bool mediaIsVideo: Model.isVideoPlayerId(root.playingPlayerId)
   readonly property bool mediaIsBrowser: Model.isBrowserPlayerId(root.playingPlayerId)
 
+  // Speech vs music: metadata keywords decide instantly, the peak texture
+  // decides for everything unlabeled. Samples reset on every track change.
+  property var peakSamples: []
+  property bool mediaSpeech: false
+  // Beat pulses for beat-synced dancing: overlay advances a dance frame per
+  // pulse; lastBeatMs lets it fall back to timed frames in quiet stretches.
+  property var beatState: ({})
+  property int beatPulse: 0
+  property real lastBeatMs: 0
+  readonly property bool metaSaysPodcast: {
+    var pl = root.playingPlayer
+    if (!pl) return false
+    return Model.podcastMeta(String(pl.trackTitle || ""), String(pl.trackAlbum || pl.album || ""))
+  }
+
+  Timer {
+    interval: 300
+    running: root.mediaPlaying
+    repeat: true
+    onTriggered: {
+      var next = root.peakSamples.slice(-39)
+      next.push(Number(root.audioPeak) || 0)
+      root.peakSamples = next
+      root.mediaSpeech = root.metaSaysPodcast || Model.speechLike(next, root.mediaSpeech)
+    }
+  }
+
+  Timer {
+    interval: 60
+    running: root.mediaPlaying && !root.mediaSpeech && root.petOnDesktop
+    repeat: true
+    onTriggered: {
+      var r = Model.beatStep(root.beatState, root.audioPeak, Date.now())
+      root.beatState = { ema: r.ema, lastBeatMs: r.lastBeatMs }
+      if (r.beat) {
+        root.lastBeatMs = r.lastBeatMs
+        root.beatPulse += 1
+      }
+    }
+  }
+
   onMediaTrackKeyChanged: {
+    root.peakSamples = []
+    root.mediaSpeech = root.metaSaysPodcast
     var key = root.mediaTrackKey
     if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying) {
       root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "track", Date.now(), root.careEnv()), true)
@@ -192,6 +235,7 @@ Item {
     mediaPlaying: root.mediaPlaying,
     video: root.mediaIsVideo,
     browserMedia: root.mediaIsBrowser,
+    speech: root.mediaSpeech,
     audioPeak: root.audioPeak,
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),
