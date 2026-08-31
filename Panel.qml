@@ -237,7 +237,7 @@ Panel {
                 z: 3
                 bar: root.bar
                 fontSize: Style.font.caption
-                text: root.generating || root.replaceAvatar ? "Cancel" : "Change"
+                text: root.generating || root.replaceAvatar ? "Cancel" : "Change avatar"
                 tooltipText: root.generating
                   ? "Stop this generation"
                   : (root.replaceAvatar ? "Keep the current avatar" : "Pick a new photo and generate again")
@@ -287,7 +287,7 @@ Panel {
                 bar: root.bar
                 fontSize: Style.font.caption
                 visible: !root.replaceAvatar && !root.generating
-                text: root.petDocked || root.petRecalling ? "Release" : "Hide"
+                text: root.petDocked || root.petRecalling ? "Release" : "Return to home"
                 tooltipText: root.petDocked
                   ? "Drop the pet onto the focused window"
                   : "Levitate the pet back into this panel"
