@@ -30,10 +30,26 @@ Item {
   property int lastActiveMs: 0
   property int lastEatMs: 0
   property int lastWashMs: 0
+  property real careHunger: 82
+  property real careHygiene: 82
+  property real careMood: 82
+  property real careEnergy: 78
+  property real careHealth: 88
+  property real careAttention: 70
+  property real careExcitement: 18
+  property real careFocus: 12
+  property real careMusic: 16
+  property real careBond: 8
+  property real careWeight: 50
+  property int careBornMs: 0
+  property int careUpdatedMs: 0
+  property int lastDragCareMs: 0
   property bool tripActive: false
   property bool pendingWash: false
   property string lastTrackKey: ""
   property real audioPeak: 0
+  property bool careDirty: false
+  property int careSaveTicks: 0
   property bool generating: false
   property string generateStatus: ""
   property string generateModel: "nano_banana_2"
@@ -54,11 +70,20 @@ Item {
   property string hfPath: ""
   property bool pendingLogin: false
   property bool hasGeneratedPet: false
+  property bool petDocked: false
+  property bool petRecalling: false
+  property bool petReleasing: false
 
   readonly property string photoName: Model.fileBaseName(root.photoPath)
   readonly property string generateLog: root.dataDir() + "/generate.log"
 
   readonly property bool petVisible: root.hasGeneratedPet
+  readonly property bool petOnDesktop: Model.desktopPetVisible({
+    hasGeneratedPet: root.hasGeneratedPet,
+    docked: root.petDocked,
+    recalling: root.petRecalling,
+    releasing: root.petReleasing
+  })
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
   readonly property bool mediaPlaying: {
     if (root.media && root.media.activePlayer)
@@ -93,23 +118,51 @@ Item {
   }
   onMediaTrackKeyChanged: {
     var key = root.mediaTrackKey
-    if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying)
+    if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying) {
+      root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "track", Date.now(), root.careEnv()), true)
+      root.saveCare()
       root.celebrate()
+    }
     if (key) root.lastTrackKey = key
   }
+  readonly property var careLive: ({
+    hunger: root.careHunger,
+    hygiene: root.careHygiene,
+    mood: root.careMood,
+    energy: root.careEnergy,
+    health: root.careHealth,
+    attention: root.careAttention,
+    excitement: root.careExcitement,
+    focus: root.careFocus,
+    music: root.careMusic,
+    bond: root.careBond,
+    weight: root.careWeight,
+    bornMs: root.careBornMs,
+    updatedMs: root.careUpdatedMs
+  })
+  readonly property var careFlags: Model.careFlags(root.careLive)
   readonly property string mode: Model.resolveMode({
     sick: root.nowMs < root.sickUntil,
+    filthy: !!root.careFlags.filthy,
+    unhealthy: !!root.careFlags.ill,
     trip: root.tripActive,
     grumpy: root.nowMs < root.grumpyUntil,
     greet: root.nowMs < root.greetUntil,
     happy: root.nowMs < root.happyUntil,
     wash: root.nowMs < root.washUntil,
     eat: root.nowMs < root.eatUntil,
-    sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMs(),
-    sneak: Model.sneakWindow(root.winW, root.winH),
+    lowMood: !!root.careFlags.sad,
+    neglected: !!root.careFlags.neglected,
+    lonely: !!root.careFlags.lonely,
+    exhausted: !!root.careFlags.criticalTired,
+    focused: !!root.careFlags.focused,
+    sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMsFor(root.careLive),
+    sneak: Model.sneakWindow(root.winW, root.winH) || !!root.careFlags.focused,
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying,
     audioPeak: root.audioPeak,
+    flipPeak: Model.flipPeak(root.careLive),
+    dancePeak: Model.dancePeak(root.careLive),
     wander: root.wander
   })
   readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
@@ -273,47 +326,147 @@ Item {
     root.lastActiveMs = Date.now()
   }
 
+  function careSnapshot() {
+    return {
+      hunger: root.careHunger,
+      hygiene: root.careHygiene,
+      mood: root.careMood,
+      energy: root.careEnergy,
+      health: root.careHealth,
+      attention: root.careAttention,
+      excitement: root.careExcitement,
+      focus: root.careFocus,
+      music: root.careMusic,
+      bond: root.careBond,
+      weight: root.careWeight,
+      bornMs: root.careBornMs,
+      updatedMs: root.careUpdatedMs,
+      docked: root.petDocked
+    }
+  }
+
+  function careEnv() {
+    var now = Date.now()
+    return {
+      sleeping: root.mode === "sleep" || root.mode === "night",
+      night: Model.isNightHour(new Date(root.nowMs || now)),
+      mediaPlaying: root.mediaPlaying,
+      sneakWindow: Model.sneakWindow(root.winW, root.winH),
+      audioPeak: root.audioPeak,
+      active: root.lastActiveMs > 0 && (now - root.lastActiveMs) < 20000
+    }
+  }
+
+  function applyCareStats(stats, persist) {
+    var s = Model.normalizeCareStats(stats, Date.now())
+    root.careHunger = s.hunger
+    root.careHygiene = s.hygiene
+    root.careMood = s.mood
+    root.careEnergy = s.energy
+    root.careHealth = s.health
+    root.careAttention = s.attention
+    root.careExcitement = s.excitement
+    root.careFocus = s.focus
+    root.careMusic = s.music
+    root.careBond = s.bond
+    root.careWeight = s.weight
+    root.careBornMs = s.bornMs
+    root.careUpdatedMs = s.updatedMs
+    if (!root.petRecalling && !root.petReleasing)
+      root.petDocked = !!s.docked
+    if (persist) root.careDirty = true
+  }
+
+  function saveCare() {
+    if (!root.careDirty) return
+    root.careDirty = false
+    var payload = JSON.stringify(root.careSnapshot())
+    careSaveProc.command = [
+      "python3", "-c",
+      "import json,sys\nfrom pathlib import Path\np = Path(sys.argv[1])\np.parent.mkdir(parents=True, exist_ok=True)\np.write_text(json.dumps(json.loads(sys.argv[2]), indent=2) + '\\n')\n",
+      root.dataDir() + "/care.json",
+      payload
+    ]
+    careSaveProc.running = false
+    careSaveProc.running = true
+  }
+
+  function loadCare() {
+    var data = root.readJsonFile("file://" + root.dataDir() + "/care.json")
+    var now = Date.now()
+    var s = Model.decayCareStats(data || Model.defaultCareStats(now), now, {
+      night: Model.isNightHour(new Date(now)),
+      mediaPlaying: false,
+      sneakWindow: false,
+      active: false
+    })
+    root.applyCareStats(s, false)
+    root.petDocked = !!s.docked
+    root.careDirty = false
+  }
+
   function celebrate(ms) {
     root.touchActivity()
     var dur = Number(ms)
-    if (!isFinite(dur) || dur <= 0) dur = Model.happyDurationMs()
+    if (!isFinite(dur) || dur <= 0) dur = Model.happyDurationMs(root.careSnapshot())
     root.happyUntil = Date.now() + dur
+  }
+
+  function feedPet() {
+    if (!root.petVisible) return "hidden"
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "feed", Date.now(), root.careEnv()), true)
+    root.eatUntil = Date.now() + Model.careDurationMs()
+    root.touchActivity()
+    root.saveCare()
+    return "eat"
+  }
+
+  function washPet() {
+    if (!root.petVisible) return "hidden"
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "wash", Date.now(), root.careEnv()), true)
+    root.washUntil = Date.now() + Model.careDurationMs()
+    root.pendingWash = false
+    root.touchActivity()
+    root.saveCare()
+    return "wash"
+  }
+
+  function playPet() {
+    if (!root.petVisible) return "hidden"
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "play", Date.now(), root.careEnv()), true)
+    root.celebrate(Model.happyDurationMs(root.careSnapshot()))
+    root.saveCare()
+    return "play"
   }
 
   function tickCare() {
     if (!root.petVisible) return
     var now = Date.now()
-    if (root.pendingWash && root.nowMs >= root.sickUntil && !root.tripActive) {
+    root.applyCareStats(Model.decayCareStats(root.careSnapshot(), now, root.careEnv()), false)
+    if (root.pendingWash && root.nowMs >= root.sickUntil && !root.tripActive
+        && root.nowMs >= root.washUntil && root.nowMs >= root.eatUntil) {
       root.pendingWash = false
       root.washUntil = now + Model.careDurationMs()
-      root.lastWashMs = now
       root.touchActivity()
-      return
     }
-    if (root.nowMs < root.eatUntil || root.nowMs < root.washUntil) return
-    if (root.nowMs < root.greetUntil || root.nowMs < root.grumpyUntil || root.nowMs < root.happyUntil) return
-    if (root.tripActive || root.nowMs < root.sickUntil) return
-    if (root.lastWashMs > 0 && (now - root.lastWashMs) >= Model.washEveryMs()) {
-      root.washUntil = now + Model.careDurationMs()
-      root.lastWashMs = now
-      root.touchActivity()
-      return
-    }
-    if (root.lastEatMs > 0 && (now - root.lastEatMs) >= Model.eatEveryMs()) {
-      root.eatUntil = now + Model.careDurationMs()
-      root.lastEatMs = now
-      root.touchActivity()
+    root.careSaveTicks += 1
+    if (root.careSaveTicks >= 60) {
+      root.careSaveTicks = 0
+      root.careDirty = true
+      root.saveCare()
     }
   }
 
   function onPetClicked() {
     root.touchActivity()
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "pet", Date.now(), root.careEnv()), true)
+    root.saveCare()
     var next = Model.nextClickState({
       lastClickMs: root.lastClickMs,
       clickBurst: root.clickBurst,
       greetUntil: root.greetUntil,
       grumpyUntil: root.grumpyUntil
-    }, Date.now())
+    }, Date.now(), root.careSnapshot())
     root.lastClickMs = next.lastClickMs
     root.clickBurst = next.clickBurst
     root.greetUntil = next.greetUntil
@@ -321,8 +474,20 @@ Item {
     return root.nowMs < root.grumpyUntil ? "grumpy" : "greet"
   }
 
+  function onPetDragged() {
+    root.touchActivity()
+    var now = Date.now()
+    if (now - root.lastDragCareMs < 1500) return "drag"
+    root.lastDragCareMs = now
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "drag", now, root.careEnv()), true)
+    root.saveCare()
+    return "drag"
+  }
+
   function onLanded(dropPx) {
     root.touchActivity()
+    root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "mess", Date.now(), root.careEnv()), true)
+    root.saveCare()
     var drop = Number(dropPx)
     if (!isFinite(drop)) drop = 0
     if (drop >= Model.tripDropPx()) {
@@ -348,6 +513,47 @@ Item {
     root.sickUntil = Date.now() + 2500
     root.touchActivity()
     return "sick"
+  }
+
+  function recallPet() {
+    if (!root.hasGeneratedPet) return "hidden"
+    if (root.petDocked && !root.petReleasing) return "docked"
+    if (root.petRecalling) return "busy"
+    root.petReleasing = false
+    root.petRecalling = true
+    return "recall"
+  }
+
+  function finishRecall() {
+    if (!root.petRecalling && root.petDocked) return "docked"
+    root.petRecalling = false
+    root.petReleasing = false
+    root.petDocked = true
+    root.careDirty = true
+    root.saveCare()
+    return "docked"
+  }
+
+  function releasePet() {
+    if (!root.hasGeneratedPet) return "hidden"
+    if (!root.petDocked && !root.petRecalling && !root.petReleasing) return "desktop"
+    root.petRecalling = false
+    root.petDocked = false
+    root.petReleasing = true
+    root.careDirty = true
+    root.saveCare()
+    return "release"
+  }
+
+  function finishRelease() {
+    root.petReleasing = false
+    root.petDocked = false
+    return "desktop"
+  }
+
+  function toggleDock() {
+    if (root.petDocked || root.petRecalling) return root.releasePet()
+    return root.recallPet()
   }
 
   function toggleCollapsed() {
@@ -471,10 +677,24 @@ Item {
   property string _winRaw: "null"
 
   Timer {
-    interval: 5000
+    interval: 1000
     running: root.petVisible
     repeat: true
     onTriggered: root.tickCare()
+  }
+
+  Timer {
+    interval: 1400
+    running: root.petRecalling
+    repeat: false
+    onTriggered: if (root.petRecalling) root.finishRecall()
+  }
+
+  Timer {
+    interval: 1600
+    running: root.petReleasing
+    repeat: false
+    onTriggered: if (root.petReleasing) root.finishRelease()
   }
 
   Timer {
@@ -487,7 +707,7 @@ Item {
   Timer {
     id: wanderTimer
     interval: 2800
-    running: root.petVisible
+    running: root.petOnDesktop && !root.petRecalling
     repeat: true
     onTriggered: {
       if (root.mode === "sleep") {
@@ -495,7 +715,7 @@ Item {
         wanderTimer.interval = 4000
         return
       }
-      root.wander = Model.pickWander(Math.random())
+      root.wander = Model.pickWander(Math.random(), root.careSnapshot())
       wanderTimer.interval = 1800 + Math.floor(Math.random() * 2800)
     }
   }
@@ -535,7 +755,7 @@ Item {
   PwNodePeakMonitor {
     id: peakMon
     node: Pipewire.defaultAudioSink
-    enabled: root.mediaPlaying && root.petVisible
+    enabled: root.mediaPlaying && root.petOnDesktop
     onPeakChanged: root.audioPeak = peakMon.peak
   }
 
@@ -597,6 +817,10 @@ Item {
   }
 
   Process {
+    id: careSaveProc
+  }
+
+  Process {
     id: genProc
     stdout: SplitParser {
       onRead: function(line) {
@@ -647,8 +871,9 @@ Item {
     root.touchActivity()
     root.lastEatMs = now
     root.lastWashMs = now
-    root.wander = Model.pickWander(Math.random())
     root.loadAtlas()
+    root.loadCare()
+    root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
   }
 
@@ -664,5 +889,11 @@ Item {
     function setPhoto(path: string): string { return root.setPhoto(path) }
     function login(): string { return root.login() }
     function retry(): string { return root.retryGenerate() }
+    function feed(): string { return root.feedPet() }
+    function wash(): string { return root.washPet() }
+    function play(): string { return root.playPet() }
+    function hide(): string { return root.recallPet() }
+    function release(): string { return root.releasePet() }
+    function toggleDock(): string { return root.toggleDock() }
   }
 }

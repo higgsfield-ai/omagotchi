@@ -269,3 +269,133 @@ test("classifyGenerateError turns upgrade_plan into retry + upgrade actions", ()
   assert.doesNotMatch(dup.message, /Service Unavailable/i)
   assert.equal(dup.message.includes("\n"), false)
 })
+
+test("care stats decay smoothly and refill from feed, wash, and play", () => {
+  const t0 = 1_000_000
+  const start = Model.defaultCareStats(t0)
+  assert.equal(start.hunger, 82)
+  const hour = Model.decayCareStats(start, t0 + 3_600_000)
+  assert.equal(hour.hunger, 82 - 8.5)
+  assert.equal(hour.hygiene, 82 - 5.5)
+  assert.equal(hour.mood, 82 - 6.5)
+  const half = Model.decayCareStats(start, t0 + 1_800_000)
+  assert.equal(half.hunger, 82 - 4.25)
+  const fed = Model.applyCareAction(hour, "feed", t0 + 3_600_000)
+  assert.equal(fed.hunger, Math.min(100, hour.hunger + 30))
+  assert.ok(fed.mood > hour.mood)
+  const washed = Model.applyCareAction(fed, "wash", t0 + 3_600_000)
+  assert.equal(washed.hygiene, Math.min(100, fed.hygiene + 34))
+  const played = Model.applyCareAction(washed, "play", t0 + 3_600_000)
+  assert.ok(played.mood > washed.mood)
+  assert.ok(played.hunger < washed.hunger)
+  assert.equal(Model.clampStat(140), 100)
+  assert.equal(Model.clampStat(-4), 0)
+  const flags = Model.careFlags({ hunger: 10, hygiene: 8, mood: 20, updatedMs: t0 })
+  assert.equal(flags.starving, true)
+  assert.equal(flags.filthy, true)
+  assert.equal(flags.sad, true)
+  assert.ok(Model.sleepAfterMsFor({ hunger: 10, hygiene: 50, mood: 20 }) < Model.sleepAfterMs())
+  assert.equal(Model.resolveMode({ filthy: true, wander: "idle" }), "sick")
+  assert.equal(Model.resolveMode({ lowMood: true, wander: "idle" }), "grumpy")
+  assert.equal(Model.resolveMode({ eat: true, filthy: true, wander: "idle" }), "eat")
+  assert.equal(Model.resolveMode({ happy: true, lowMood: true, wander: "idle" }), "happy")
+})
+
+test("energy, health, attention, and desktop stats decay with the environment", () => {
+  const t0 = 2_000_000
+  const start = Model.defaultCareStats(t0)
+  const awake = Model.decayCareStats(start, t0 + 3_600_000, {})
+  assert.ok(awake.energy < start.energy)
+  assert.ok(awake.attention < start.attention)
+  assert.ok(awake.bond >= start.bond)
+  const nap = Model.decayCareStats(
+    Object.assign({}, start, { energy: 20, updatedMs: t0 }),
+    t0 + 3_600_000,
+    { sleeping: true }
+  )
+  assert.ok(nap.energy > 20)
+  const hurt = Model.decayCareStats(
+    Object.assign({}, start, { hunger: 5, hygiene: 5, health: 50, updatedMs: t0 }),
+    t0 + 3_600_000,
+    {}
+  )
+  assert.ok(hurt.health < 50)
+  const hyped = Model.decayCareStats(
+    Object.assign({}, start, { excitement: 80, updatedMs: t0 }),
+    t0 + 600_000,
+    {}
+  )
+  assert.ok(hyped.excitement < 50)
+  const sneak = Model.decayCareStats(
+    Object.assign({}, start, { focus: 10, updatedMs: t0 }),
+    t0 + 3_600_000,
+    { sneakWindow: true }
+  )
+  assert.ok(sneak.focus > 10)
+  const jam = Model.decayCareStats(
+    Object.assign({}, start, { music: 20, updatedMs: t0 }),
+    t0 + 3_600_000,
+    { mediaPlaying: true }
+  )
+  assert.ok(jam.music > 20)
+  const stuffed = Model.applyCareAction(
+    Object.assign({}, start, { hunger: 80, weight: 50, updatedMs: t0 }),
+    "feed",
+    t0
+  )
+  assert.ok(stuffed.weight > 50)
+  const slim = Model.applyCareAction(
+    Object.assign({}, start, { weight: 60, updatedMs: t0 }),
+    "play",
+    t0
+  )
+  assert.ok(slim.weight < 60)
+  const flags = Model.careFlags({ energy: 6, health: 10, attention: 8, focus: 70, excitement: 80 })
+  assert.equal(flags.criticalTired, true)
+  assert.equal(flags.ill, true)
+  assert.equal(flags.neglected, true)
+  assert.equal(flags.focused, true)
+  assert.equal(flags.hyped, true)
+  assert.equal(Model.ageLabel(t0, t0 + 3 * 3600000), "3h")
+  assert.equal(Model.ageLabel(t0, t0 + 26 * 3600000), "1d 2h")
+  assert.ok(Model.happyDurationMs({ bond: 80, excitement: 90 }) > Model.happyDurationMs())
+  assert.ok(Model.flipPeak({ music: 90, excitement: 90 }) < 0.55)
+  assert.equal(Model.dancePeak(), 0)
+  assert.ok(Model.movePace("run", { weight: 90, energy: 10 }).step < Model.movePace("run").step)
+  const tired = Object.assign({}, start, { energy: 8, weight: 85, health: 20, attention: 10, focus: 80 })
+  for (let i = 0; i <= 20; i++)
+    assert.notEqual(Model.pickWander(i / 20, tired), "run")
+  assert.equal(Model.resolveMode({ greet: true, focused: true, wander: "idle" }), "greet")
+  assert.equal(Model.resolveMode({ focused: true, wander: "idle" }), "look")
+  assert.equal(Model.resolveMode({ unhealthy: true, wander: "idle" }), "sick")
+  assert.equal(Model.resolveMode({ exhausted: true, wander: "walk" }), "sleep")
+  assert.equal(Model.resolveMode({ lonely: true, wander: "idle" }), "look")
+  assert.equal(Model.resolveMode({
+    wander: "idle",
+    mediaPlaying: true,
+    audioPeak: 0.4,
+    flipPeak: 0.3
+  }), "flip")
+  const bonded = Model.nextClickState({ clickBurst: 0, lastClickMs: 0 }, 1000, { bond: 80 })
+  assert.equal(bonded.clickBurst, 1)
+  const third = Model.nextClickState(bonded, 1300, { bond: 80 })
+  const stillGreet = Model.nextClickState(third, 1600, { bond: 80 })
+  assert.equal(stillGreet.greetUntil > 0, true)
+  assert.equal(stillGreet.grumpyUntil, 0)
+})
+
+test("desktop dock hides the overlay pet except during recall and release", () => {
+  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: false, docked: false }), false)
+  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: false }), true)
+  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: true }), false)
+  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: true, recalling: true }), true)
+  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: false, releasing: true }), true)
+  assert.equal(Model.nestMode("run"), "idle")
+  assert.equal(Model.nestMode("sneak"), "idle")
+  assert.equal(Model.nestMode("eat"), "eat")
+  assert.equal(Model.nestMode("sleep"), "sleep")
+  assert.equal(Model.normalizeCareStats({ docked: true, hunger: 40 }).docked, true)
+  assert.equal(Model.normalizeCareStats({ hunger: 40 }).docked, false)
+  assert.ok(Model.levitateDurationMs(400) > Model.levitateDurationMs(40))
+  assert.ok(Model.levitateDurationMs(0) >= 520)
+})

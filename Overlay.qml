@@ -27,7 +27,7 @@ Item {
     required property var modelData
 
     screen: modelData
-    visible: root.svc && root.svc.petVisible && window.winW > 16 && window.winH > 16 && (
+    visible: root.svc && root.svc.petOnDesktop && window.winW > 16 && window.winH > 16 && (
       !root.svc.focusedMonitor
       || root.svc.focusedMonitor === ""
       || (modelData && modelData.name === root.svc.focusedMonitor)
@@ -51,15 +51,34 @@ Item {
       h: window.winH
     }, window.width, window.height)
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
-    readonly property bool airborne: window.dragging || window.falling
+    readonly property bool recalling: root.svc ? !!root.svc.petRecalling : false
+    readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
+    readonly property bool airborne: window.dragging || window.falling || window.recalling || window.releasing
     readonly property string mode: {
+      if (window.recalling) return "drag"
+      if (window.releasing && !window.falling) return "drag"
       if (window.collapsed) return "collapse"
       if (window.dragging) return "drag"
       if (window.falling) return "sick"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
-    readonly property var pace: Model.movePace(window.mode)
+    readonly property var careStats: root.svc ? {
+      hunger: Number(root.svc.careHunger),
+      hygiene: Number(root.svc.careHygiene),
+      mood: Number(root.svc.careMood),
+      energy: Number(root.svc.careEnergy),
+      health: Number(root.svc.careHealth),
+      attention: Number(root.svc.careAttention),
+      excitement: Number(root.svc.careExcitement),
+      focus: Number(root.svc.careFocus),
+      music: Number(root.svc.careMusic),
+      bond: Number(root.svc.careBond),
+      weight: Number(root.svc.careWeight),
+      bornMs: Number(root.svc.careBornMs),
+      updatedMs: Number(root.svc.careUpdatedMs)
+    } : null
+    readonly property var pace: Model.movePace(window.mode, window.careStats)
     readonly property real peak: root.svc ? Number(root.svc.audioPeak) : 0
     readonly property int bounce: {
       if (window.airborne || window.collapsed) return 0
@@ -81,8 +100,20 @@ Item {
     property bool falling: false
 
     onModeChanged: window.frame = 0
-    onVisibleChanged: if (window.visible) window.snapInside()
+    onVisibleChanged: {
+      if (!window.visible) return
+      if (root.svc && root.svc.petReleasing) {
+        window.startSpawnFall()
+        return
+      }
+      pet.opacity = 1
+      window.snapInside()
+    }
     onFloorYChanged: if (!window.airborne) window.petY = window.floorY
+    onDraggingChanged: {
+      if (window.dragging && root.svc && typeof root.svc.onPetDragged === "function")
+        root.svc.onPetDragged()
+    }
 
     function maxPetX() {
       return Math.max(0, window.stageRect.w - window.frames.displayWidth)
@@ -112,12 +143,47 @@ Item {
       fallAnim.start()
     }
 
+    function startLevitate() {
+      window.stopFall()
+      if (spawnFade.running) spawnFade.stop()
+      if (levitateAnim.running) levitateAnim.stop()
+      window.dragging = false
+      window.falling = false
+      pet.opacity = 1
+      levY.from = window.petY
+      levY.to = -Math.max(16, window.frames.displayHeight * 0.4)
+      var dur = Model.levitateDurationMs(Math.max(0, window.petY))
+      levY.duration = dur
+      levFade.duration = dur
+      levFade.from = pet.opacity
+      levFade.to = 0
+      levitateAnim.start()
+    }
+
+    function startSpawnFall() {
+      if (!window.visible) return
+      if (levitateAnim.running) levitateAnim.stop()
+      if (spawnFade.running) spawnFade.stop()
+      window.stopFall()
+      window.dragging = false
+      pet.opacity = 0
+      window.petY = 0
+      window.petX = Model.clampPetX(window.petX, window.frames.displayWidth, window.stageRect.w)
+      spawnFade.start()
+      window.startFall()
+    }
+
     function land() {
       if (!window.falling) return
       var drop = window.floorY - window.fallFromY
       window.petY = window.floorY
       window.falling = false
       window.fallVel = 0
+      pet.opacity = 1
+      if (root.svc && root.svc.petReleasing && typeof root.svc.finishRelease === "function") {
+        root.svc.finishRelease()
+        return
+      }
       if (root.svc && typeof root.svc.onLanded === "function")
         root.svc.onLanded(drop)
       else if (root.svc && root.svc.onDroppedFromHeight)
@@ -147,13 +213,49 @@ Item {
       onFinished: window.land()
     }
 
+    NumberAnimation {
+      id: spawnFade
+      target: pet
+      property: "opacity"
+      from: 0
+      to: 1
+      duration: 280
+      easing.type: Easing.OutQuad
+    }
+
+    ParallelAnimation {
+      id: levitateAnim
+      NumberAnimation {
+        id: levY
+        target: window
+        property: "petY"
+        easing.type: Easing.InCubic
+      }
+      NumberAnimation {
+        id: levFade
+        target: pet
+        property: "opacity"
+        easing.type: Easing.InQuad
+      }
+      onFinished: {
+        if (root.svc && root.svc.petRecalling && typeof root.svc.finishRecall === "function")
+          root.svc.finishRecall()
+      }
+    }
+
     Connections {
       target: root.svc
-      enabled: window.visible
-      function onWinXChanged() { window.snapInside() }
-      function onWinYChanged() { window.snapInside() }
-      function onWinWChanged() { window.snapInside() }
-      function onWinHChanged() { window.snapInside() }
+      function onWinXChanged() { if (window.visible && !window.airborne) window.snapInside() }
+      function onWinYChanged() { if (window.visible && !window.airborne) window.snapInside() }
+      function onWinWChanged() { if (window.visible && !window.airborne) window.snapInside() }
+      function onWinHChanged() { if (window.visible && !window.airborne) window.snapInside() }
+      function onPetRecallingChanged() {
+        if (root.svc && root.svc.petRecalling) window.startLevitate()
+        else if (levitateAnim.running) levitateAnim.stop()
+      }
+      function onPetReleasingChanged() {
+        if (root.svc && root.svc.petReleasing) window.startSpawnFall()
+      }
     }
 
     Timer {
@@ -166,7 +268,7 @@ Item {
     Timer {
       interval: {
         if (window.mode === "dance" || window.mode === "flip")
-          return Math.max(40, Math.round(1000 / Model.danceFps(window.peak)))
+          return Math.max(40, Math.round(1000 / Model.danceFps(window.peak, window.careStats)))
         if (window.mode === "trip") return 90
         if (window.mode === "happy") return 110
         if (window.mode === "eat" || window.mode === "wash") return 140
@@ -233,6 +335,7 @@ Item {
 
         MouseArea {
           anchors.fill: parent
+          enabled: !window.recalling && !window.releasing
           cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
           property real grabX: 0
           property real grabY: 0
