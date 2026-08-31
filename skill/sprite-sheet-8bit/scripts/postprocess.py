@@ -410,6 +410,13 @@ def main():
                 "cycle_ms": cycle_ms,
                 "loop": not r.get("one_shot", False),
             }
+            # Floor-gap audit: every action's subject must end the same few
+            # pixels above the cell bottom; a divergent number here is a
+            # placement bug, printed so generate.log carries the proof.
+            ga = np.asarray(frames[0])[:, :, 3]
+            gys = np.nonzero(ga)[0]
+            gap = (frames[0].height - 1 - int(gys.max())) if len(gys) else -1
+            print(f"[gap] {tag}: {gap}px above cell floor")
             frames_by_row.setdefault(r["row"], []).extend(frames)
 
         for r in rows:

@@ -41,7 +41,9 @@ FRAMING_LOCK = (
 SCALE_RULE = (
     "SCALE RULE: keep the character at EXACTLY the same size, scale and proportions as "
     "in the reference image — the same on-screen height, the same margins around him; "
-    "do not zoom in, do not zoom out, do not crop."
+    "do not zoom in, do not zoom out, do not crop. The HEAD stays exactly the same "
+    "size as in the reference: crouching, sitting or lying changes the posture only, "
+    "NEVER the head size or body thickness — never draw the character smaller overall."
 )
 
 CAMERA_LOCK = (
@@ -136,16 +138,16 @@ CLIPS = [
     {"row": 5, "name": "flip", "frames": 16, "loop": True,
      "pose": "aggressive sprint facing right, long stride, strong lean, full body",
      "spec": "DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak"},
-    {"row": 6, "name": "sneak", "frames": 16, "loop": True,
+    {"row": 6, "name": "sneak", "frames": 16, "loop": True, "minH": 0.5,
      "pose": "deep crouch walk facing right, torso low, first sneak step, full body",
      "spec": "SNEAK: deep crouch walk facing right, torso low, careful steps"},
-    {"row": 7, "name": "fall", "frames": 16, "loop": True,
+    {"row": 7, "name": "fall", "frames": 16, "loop": True, "minH": 0.5,
      "pose": "mid-air falling pose facing camera/3-4, arms and legs spread and flailing, clothes lifted by air, no ground visible, full body",
      "spec": "FALL: falling through the air, arms and legs waving and flailing, comic panic tumble, clothes and hair lifted upward, no ground contact, loopable mid-air cycle"},
     {"row": 9, "name": "happy", "frames": 8, "loop": True,
      "pose": "big smile, first happy pose, optional tiny pixel hearts, full body",
      "spec": "HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur)"},
-    {"row": 9, "name": "watch", "frames": 8, "loop": True,
+    {"row": 9, "name": "watch", "frames": 8, "loop": True, "minH": 0.45,
      "pose": "sitting on the ground with a small open laptop on his lap, looking at the laptop screen, relaxed, COMPLETELY ALONE, full body",
      "spec": "WATCH: sitting on the ground with a small open laptop on the lap, eyes on the screen, tiny reactions — slight head tilt, occasional smile — COMPLETELY ALONE, no other characters, the laptop is the only prop"},
     {"row": 10, "name": "eat", "frames": 8, "loop": True,
@@ -349,11 +351,15 @@ def job_reason_from_node(node, depth: int = 0) -> str:
 def fetch_job(hf: str, job_id: str, log: Path):
     if not hf or not job_id:
         return None
-    proc = subprocess.run(
-        [hf, "generate", "get", job_id, "--json"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            [hf, "generate", "get", job_id, "--json"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     blob = (proc.stderr or "") + (proc.stdout or "")
     append_log(log, blob)
     data = parse_job(proc.stdout or "") or last_json(proc.stdout or "") or last_json(blob)
@@ -602,7 +608,7 @@ WAIT_FLAG_VARIANTS = (
 _WAIT_FLAGS = None
 
 
-def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
+def hf_with_wait_flags(hf: str, base: list[str], log: Path, timeout_s: int = 900) -> dict:
     global _WAIT_FLAGS
     variants = WAIT_FLAG_VARIANTS
     if _WAIT_FLAGS is not None:
@@ -610,7 +616,10 @@ def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
     last_err = "higgsfield wait failed"
     for flags in variants:
         cmd = [*base, *flags]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"wait timed out after {timeout_s}s")
         blob = (proc.stderr or "") + "\n" + (proc.stdout or "")
         append_log(log, blob)
         if proc.returncode != 0 and is_unknown_flag_error(blob):
@@ -629,8 +638,8 @@ def hf_with_wait_flags(hf: str, base: list[str], log: Path) -> dict:
 POLL_SECONDS = 20 * 60
 
 
-def poll_job(hf: str, job_id: str, log: Path) -> dict:
-    deadline = time.time() + POLL_SECONDS
+def poll_job(hf: str, job_id: str, log: Path, timeout_s: int = POLL_SECONDS) -> dict:
+    deadline = time.time() + timeout_s
     delay = 2.0
     last_good = None
     status = ""
@@ -672,11 +681,17 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
     for attempt in range(3):
         if attempt:
             time.sleep(min(4 * attempt, 8) + random.uniform(0.0, 1.5))
-        proc = subprocess.run(
-            [hf, "generate", "create", model, *args, "--json"],
-            capture_output=True,
-            text=True,
-        )
+        try:
+            proc = subprocess.run(
+                [hf, "generate", "create", model, *args, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except subprocess.TimeoutExpired:
+            last_err = "create timed out"
+            time.sleep(2)
+            continue
         blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
         append_log(log, blob)
         data = parse_job(proc.stdout or "") or last_json(blob)
@@ -693,25 +708,33 @@ def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
     raise RuntimeError(last_err)
 
 
-def wait_job(hf: str, job_id: str, log: Path) -> dict:
-    # Wait can 503 or print "failed" after the job already completed. Confirm via get.
+def wait_job(hf: str, job_id: str, log: Path, timeout_s: int = 1200) -> dict:
+    # Wait can 503 or print "failed" after the job already completed. Confirm
+    # via get. A stuck job must fail within the budget, not hang: an image
+    # normally lands in under two minutes, so its short budget turns a dead
+    # worker into a quick reroll instead of an hour of silence.
     try:
         data = hf_with_wait_flags(
             hf,
             [hf, "generate", "wait", job_id, "--json"],
             log,
+            timeout_s=timeout_s,
         )
         found = job_result(job_id, data)
         if found:
             return found
     except RuntimeError:
         pass
-    return poll_job(hf, job_id, log)
+    return poll_job(hf, job_id, log, timeout_s=timeout_s)
 
 
-def run_generate(hf: str, model: str, args: list[str], log: Path) -> dict:
+IMAGE_WAIT_S = 300
+CLIP_WAIT_S = 1200
+
+
+def run_generate(hf: str, model: str, args: list[str], log: Path, timeout_s: int = 1200) -> dict:
     job_id = start_job(hf, model, args, log)
-    return wait_job(hf, job_id, log)
+    return wait_job(hf, job_id, log, timeout_s=timeout_s)
 
 
 def pick_key_color(path: Path) -> str:
@@ -732,7 +755,27 @@ def pick_key_color(path: Path) -> str:
     return "#FF00FF"
 
 
-def start_frame_ok(clip: dict, path: Path, key: str) -> tuple[bool, str]:
+def subject_height_frac(path: Path, key: str) -> float:
+    """Subject bbox height as a fraction of frame height, on a 64px proxy."""
+    try:
+        from PIL import Image
+        import numpy as np
+    except ImportError:
+        return 0.0
+    try:
+        im = Image.open(path).convert("RGB").resize((64, 64))
+    except Exception:
+        return 0.0
+    arr = np.asarray(im).astype(int)
+    kr, kg, kb = int(key[1:3], 16), int(key[3:5], 16), int(key[5:7], 16)
+    dist = np.abs(arr - np.array([kr, kg, kb])).sum(axis=2)
+    ys = np.nonzero(dist >= 180)[0]
+    if not len(ys):
+        return 0.0
+    return float(ys.max() - ys.min() + 1) / arr.shape[0]
+
+
+def start_frame_ok(clip: dict, path: Path, key: str, base_frac: float = 0.0) -> tuple[bool, str]:
     try:
         from PIL import Image
         import numpy as np
@@ -761,6 +804,14 @@ def start_frame_ok(clip: dict, path: Path, key: str) -> tuple[bool, str]:
     if clip.get("lying") and len(xs):
         if (xs.max() - xs.min()) < 1.2 * (ys.max() - ys.min()):
             return False, "lying pose came out upright instead of horizontal"
+    # Scale drift: a pose drawn miniature (small head, small body) passes
+    # every other check but ruins the sheet. Crouches are legitimately
+    # shorter, so each pose carries its own floor against the base sprite.
+    if base_frac > 0 and len(ys) and not clip.get("lying"):
+        frac = float(ys.max() - ys.min() + 1) / arr.shape[0]
+        floor = float(clip.get("minH", 0.6))
+        if frac < floor * base_frac:
+            return False, "character drawn too small versus the base sprite"
     return True, ""
 
 
@@ -974,11 +1025,12 @@ def main() -> None:
             "--image", str(image),
             "--aspect_ratio", "1:1",
             "--resolution", "1k",
-        ], log)
+        ], log, timeout_s=IMAGE_WAIT_S)
     except Exception as exc:
         fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
     base_path = work_dir / "base.png"
     download(base_job["url"], base_path)
+    base_frac = subject_height_frac(base_path, key)
     progress("Base sprite ready", phase="base", step=1, steps=total)
 
     start_paths: dict[str, Path] = {}
@@ -1033,9 +1085,9 @@ def main() -> None:
 
     def wait_start(item: tuple[dict, str, Path]) -> tuple[dict, Path]:
         clip, job_id, dest = item
-        job = wait_job(hf, job_id, log)
+        job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
         download(job["url"], dest)
-        ok, why = start_frame_ok(clip, dest, key)
+        ok, why = start_frame_ok(clip, dest, key, base_frac)
         if not ok:
             raise RuntimeError(why)
         return clip, dest
@@ -1075,10 +1127,10 @@ def main() -> None:
         )
         try:
             job_id = start_job(hf, "nano_banana_2", start_image_args(clip, key, base_path, args.notes), log)
-            job = wait_job(hf, job_id, log)
+            job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
             dest = starts_dir / f"{clip['name']}.png"
             download(job["url"], dest)
-            ok, why = start_frame_ok(clip, dest, key)
+            ok, why = start_frame_ok(clip, dest, key, base_frac)
             if not ok:
                 raise RuntimeError(why)
             start_paths[clip["name"]] = dest
