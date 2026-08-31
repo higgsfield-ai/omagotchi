@@ -425,6 +425,76 @@ Panel {
 
             Row {
               spacing: Style.space(8)
+              visible: root.showGenerate
+
+              ChipButton {
+                visible: root.loggedIn && !root.generating && !root.loggingIn
+                text: root.capturing ? "Capturing…" : "Take photo"
+                tooltipText: "Capture a still from the webcam"
+                onChipPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  root.takePhoto()
+                }
+              }
+
+              ChipButton {
+                visible: root.lastError === "" || root.generating || root.loggingIn
+                text: {
+                  if (root.loggingIn) return "Waiting for browser…"
+                  if (root.generating) return "Generating…"
+                  return "Generate my avatar"
+                }
+                tooltipText: !root.loggedIn
+                  ? "Opens the Higgsfield login browser"
+                  : (root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first")
+                onChipPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.generating) return
+                  root.submitAvatar()
+                }
+              }
+            }
+
+            Text {
+              width: parent.width
+              visible: root.lastError !== "" && !root.generating && root.generateError.message !== ""
+              text: root.generateError.message
+              color: root.barForeground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              wrapMode: Text.WordWrap
+              opacity: 0.9
+            }
+
+            Row {
+              spacing: Style.space(8)
+              visible: root.lastError !== "" && !root.generating
+
+              ChipButton {
+                text: "Retry"
+                tooltipText: root.hasPhoto ? "Run the whole flow again from the base sprite" : "Choose a photo, then retry"
+                onChipPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.svc && typeof root.svc.retryGenerate === "function")
+                    root.svc.retryGenerate()
+                  else
+                    root.submitAvatar()
+                }
+              }
+
+              ChipButton {
+                visible: !!root.generateError.showUpgrade
+                text: "Upgrade plan"
+                tooltipText: "Open Higgsfield pricing"
+                onChipPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  Qt.openUrlExternally(root.generateError.pricingUrl)
+                }
+              }
+            }
+
+            Row {
+              spacing: Style.space(8)
 
               Repeater {
                 model: [
@@ -590,7 +660,7 @@ Panel {
 
           Text {
             width: parent.width
-            visible: root.showGenerate && root.loggedIn && root.hasPhoto
+            visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && root.hasPhoto
             text: root.photoName
             color: root.barForeground
             font.family: root.fontFamily
@@ -601,7 +671,7 @@ Panel {
 
           WidgetButton {
             bar: root.bar
-            visible: root.showGenerate && root.loggedIn && !root.generating && !root.loggingIn
+            visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && !root.generating && !root.loggingIn
             text: root.capturing ? "Capturing…" : "Take photo"
             tooltipText: "Capture a still from the webcam"
             onPressed: function(buttonCode) {
@@ -612,7 +682,7 @@ Panel {
 
           WidgetButton {
             bar: root.bar
-            visible: root.showGenerate && (root.lastError === "" || root.generating || root.loggingIn)
+            visible: root.showGenerate && !root.hasGeneratedPet && (root.lastError === "" || root.generating || root.loggingIn)
             text: {
               if (root.loggingIn) return "Waiting for browser…"
               if (root.generating) return "Generating…"
@@ -642,7 +712,7 @@ Panel {
 
           Column {
             width: parent.width
-            visible: root.lastError !== "" && !root.generating
+            visible: root.lastError !== "" && !root.generating && !root.hasGeneratedPet
             spacing: Style.space(8)
             height: visible ? implicitHeight : 0
 
