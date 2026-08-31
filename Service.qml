@@ -667,6 +667,20 @@ Item {
     root.generatePercent = 0
   }
 
+  function cancelGenerate() {
+    if (!root.generating) return "idle"
+    // Flip the flag first so genProc.onExited treats the kill as silence,
+    // not as a failed run.
+    root.generating = false
+    genProc.running = false
+    root.generateStatus = ""
+    root.generatePercent = 0
+    root.generateStep = 0
+    root.generateSteps = 0
+    root.lastError = ""
+    return "canceled"
+  }
+
   function retryGenerate() {
     if (root.generating) return "busy"
     if (!root.photoPath) return "empty"
@@ -979,5 +993,6 @@ Item {
     function release(): string { return root.releasePet() }
     function toggleDock(): string { return root.toggleDock() }
     function setActivity(mode: string): string { return root.setActivity(mode) }
+    function cancel(): string { return root.cancelGenerate() }
   }
 }

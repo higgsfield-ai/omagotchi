@@ -926,6 +926,11 @@ function classifyGenerateError(raw) {
   var kind = "retry"
   var title = "Generate failed"
   var actions = ["retry"]
+  if (/failed twice|pose [a-z]+:|clip [a-z]+:/.test(blob)) {
+    title = "Some frames failed"
+    message = "Some frames failed to generate — " + message +
+      ". Retry runs the whole flow again, starting from the base sprite."
+  }
   if (/upgrade_plan|upgrade plan|\bupgrade\b|minimum_.*plan|higher .{0,24}plan|requires a higher/.test(blob)) {
     kind = "upgrade"
     title = "Upgrade required"

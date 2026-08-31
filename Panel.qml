@@ -63,6 +63,10 @@ Panel {
   readonly property var nestFrames: Model.framesForMode(root.atlas, root.nestMode)
   readonly property string fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
 
+  onGeneratingChanged: {
+    if (!root.generating && root.lastError === "") root.replaceAvatar = false
+  }
+
   onHasGeneratedPetChanged: {
     if (root.hasGeneratedPet && !root.generating) root.replaceAvatar = false
   }
@@ -228,11 +232,61 @@ Panel {
 
               WidgetButton {
                 anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: Style.space(4)
+                z: 3
+                bar: root.bar
+                fontSize: Style.font.caption
+                text: root.generating || root.replaceAvatar ? "Cancel" : "Change"
+                tooltipText: root.generating
+                  ? "Stop this generation"
+                  : (root.replaceAvatar ? "Keep the current avatar" : "Pick a new photo and generate again")
+                onPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.generating) {
+                    if (root.svc && typeof root.svc.cancelGenerate === "function")
+                      root.svc.cancelGenerate()
+                    root.replaceAvatar = false
+                    return
+                  }
+                  if (root.replaceAvatar) {
+                    root.replaceAvatar = false
+                    return
+                  }
+                  root.replaceAvatar = true
+                  if (root.svc && typeof root.svc.checkAuth === "function") root.svc.checkAuth()
+                }
+              }
+
+              Image {
+                anchors.fill: parent
+                anchors.margins: Style.space(6)
+                z: 1
+                visible: (root.replaceAvatar || root.generating) && root.hasPhoto
+                source: root.hasPhoto ? ("file://" + root.photoPath + "?r=" + root.photoRev) : ""
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+                opacity: root.generating ? 0.72 : 1
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                z: 2
+                visible: root.replaceAvatar && !root.generating
+                cursorShape: Qt.PointingHandCursor
+                enabled: !root.capturing
+                onClicked: root.choosePhoto()
+              }
+
+              WidgetButton {
+                anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.margins: Style.space(4)
                 z: 3
                 bar: root.bar
                 fontSize: Style.font.caption
+                visible: !root.replaceAvatar && !root.generating
                 text: root.petDocked || root.petRecalling ? "Release" : "Hide"
                 tooltipText: root.petDocked
                   ? "Drop the pet onto the focused window"
@@ -306,10 +360,14 @@ Panel {
                 anchors.centerIn: parent
                 width: parent.width - Style.space(16)
                 horizontalAlignment: Text.AlignHCenter
-                visible: nest.nestFade < 0.15 || !root.petDocked
-                text: root.petRecalling
-                  ? "Coming home…"
-                  : (root.petReleasing ? "Heading out…" : "On the desktop")
+                visible: (root.replaceAvatar && !root.hasPhoto && !root.generating)
+                  || (!root.replaceAvatar && !root.generating && (nest.nestFade < 0.15 || !root.petDocked))
+                text: {
+                  if (root.replaceAvatar && !root.hasPhoto)
+                    return root.capturing ? "Smile…" : (root.picking ? "Opening picker…" : "Click to choose a photo, or Take photo")
+                  if (root.petRecalling) return "Coming home…"
+                  return root.petReleasing ? "Heading out…" : "On the desktop"
+                }
                 color: root.barForeground
                 opacity: 0.55
                 wrapMode: Text.WordWrap
@@ -325,7 +383,8 @@ Panel {
                 y: Math.round(nest.height - nestPet.height - Style.space(6) + nest.nestLift)
                 width: root.nestFrames.displayWidth
                 height: root.nestFrames.displayHeight
-                opacity: root.petDocked ? nest.nestFade : 0
+                opacity: ((root.replaceAvatar || root.generating) && root.hasPhoto)
+                  ? 0 : (root.petDocked ? nest.nestFade : 0)
                 visible: opacity > 0.02
 
                 Image {
@@ -367,33 +426,22 @@ Panel {
             Row {
               spacing: Style.space(8)
 
-              WidgetButton {
-                bar: root.bar
-                text: "Feed"
-                tooltipText: "Feed the pet"
-                onPressed: function(buttonCode) {
-                  if (buttonCode !== Qt.LeftButton) return
-                  if (root.svc && typeof root.svc.feedPet === "function") root.svc.feedPet()
-                }
-              }
+              Repeater {
+                model: [
+                  { label: "Feed", tip: "Feed the pet", act: "feedPet" },
+                  { label: "Wash", tip: "Wash the pet", act: "washPet" },
+                  { label: "Play", tip: "Play with the pet", act: "playPet" }
+                ]
 
-              WidgetButton {
-                bar: root.bar
-                text: "Wash"
-                tooltipText: "Wash the pet"
-                onPressed: function(buttonCode) {
-                  if (buttonCode !== Qt.LeftButton) return
-                  if (root.svc && typeof root.svc.washPet === "function") root.svc.washPet()
-                }
-              }
-
-              WidgetButton {
-                bar: root.bar
-                text: "Play"
-                tooltipText: "Play with the pet"
-                onPressed: function(buttonCode) {
-                  if (buttonCode !== Qt.LeftButton) return
-                  if (root.svc && typeof root.svc.playPet === "function") root.svc.playPet()
+                ChipButton {
+                  required property var modelData
+                  text: modelData.label
+                  tooltipText: modelData.tip
+                  onChipPressed: function(buttonCode) {
+                    if (buttonCode !== Qt.LeftButton) return
+                    if (root.svc && typeof root.svc[modelData.act] === "function")
+                      root.svc[modelData.act]()
+                  }
                 }
               }
             }
@@ -417,13 +465,11 @@ Panel {
                   { label: "Run", value: "running" }
                 ]
 
-                WidgetButton {
+                ChipButton {
                   required property var modelData
-                  bar: root.bar
                   text: modelData.label
-                  active: root.svc && String(root.svc.petActivity) === modelData.value
-                  tooltipText: ""
-                  onPressed: function(buttonCode) {
+                  selected: root.svc && String(root.svc.petActivity) === modelData.value
+                  onChipPressed: function(buttonCode) {
                     if (buttonCode !== Qt.LeftButton) return
                     if (root.svc && typeof root.svc.setActivity === "function")
                       root.svc.setActivity(modelData.value)
@@ -459,21 +505,11 @@ Panel {
               opacity: 0.75
             }
 
-            WidgetButton {
-              bar: root.bar
-              visible: !root.showGenerate
-              text: "Replace avatar"
-              tooltipText: "Pick a new photo and generate again"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                root.replaceAvatar = true
-              }
-            }
           }
 
           Text {
             width: parent.width
-            visible: root.showGenerate
+            visible: root.showGenerate && !root.hasGeneratedPet
             text: root.loggedIn
               ? "Take a webcam photo or upload one, then generate. The new pet replaces the one on your desktop."
               : "Log in to Higgsfield to unlock photo capture and Generate my avatar."
@@ -487,7 +523,7 @@ Panel {
           Rectangle {
             width: parent.width
             height: Style.space(132)
-            visible: root.showGenerate
+            visible: root.showGenerate && !root.hasGeneratedPet
             radius: Math.min(8, Style.cornerRadius)
             opacity: root.loggedIn ? 1 : 0.45
             color: Qt.rgba(0, 0, 0, 0.18)
@@ -592,6 +628,18 @@ Panel {
             }
           }
 
+          WidgetButton {
+            bar: root.bar
+            visible: root.generating && !root.hasGeneratedPet
+            text: "Cancel"
+            tooltipText: "Stop this generation"
+            onPressed: function(buttonCode) {
+              if (buttonCode !== Qt.LeftButton) return
+              if (root.svc && typeof root.svc.cancelGenerate === "function")
+                root.svc.cancelGenerate()
+            }
+          }
+
           Column {
             width: parent.width
             visible: root.lastError !== "" && !root.generating
@@ -648,6 +696,27 @@ Panel {
           }
         }
       }
+    }
+  }
+
+  component ChipButton: Rectangle {
+    id: chip
+    property alias text: chipBtn.text
+    property alias tooltipText: chipBtn.tooltipText
+    property bool selected: false
+    signal chipPressed(int button)
+    radius: 0
+    color: chip.selected ? Qt.alpha(root.barForeground, 0.16) : "transparent"
+    border.width: 1
+    border.color: chip.selected ? root.barForeground : Qt.alpha(root.barForeground, 0.35)
+    implicitWidth: chipBtn.implicitWidth + Style.space(6)
+    implicitHeight: chipBtn.implicitHeight
+
+    WidgetButton {
+      id: chipBtn
+      anchors.fill: parent
+      bar: root.bar
+      onPressed: function(buttonCode) { chip.chipPressed(buttonCode) }
     }
   }
 
