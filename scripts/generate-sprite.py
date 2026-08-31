@@ -971,8 +971,10 @@ def main() -> None:
         return clip, dest
 
     start_wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(start_submitted)))
-    start_wait_futs = [start_wait_pool.submit(wait_start, item) for item in start_submitted]
+    start_wait_futs = {start_wait_pool.submit(wait_start, item): item for item in start_submitted}
+    start_retry: list[dict] = []
     for fut in as_completed(start_wait_futs):
+        clip = start_wait_futs[fut][0]
         try:
             clip, dest = fut.result()
             start_paths[clip["name"]] = dest
@@ -983,8 +985,33 @@ def main() -> None:
                 steps=total,
             )
         except Exception as exc:
-            start_wait_errors.append(str(exc))
+            err = f"pose {clip['name']}: {exc}"
+            append_log(log, err + "\n")
+            if is_hard_failure(str(exc)):
+                CLIP_STOP.set()
+                start_wait_pool.shutdown(wait=False, cancel_futures=True)
+                fail(err, {"reason": err, "job_id": extract_uuid(str(exc)), "log": str(log)})
+            start_retry.append(clip)
     start_wait_pool.shutdown(wait=True)
+
+    # Out of 18 parallel image jobs one flake is routine, and it used to sink
+    # the whole run after every job was already paid for. Reroll the failed
+    # poses once before giving up.
+    for clip in start_retry:
+        progress(
+            f"Rerolling pose · {clip['name']}",
+            phase="start",
+            step=1 + len(start_paths),
+            steps=total,
+        )
+        try:
+            job_id = start_job(hf, "nano_banana_2", start_image_args(clip, key, base_path, args.notes), log)
+            job = wait_job(hf, job_id, log)
+            dest = starts_dir / f"{clip['name']}.png"
+            download(job["url"], dest)
+            start_paths[clip["name"]] = dest
+        except Exception as exc:
+            start_wait_errors.append(f"pose {clip['name']} failed twice: {exc}")
 
     if start_wait_errors or len(start_paths) < len(jobs) or start_errors:
         err = (start_wait_errors or start_errors or ["missing start frames"])[0]
@@ -1054,14 +1081,30 @@ def main() -> None:
 
     def wait_one(item: tuple[dict, str, Path]) -> tuple[dict, Path]:
         clip, job_id, dest = item
-        job = wait_job(hf, job_id, log)
-        download(job["url"], dest)
         start = start_paths[clip["name"]]
-        if not framing_ok(start, dest, key, not clip["loop"]):
-            append_log(log, f"framing reroll {clip['name']}\n")
-            job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
-            job = wait_job(hf, job_id, log)
-            download(job["url"], dest)
+        last = ""
+        for attempt in range(2):
+            try:
+                if attempt:
+                    append_log(log, f"clip reroll {clip['name']} after: {last}\n")
+                    job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
+                job = wait_job(hf, job_id, log)
+                download(job["url"], dest)
+                break
+            except Exception as exc:
+                last = str(exc)
+                if is_hard_failure(last):
+                    raise RuntimeError(f"clip {clip['name']}: {last}")
+        else:
+            raise RuntimeError(f"clip {clip['name']} failed twice: {last}")
+        try:
+            if not framing_ok(start, dest, key, not clip["loop"]):
+                append_log(log, f"framing reroll {clip['name']}\n")
+                job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
+                job = wait_job(hf, job_id, log)
+                download(job["url"], dest)
+        except Exception as exc:
+            raise RuntimeError(f"clip {clip['name']}: {exc}")
         return clip, dest
 
     wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(submitted)))
