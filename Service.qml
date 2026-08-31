@@ -181,19 +181,6 @@ Item {
     }
   }
 
-  Timer {
-    interval: 60
-    running: root.mediaPlaying && !root.mediaSpeech && root.petOnDesktop
-    repeat: true
-    onTriggered: {
-      var r = Model.beatStep(root.beatState, root.audioPeak, Date.now())
-      root.beatState = { ema: r.ema, lastBeatMs: r.lastBeatMs }
-      if (r.beat) {
-        root.lastBeatMs = r.lastBeatMs
-        root.beatPulse += 1
-      }
-    }
-  }
 
   onMediaTrackKeyChanged: {
     root.peakSamples = []
@@ -242,7 +229,7 @@ Item {
     video: root.mediaIsVideo,
     browserMedia: root.mediaIsBrowser,
     speech: root.mediaSpeech,
-    audioPeak: Number(root.beatState.ema || 0),
+    audioPeak: Number(root.beatState.slow || 0),
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),
     wander: root.wander
@@ -991,7 +978,16 @@ Item {
     id: peakMon
     node: Pipewire.defaultAudioSink
     enabled: root.mediaPlaying && root.petOnDesktop
-    onPeakChanged: root.audioPeak = peakMon.peak
+    onPeakChanged: {
+      root.audioPeak = peakMon.peak
+      if (!root.mediaPlaying || root.mediaSpeech) return
+      var r = Model.beatStep(root.beatState, peakMon.peak, Date.now())
+      root.beatState = { fast: r.fast, slow: r.slow, lastBeatMs: r.lastBeatMs }
+      if (r.beat) {
+        root.lastBeatMs = r.lastBeatMs
+        root.beatPulse += 1
+      }
+    }
   }
 
   Process {
