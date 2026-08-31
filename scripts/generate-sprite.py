@@ -68,14 +68,13 @@ PET_MODES = {
     "flip": {"row": 5, "start": 0, "count": 16},
     "run": {"row": 5, "start": 0, "count": 16},
     "sneak": {"row": 6, "start": 0, "count": 16},
-    "crawl": {"row": 7, "start": 0, "count": 16},
+    "fall": {"row": 7, "start": 0, "count": 16},
     "trip": {"row": 8, "start": 0, "count": 16},
     "happy": {"row": 9, "start": 0, "count": 8},
     "grumpy": {"row": 9, "start": 8, "count": 8},
     "eat": {"row": 10, "start": 0, "count": 8},
     "sick": {"row": 10, "start": 8, "count": 8},
     "wash": {"row": 11, "start": 0, "count": 8},
-    "night": {"row": 11, "start": 8, "count": 8},
 }
 
 SMOKE_MODES = {
@@ -88,11 +87,10 @@ SMOKE_MODES = {
     "happy": {"row": 0, "start": 0, "count": 8},
     "eat": {"row": 0, "start": 0, "count": 8},
     "wash": {"row": 0, "start": 0, "count": 8},
-    "night": {"row": 0, "start": 0, "count": 8},
     "dance": {"row": 0, "start": 0, "count": 16},
     "flip": {"row": 0, "start": 0, "count": 16},
     "run": {"row": 0, "start": 0, "count": 16},
-    "crawl": {"row": 0, "start": 0, "count": 16},
+    "fall": {"row": 0, "start": 0, "count": 16},
     "collapse": {"row": 0, "start": 0, "count": 1},
     "drag": {"row": 0, "start": 0, "count": 1},
     "greet": {"row": 0, "start": 0, "count": 8},
@@ -131,9 +129,9 @@ CLIPS = [
     {"row": 6, "name": "sneak", "frames": 16, "loop": True,
      "pose": "deep crouch walk facing right, torso low, first sneak step, full body",
      "spec": "SNEAK: deep crouch walk facing right, torso low, careful steps"},
-    {"row": 7, "name": "crawl", "frames": 16, "loop": True,
-     "pose": "on all fours facing right, crawling start pose, full body",
-     "spec": "CRAWL: on all fours facing right, crawling loop"},
+    {"row": 7, "name": "fall", "frames": 16, "loop": True,
+     "pose": "mid-air falling pose facing camera/3-4, arms and legs spread and flailing, clothes lifted by air, no ground visible, full body",
+     "spec": "FALL: falling through the air, arms and legs waving and flailing, comic panic tumble, clothes and hair lifted upward, no ground contact, loopable mid-air cycle"},
     {"row": 8, "name": "trip", "frames": 16, "loop": False,
      "pose": "upright facing right just starting to stumble, full body, still standing",
      "spec": "TRIP/FACEPLANT one-shot: stumble then fall forward then hit ground then briefly flat, clear progression"},
@@ -152,9 +150,6 @@ CLIPS = [
     {"row": 11, "name": "wash", "frames": 8, "loop": True,
      "pose": "soap bubbles or towel wipe, first wash pose, clean and happy, full body",
      "spec": "WASH/HYGIENE: soap bubbles or towel wipe, clean and happy"},
-    {"row": 11, "name": "night", "frames": 8, "loop": True,
-     "pose": "same character standing in a simple darker hooded jacket, idle, full body",
-     "spec": "NIGHT/RAINCOAT: same character in a simple darker jacket or tiny hood/coat variant, optional pixel raindrops, standing/idle poses — cosmetic outfit only, identity unchanged"},
 ]
 
 

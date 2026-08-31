@@ -33,14 +33,13 @@ function generatedModeMap() {
     flip: { row: 5, start: 0, count: 16 },
     run: { row: 5, start: 0, count: 16 },
     sneak: { row: 6, start: 0, count: 16 },
-    crawl: { row: 7, start: 0, count: 16 },
+    fall: { row: 7, start: 0, count: 16 },
     trip: { row: 8, start: 0, count: 16 },
     happy: { row: 9, start: 0, count: 8 },
     grumpy: { row: 9, start: 8, count: 8 },
     eat: { row: 10, start: 0, count: 8 },
     sick: { row: 10, start: 8, count: 8 },
-    wash: { row: 11, start: 0, count: 8 },
-    night: { row: 11, start: 8, count: 8 }
+    wash: { row: 11, start: 0, count: 8 }
   }
 }
 
@@ -66,14 +65,13 @@ function generatedAtlas(file) {
       flip: modes.flip,
       run: modes.run,
       sneak: modes.sneak,
-      crawl: modes.crawl,
+      fall: modes.fall,
       trip: modes.trip,
       happy: modes.happy,
       grumpy: modes.grumpy,
       eat: modes.eat,
       sick: modes.sick,
-      wash: modes.wash,
-      night: modes.night
+      wash: modes.wash
     }
   }
 }
@@ -124,14 +122,13 @@ function normalizeAtlas(raw) {
       flip: cloneMode(modes.flip, fb.flip || bundled.flip),
       run: cloneMode(modes.run, fb.run || fb.flip || bundled.flip),
       sneak: cloneMode(modes.sneak, fb.sneak || fb.crawl || bundled.walk),
-      crawl: cloneMode(modes.crawl, fb.crawl || bundled.walk),
+      fall: cloneMode(modes.fall, fb.fall || fb.drag || bundled.drag),
       trip: cloneMode(modes.trip, fb.trip || fb.sick || bundled.idle),
       happy: cloneMode(modes.happy, fb.happy || fb.greet || bundled.idle),
       grumpy: cloneMode(modes.grumpy, fb.grumpy || bundled.idle),
       eat: cloneMode(modes.eat, fb.eat || fb.idle || bundled.idle),
       sick: cloneMode(modes.sick, fb.sick || bundled.idle),
-      wash: cloneMode(modes.wash, fb.wash || fb.idle || bundled.idle),
-      night: cloneMode(modes.night, fb.night || fb.idle || bundled.idle)
+      wash: cloneMode(modes.wash, fb.wash || fb.idle || bundled.idle)
     }
   }
 }
@@ -153,13 +150,12 @@ function framesForMode(atlas, modeName) {
 }
 
 function isMoveMode(mode) {
-  return mode === "walk" || mode === "crawl" || mode === "run" || mode === "sneak"
+  return mode === "walk" || mode === "run" || mode === "sneak"
 }
 
 function movePace(mode, stats) {
   var pace
-  if (mode === "crawl") pace = { step: 3, interval: 140 }
-  else if (mode === "sneak") pace = { step: 4, interval: 120 }
+  if (mode === "sneak") pace = { step: 4, interval: 120 }
   else if (mode === "run") pace = { step: 14, interval: 48 }
   else pace = { step: 8, interval: 90 }
   if (!stats) return pace
@@ -538,7 +534,7 @@ function resolveMode(opts) {
   var danceAt = Number(o.dancePeak)
   if (!isFinite(danceAt) || danceAt < 0) danceAt = 0
   if (o.dragging) return "drag"
-  if (o.falling) return "sick"
+  if (o.falling) return "fall"
   if (o.trip) return "trip"
   if (o.sick) return "sick"
   if (o.grumpy) return "grumpy"
@@ -559,40 +555,34 @@ function resolveMode(opts) {
   if (playing && peak >= danceAt) return "dance"
   if (o.lonely) return "look"
   if (o.focused) return "look"
-  if (o.night) return "night"
   return "idle"
 }
 
 function wanderWeights(stats) {
-  var walk = 26
-  var crawl = 20
-  var run = 22
-  var idle = 16
+  var walk = 30
+  var run = 24
+  var idle = 20
   var look = 16
-  if (!stats) return { walk: walk, crawl: crawl, run: run, idle: idle, look: look }
+  if (!stats) return { walk: walk, run: run, idle: idle, look: look }
   var s = normalizeCareStats(stats)
   if (s.energy < 30) {
     run = 0
-    crawl += 18
-    idle += 10
+    idle += 18
     walk = Math.max(4, walk - 8)
   } else if (s.energy > 78) {
     run += 16
-    crawl = Math.max(4, crawl - 8)
     idle = Math.max(4, idle - 6)
   }
   if (s.weight > 70) {
     run = Math.max(0, run - 14)
-    crawl += 16
+    idle += 12
     walk = Math.max(4, walk - 4)
   } else if (s.weight < 35) {
-    crawl = Math.max(0, crawl - 8)
     run += 10
   }
   if (s.health < 30) {
     run = 0
-    crawl += 10
-    idle += 8
+    idle += 12
   }
   if (s.attention < 28) {
     look += 18
@@ -606,7 +596,7 @@ function wanderWeights(stats) {
     look += 12
     run = Math.max(0, run - 10)
   }
-  return { walk: walk, crawl: crawl, run: run, idle: idle, look: look }
+  return { walk: walk, run: run, idle: idle, look: look }
 }
 
 function pickWander(rand, stats) {
@@ -614,20 +604,17 @@ function pickWander(rand, stats) {
   if (!isFinite(r) || r < 0) r = 0
   if (r > 1) r = 1
   if (!stats) {
-    if (r < 0.26) return "walk"
-    if (r < 0.46) return "crawl"
-    if (r < 0.68) return "run"
+    if (r < 0.34) return "walk"
+    if (r < 0.64) return "run"
     if (r < 0.84) return "idle"
     return "look"
   }
   var w = wanderWeights(stats)
-  var total = w.walk + w.crawl + w.run + w.idle + w.look
+  var total = w.walk + w.run + w.idle + w.look
   if (total <= 0) return "idle"
   var x = r * total
   if (x < w.walk) return "walk"
   x -= w.walk
-  if (x < w.crawl) return "crawl"
-  x -= w.crawl
   if (x < w.run) return "run"
   x -= w.run
   if (x < w.idle) return "idle"
@@ -713,7 +700,7 @@ function levitateDurationMs(rise) {
 
 function nestMode(mode) {
   var m = String(mode || "idle")
-  if (isMoveMode(m) || m === "trip" || m === "drag" || m === "collapse") return "idle"
+  if (isMoveMode(m) || m === "trip" || m === "drag" || m === "fall" || m === "collapse") return "idle"
   return m
 }
 

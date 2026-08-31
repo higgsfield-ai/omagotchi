@@ -14,8 +14,8 @@ description: |
 
 Produce a full 12-row sprite sheet of ONE character derived from the user's image.
 The action set is FIXED (see the row table) and is ALWAYS generated in full — never
-ask which rows to include, never add rows. Tiny hand-held items (snack, towel,
-raincoat) exist only inside their row's frames; no standalone prop assets.
+ask which rows to include, never add rows. Tiny hand-held items (snack, towel)
+exist only inside their row's frames; no standalone prop assets.
 
 ## Required input
 
@@ -70,14 +70,13 @@ measurement may be logged, but a miss does not trigger a regeneration), and
 proceed immediately to Step 3. The entire pipeline runs start-to-finish with no
 user questions: the user drops one image and receives all finished animations.
 
-## Step 3 — per-action START FRAMES (18 images)
+## Step 3 — per-action START FRAMES (17 images)
 
-Immediately after the base completes, generate ONE image PER ACTION (18 total: walk, idle,
-look, sleep, collapse, drag, greet, dance, dash, sneak, crawl, trip, happy, grumpy,
-eat, sick, wash, rain) — the FIRST pose of that action (walk: mid-stride facing
-right; sleep: lying on side curled; crawl: on all fours; dance: facing camera arms
-up; rain: standing in the darker hooded jacket variant; etc., derived from the row
-table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
+Immediately after the base completes, generate ONE image PER ACTION (17 total: walk, idle,
+look, sleep, collapse, drag, greet, dance, dash, sneak, fall, trip, happy, grumpy,
+eat, sick, wash) — the FIRST pose of that action (walk: mid-stride facing
+right; sleep: lying on side curled; fall: mid-air, arms and legs spread flailing;
+dance: facing camera arms up; etc., derived from the row table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
 media in every request, style string verbatim, same key-color background.
 
 SCALE — HARD RULE, include verbatim in EVERY start-frame prompt:
@@ -85,7 +84,7 @@ SCALE — HARD RULE, include verbatim in EVERY start-frame prompt:
 in the reference image — the same on-screen height, the same margins around him;
 do not zoom in, do not zoom out, do not crop.`
 
-Submit in two batched calls (10 + 8). QC all 18 in ONE batched `image_analyze`
+Submit in two batched calls (10 + 7). QC all 17 in ONE batched `image_analyze`
 pass (identity, pose, scale vs base, clean key background). Regen budget: 2 per
 start frame.
 
@@ -102,9 +101,10 @@ the playback feel. Keep clips SHORT (video is billed per second).
 - Full 16-frame row → one clip, 4 s. Split row (8+8) → TWO clips, 4 s each
   (model minimum), one per half-action.
 - Resolution: **720p — FIXED.**
-- Total per run: **18 clips** (6 full rows + 6 split rows x 2). Do NOT stop to
-  discuss cost or ask anything — the run is zero-touch end-to-end (1 base +
-  18 start-frame images + 18 clips of 4 s at 720p; platform-level generation
+- Total per run: **17 clips** (6 full rows + 5 split rows x 2 + row 11's single
+  half-row). 17 keeps the whole batch under an 18-job concurrency shed. Do NOT
+  stop to discuss cost or ask anything — the run is zero-touch end-to-end (1 base +
+  17 start-frame images + 17 clips of 4 s at 720p; platform-level generation
   approval is the only gate).
 
 Model: **`seedance_2_0_mini`** — FIXED, for every clip. Never substitute another
@@ -143,7 +143,7 @@ height, the clip is a framing failure — reroll it automatically (within the
 2-attempt budget) before assembly. EXEMPT Row 8 TRIP (one-shot): its subject
 height legitimately collapses when the character ends up lying flat.
 
-Submission: batch all 18 requests in ONE `higgsfield_generate_video` call
+Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
 (max 10 per call → two calls), resolution **720p**, duration 4 s, `count: 1`. Poll in batch with `higgsfield_job_status`.
 
 ## Row table (canonical — generate all 12, this exact order)
@@ -157,11 +157,11 @@ Submission: batch all 18 requests in ONE `higgsfield_generate_video` call
 | 4 | 16 | DANCE/CHEER: music celebration facing camera/3-4, arms up, stepping in place, joyful cycle | loop |
 | 5 | 16 | DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak | loop |
 | 6 | 16 | SNEAK: deep crouch walk facing right, torso low, careful steps | loop |
-| 7 | 16 | CRAWL: on all fours facing right, crawling loop | loop |
+| 7 | 16 | FALL: falling through the air, arms and legs waving and flailing, comic panic tumble, clothes and hair lifted upward, no ground contact, loopable mid-air cycle | loop |
 | 8 | 16 | TRIP/FACEPLANT one-shot: stumble → fall forward → hit ground → briefly flat, clear progression | ONE-SHOT |
 | 9 | 8+8 | HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur) · GRUMPY/ANGRY: frown, crossed arms or dismissive gesture, same character | loop each |
 | 10 | 8+8 | EAT/SNACK: holding a small snack/drink, chew or sip cycle · SICK/DIZZY: light pale/greenish tint on face only, dizzy swirl or hand-to-head, woozy stance, outfit readable | loop each |
-| 11 | 8+8 | WASH/HYGIENE: soap bubbles or towel wipe, clean and happy · NIGHT/RAINCOAT: same character in a simple darker jacket or tiny hood/coat variant, optional pixel raindrops, standing/idle poses — cosmetic outfit only, identity unchanged | loop each |
+| 11 | 8 | WASH/HYGIENE: soap bubbles or towel wipe, clean and happy (first half-row; the second half of row 11 stays empty) | loop |
 
 ## Step 5 — QC and regen budget
 
@@ -204,7 +204,7 @@ into an engine.
   through every clip — expect a reroll on 1-3 clips per run.
 - Background may drift mid-clip (shadows, gradient); keying tolerance handles mild
   drift, heavy drift = reroll.
-- Slight identity drift across 18 clips is possible; base-sprite-as-start-frame
+- Slight identity drift across 17 clips is possible; base-sprite-as-start-frame
   minimizes it.
-- Cost: ~18 short clips + 1-3 images per run; video bills per second — never
+- Cost: ~17 short clips + 1-3 images per run; video bills per second — never
   request longer clips than the plan needs.

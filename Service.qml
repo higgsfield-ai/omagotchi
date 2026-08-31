@@ -372,7 +372,7 @@ Item {
   function careEnv() {
     var now = Date.now()
     return {
-      sleeping: root.mode === "sleep" || root.mode === "night",
+      sleeping: root.mode === "sleep",
       night: Model.isNightHour(new Date(root.nowMs || now)),
       mediaPlaying: root.mediaPlaying,
       sneakWindow: Model.sneakWindow(root.winW, root.winH),

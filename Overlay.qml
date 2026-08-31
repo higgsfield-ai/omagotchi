@@ -67,7 +67,8 @@ Item {
       if (window.recalling) return "drag"
       if (window.releasing && !window.falling) return "drag"
       if (window.collapsed) return "collapse"
-      if (window.dragging || window.falling) return "drag"
+      if (window.falling) return "fall"
+      if (window.dragging) return "drag"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
@@ -278,7 +279,7 @@ Item {
         if (window.mode === "trip") return 90
         if (window.mode === "happy") return 110
         if (window.mode === "eat" || window.mode === "wash") return 140
-        if (window.mode === "night") return 200
+        if (window.mode === "fall") return 90
         if (window.mode === "drag" || window.mode === "collapse" || window.mode === "sleep") return 240
         if (window.mode === "look" || window.mode === "greet") return 140
         if (window.mode === "grumpy" || window.mode === "sick") return 160

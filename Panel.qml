@@ -322,7 +322,7 @@ Panel {
                 interval: {
                   if (root.nestMode === "happy") return 110
                   if (root.nestMode === "eat" || root.nestMode === "wash") return 140
-                  if (root.nestMode === "night" || root.nestMode === "sleep") return 220
+                  if (root.nestMode === "sleep") return 220
                   if (root.nestMode === "grumpy" || root.nestMode === "sick") return 160
                   return 180
                 }
