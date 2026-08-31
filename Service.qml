@@ -85,8 +85,10 @@ Item {
   })
   readonly property var media: shell && shell.serviceFor ? shell.serviceFor("omarchy.media") : null
   readonly property bool mediaPlaying: {
-    if (root.media && root.media.activePlayer)
-      return !!root.media.activePlayer.isPlaying
+    // The shell's active player may be a stale, paused one — never let it
+    // veto a browser that is actually playing. Any playing player counts.
+    if (root.media && root.media.activePlayer && root.media.activePlayer.isPlaying)
+      return true
     var list = Mpris.players ? Mpris.players.values : []
     for (var i = 0; i < list.length; i++) {
       if (list[i] && list[i].isPlaying) return true
@@ -99,7 +101,8 @@ Item {
   }
   readonly property string mediaTrackKey: {
     var player = null
-    if (root.media && root.media.activePlayer) player = root.media.activePlayer
+    if (root.media && root.media.activePlayer && root.media.activePlayer.isPlaying)
+      player = root.media.activePlayer
     if (!player) {
       var list = Mpris.players ? Mpris.players.values : []
       for (var i = 0; i < list.length; i++) {
@@ -118,7 +121,8 @@ Item {
   // The app behind the sound decides watching vs dancing: video players
   // (and browsers) put him on his laptop, music apps keep him dancing.
   readonly property var playingPlayer: {
-    if (root.media && root.media.activePlayer) return root.media.activePlayer
+    if (root.media && root.media.activePlayer && root.media.activePlayer.isPlaying)
+      return root.media.activePlayer
     var list = Mpris.players ? Mpris.players.values : []
     for (var i = 0; i < list.length; i++) {
       if (list[i] && list[i].isPlaying) return list[i]

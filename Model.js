@@ -484,16 +484,18 @@ function resolveMode(opts) {
   if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
+  // Media preempts wandering: a video puts him on the laptop, a beat makes
+  // him dance — he never strolls obliviously past a playing screen.
+  if (playing && o.video) return "watch"
+  if (playing && peak > flipAt) return "flip"
+  if (playing && o.browserMedia && peak < 0.28) return "watch"
+  if (playing) return "dance"
   var wander = String(o.wander || "idle")
   if (isMoveMode(wander)) {
     if (o.sneak) return "sneak"
     return wander
   }
   if (wander === "look") return "look"
-  if (playing && o.video) return "watch"
-  if (playing && peak > flipAt) return "flip"
-  if (playing && o.browserMedia && peak < 0.28) return "watch"
-  if (playing && peak >= danceAt) return "dance"
   if (o.lonely) return "look"
   return "idle"
 }
