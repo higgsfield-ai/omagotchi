@@ -303,8 +303,7 @@ Item {
 
     Timer {
       interval: {
-        if (window.mode === "dance" || window.mode === "flip")
-          return Math.max(40, Math.round(1000 / Model.danceFps(window.peak, window.careStats)))
+        if (window.mode === "dance" || window.mode === "flip") return 120
         if (window.mode === "happy") return 110
         if (window.mode === "watch") return 200
         if (window.mode === "eat" || window.mode === "wash") return 140

@@ -812,15 +812,6 @@ function focusWindow(monitorsRaw, windowRaw) {
   return { monitor: name, x: 0, y: 0, w: mw, h: mh }
 }
 
-function danceFps(peak, stats) {
-  var p = Number(peak)
-  if (!isFinite(p) || p < 0) p = 0
-  if (p > 1) p = 1
-  var fps = Math.round(7 + p * 16)
-  if (fps > 26) fps = 26
-  return fps
-}
-
 function numberFromBlob(raw, keys) {
   var data = parseJsonBlob(String(raw || ""))
   function dig(node, depth) {
@@ -1117,7 +1108,6 @@ if (typeof module !== "undefined") {
     levitateDurationMs: levitateDurationMs,
     nestMode: nestMode,
     desktopPetVisible: desktopPetVisible,
-    danceFps: danceFps,
     clamp: clamp,
     clampPetX: clampPetX,
     petBottomY: petBottomY,

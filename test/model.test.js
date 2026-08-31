@@ -174,11 +174,6 @@ test("clipWindowRect keeps the stage on the overlay screen", () => {
   assert.ok(revived.hunger >= 40)
 })
 
-test("danceFps follows the waveform peak", () => {
-  assert.equal(Model.danceFps(0), 7)
-  assert.equal(Model.danceFps(1), 23)
-})
-
 test("parseGenerateResult reads the last JSON line", () => {
   const ok = Model.parseGenerateResult('noise\n{"ok":true,"path":"/tmp/a.png","url":"https://x"}')
   assert.equal(ok.ok, true)
