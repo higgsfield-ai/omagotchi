@@ -67,6 +67,7 @@ BarWidget {
   WidgetButton {
     id: button
     anchors.fill: parent
+    z: 1
     bar: root.bar
     text: {
       if (!root.generating) return "HF"
@@ -89,7 +90,7 @@ BarWidget {
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     height: 3
-    z: 3
+    z: 0
     color: Qt.rgba(1, 1, 1, 0.14)
     clip: true
 
