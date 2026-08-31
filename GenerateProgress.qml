@@ -48,12 +48,12 @@ Column {
 
     Text {
       id: percentLabel
-      text: root.percent > 0 ? (root.percent + "%") : (root.active ? "…" : "")
+      text: root.percent > 0 ? (root.percent + "%") : ""
       color: root.foreground
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.subtitle + 6
       font.bold: true
-      visible: root.active || root.percent > 0
+      visible: root.percent > 0
     }
 
     Text {
@@ -62,7 +62,7 @@ Column {
       text: {
         var label = root.statusText || (root.loggingIn ? "Waiting for browser" : (root.generating ? "Working" : ""))
         if (!root.active) return label
-        return label.replace(/\.+$/, "") + ["", ".", "..", "..."][root.dots]
+        return label.replace(/[.…]+$/, "") + ["", ".", "..", "..."][root.dots]
       }
       color: root.foreground
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
