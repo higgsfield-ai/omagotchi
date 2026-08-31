@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -32,13 +33,9 @@ def data_paths(out_dir: Path) -> dict:
 
 
 def find_ffmpeg() -> str:
-    for name in ("ffmpeg", "ffprobe"):
-        pass
     ff = shutil.which("ffmpeg") or ""
     probe = shutil.which("ffprobe") or ""
-    if ff and probe:
-        return ff
-    return ff
+    return ff if ff and probe else ff
 
 
 def find_hf(out_dir: Path) -> str:
@@ -77,6 +74,28 @@ def http_download(url: str, dest: Path) -> None:
             fh.write(chunk)
 
 
+def verify_checksum(tag: str, tarball: str, archive: Path) -> None:
+    """Refuse a CLI tarball whose sha256 does not match the release's
+    checksums.txt. A tampered or truncated download must never become the
+    binary this plugin trusts with the user's account."""
+    checks = Path(archive).parent / "checksums.txt"
+    http_download(f"https://github.com/{REPO}/releases/download/{tag}/checksums.txt", checks)
+    expected = ""
+    for line in checks.read_text(encoding="utf-8", errors="replace").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[-1].strip("*") == tarball:
+            expected = parts[0].lower()
+            break
+    if not expected:
+        raise RuntimeError(f"no checksum published for {tarball}")
+    digest = hashlib.sha256()
+    with open(archive, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    if digest.hexdigest().lower() != expected:
+        raise RuntimeError(f"checksum mismatch for {tarball} — download discarded")
+
+
 def install_cli(out_dir: Path) -> str:
     existing = find_hf(out_dir)
     if existing:
@@ -108,6 +127,7 @@ def install_cli(out_dir: Path) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / tarball
         http_download(url, archive)
+        verify_checksum(tag, tarball, archive)
         with tarfile.open(archive) as tar:
             try:
                 tar.extractall(tmp, filter="data")

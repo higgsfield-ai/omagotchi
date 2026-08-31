@@ -73,10 +73,6 @@ test("generated atlas maps unused rows onto named modes", () => {
   assert.equal(Model.framesForMode(atlas, "fall").frameY, 560)
   assert.equal(Model.framesForMode(atlas, "watch").frameX, 640)
   assert.equal(Model.framesForMode(atlas, "watch").frameY, 720)
-  assert.equal(Model.isVideoPlayerId("mpv Media Player"), true)
-  assert.equal(Model.isVideoPlayerId("Mozilla Firefox"), false)
-  assert.equal(Model.isBrowserPlayerId("Mozilla Firefox firefox"), true)
-  assert.equal(Model.isBrowserPlayerId("Spotify"), false)
 })
 
 test("pickWander mixes walk, run, idle, and look", () => {
@@ -125,17 +121,9 @@ test("nextClickState greets once and turns grumpy on a click burst", () => {
   assert.equal(later.greetUntil, 4800)
 })
 
-test("stepFall accelerates until the floor", () => {
+test("falls trigger above the threshold and scale with height", () => {
   assert.equal(Model.shouldFall(40, 200, 12), true)
   assert.equal(Model.shouldFall(195, 200, 12), false)
-  const mid = Model.stepFall(40, 0, 200, 1.35, 24)
-  assert.equal(mid.landed, false)
-  assert.ok(mid.pos > 40)
-  assert.ok(mid.vel > 0)
-  const land = Model.stepFall(199, 24, 200, 1.35, 24)
-  assert.equal(land.landed, true)
-  assert.equal(land.pos, 200)
-  assert.equal(land.vel, 0)
   assert.ok(Model.fallDurationMs(400) > Model.fallDurationMs(40))
   assert.equal(Model.movePace("sneak").step, 4)
   assert.equal(Model.movePace("run").step, 14)
@@ -368,8 +356,6 @@ test("energy, health, attention, and desktop stats decay with the environment", 
   assert.equal(Model.ageLabel(t0, t0 + 3 * 3600000), "3h")
   assert.equal(Model.ageLabel(t0, t0 + 26 * 3600000), "1d 2h")
   assert.ok(Model.happyDurationMs({ bond: 80 }) > Model.happyDurationMs())
-  assert.equal(Model.flipPeak(), 0.55)
-  assert.equal(Model.dancePeak(), 0)
   assert.ok(Model.movePace("run", { weight: 90, energy: 10 }).step < Model.movePace("run").step)
   const tired = Object.assign({}, start, { energy: 8, weight: 85, health: 20, attention: 10 })
   for (let i = 0; i <= 20; i++)

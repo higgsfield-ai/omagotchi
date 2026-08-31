@@ -173,14 +173,6 @@ function tripDropPx() {
   return 120
 }
 
-function eatEveryMs() {
-  return 25 * 60 * 1000
-}
-
-function washEveryMs() {
-  return 3 * 60 * 60 * 1000
-}
-
 function happyDurationMs(stats) {
   var base = 3200
   if (!stats) return base
@@ -436,17 +428,6 @@ function ageLabel(bornMs, nowMs) {
   return days + "d " + (hours % 24) + "h"
 }
 
-function flipPeak(stats) {
-  return 0.55
-}
-
-function dancePeak(stats) {
-  // The stat-gated threshold (0.12 for a neglected pet) plus a silent peak
-  // monitor meant "nothing happens" when music played. Playing media is
-  // reason enough to dance; peaks only decide dance vs flip.
-  return 0
-}
-
 function isNightHour(input) {
   var h
   if (typeof input === "number" && isFinite(input)) h = Math.floor(input)
@@ -466,12 +447,6 @@ function sneakWindow(w, h) {
 function resolveMode(opts) {
   var o = opts || {}
   var playing = !!o.mediaPlaying
-  var peak = Number(o.audioPeak)
-  if (!isFinite(peak) || peak < 0) peak = 0
-  var flipAt = Number(o.flipPeak)
-  if (!isFinite(flipAt)) flipAt = 0.55
-  var danceAt = Number(o.dancePeak)
-  if (!isFinite(danceAt) || danceAt < 0) danceAt = 0
   if (o.dragging) return "drag"
   if (o.falling) return "fall"
   if (o.stunned) return "collapse"
@@ -565,32 +540,6 @@ function pickWander(rand, stats) {
   return "look"
 }
 
-function isVideoPlayerId(blob) {
-  var low = String(blob || "").toLowerCase()
-  if (!low) return false
-  var tokens = [
-    "mpv", "vlc", "celluloid", "haruna", "totem", "kodi", "jellyfin",
-    "stremio"
-  ]
-  for (var i = 0; i < tokens.length; i++) {
-    if (low.indexOf(tokens[i]) !== -1) return true
-  }
-  return false
-}
-
-function isBrowserPlayerId(blob) {
-  var low = String(blob || "").toLowerCase()
-  if (!low) return false
-  var tokens = [
-    "firefox", "chromium", "chrome", "brave", "vivaldi", "librewolf",
-    "zen", "edge", "epiphany", "opera"
-  ]
-  for (var i = 0; i < tokens.length; i++) {
-    if (low.indexOf(tokens[i]) !== -1) return true
-  }
-  return false
-}
-
 function nextClickState(state, nowMs, stats) {
   var last = Number(state && state.lastClickMs) || 0
   var burst = Number(state && state.clickBurst) || 0
@@ -628,26 +577,6 @@ function shouldFall(petY, floorY, minDrop) {
   if (!isFinite(y) || !isFinite(floor)) return false
   if (!isFinite(min) || min < 0) min = 12
   return floor - y > min
-}
-
-function stepFall(y, vel, floorY, gravity, maxVel) {
-  var g = Number(gravity)
-  var cap = Number(maxVel)
-  if (!isFinite(g) || g <= 0) g = 1.35
-  if (!isFinite(cap) || cap <= 0) cap = 24
-  var v = Number(vel)
-  if (!isFinite(v)) v = 0
-  v += g
-  if (v > cap) v = cap
-  var ny = Number(y)
-  if (!isFinite(ny)) ny = 0
-  ny += v
-  var floor = Number(floorY)
-  if (!isFinite(floor)) floor = 0
-  if (ny >= floor) {
-    return { pos: floor, vel: 0, landed: true }
-  }
-  return { pos: ny, vel: v, landed: false }
 }
 
 function fallDurationMs(drop) {
@@ -1076,8 +1005,6 @@ if (typeof module !== "undefined") {
     resolveMode: resolveMode,
     sleepAfterMs: sleepAfterMs,
     tripDropPx: tripDropPx,
-    eatEveryMs: eatEveryMs,
-    washEveryMs: washEveryMs,
     happyDurationMs: happyDurationMs,
     careDurationMs: careDurationMs,
     clampStat: clampStat,
@@ -1090,20 +1017,15 @@ if (typeof module !== "undefined") {
     careFlags: careFlags,
     sleepAfterMsFor: sleepAfterMsFor,
     ageLabel: ageLabel,
-    flipPeak: flipPeak,
-    dancePeak: dancePeak,
     isNightHour: isNightHour,
     sneakWindow: sneakWindow,
     isMoveMode: isMoveMode,
-    isVideoPlayerId: isVideoPlayerId,
-    isBrowserPlayerId: isBrowserPlayerId,
     creditsFromBlob: creditsFromBlob,
     costFromBlob: costFromBlob,
     movePace: movePace,
     pickWander: pickWander,
     nextClickState: nextClickState,
     shouldFall: shouldFall,
-    stepFall: stepFall,
     fallDurationMs: fallDurationMs,
     levitateDurationMs: levitateDurationMs,
     nestMode: nestMode,

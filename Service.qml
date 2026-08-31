@@ -64,8 +64,6 @@ Item {
   property int careSaveTicks: 0
   property bool generating: false
   property string generateStatus: ""
-  property string generateModel: "nano_banana_2"
-  property string lastPrompt: ""
   property string lastResultPath: ""
   property string lastResultUrl: ""
   property string lastError: ""
@@ -141,23 +139,6 @@ Item {
     if (!title && !artist) return ""
     return title + "|" + artist
   }
-  // The app behind the sound decides watching vs dancing: video players
-  // (and browsers) put him on his laptop, music apps keep him dancing.
-  readonly property var playingPlayer: {
-    if (root.media && root.media.activePlayer && root.media.activePlayer.isPlaying)
-      return root.media.activePlayer
-    var list = Mpris.players ? Mpris.players.values : []
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].isPlaying) return list[i]
-    }
-    return null
-  }
-  readonly property string playingPlayerId: root.playingPlayer
-    ? String(root.playingPlayer.identity || "") + " " + String(root.playingPlayer.desktopEntry || "")
-    : ""
-  readonly property bool mediaIsVideo: Model.isVideoPlayerId(root.playingPlayerId)
-  readonly property bool mediaIsBrowser: Model.isBrowserPlayerId(root.playingPlayerId)
-
   property real playingStoppedMs: 0
 
   onMediaTrackKeyChanged: {
@@ -202,11 +183,6 @@ Item {
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying
       || (root.playingStoppedMs > 0 && root.nowMs - root.playingStoppedMs < 2000),
-    video: root.mediaIsVideo,
-    browserMedia: root.mediaIsBrowser,
-    audioPeak: root.audioPeak,
-    flipPeak: Model.flipPeak(root.careLive),
-    dancePeak: Model.dancePeak(root.careLive),
     wander: root.wander
   })
   readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
@@ -629,22 +605,6 @@ Item {
     return root.collapsed ? "collapsed" : "expanded"
   }
 
-  function generate(prompt, model) {
-    var p = Model.trimPrompt(prompt)
-    if (!p) return "empty"
-    if (root.generating) return "busy"
-    var m = Model.trimPrompt(model)
-    if (!m) m = root.generateModel
-    root.generating = true
-    root.generateStatus = "Generating…"
-    root.lastPrompt = p
-    root.lastError = ""
-    genProc.command = ["bash", root.filePath("generate.sh"), p, m]
-    genProc.running = false
-    genProc.running = true
-    return "started"
-  }
-
   function generateSprite(imagePath, notes, smoke) {
     var img = Model.trimPrompt(imagePath)
     if (!img) return "empty"
@@ -656,7 +616,6 @@ Item {
     root.generateStep = 0
     root.generateSteps = smoke ? 4 : 38
     root.generatePercent = 0
-    root.lastPrompt = img
     root.photoPath = img
     root.lastError = ""
     var cmd = [
@@ -1156,7 +1115,7 @@ Item {
 
   Process {
     id: keysProc
-    command: ["python3", "-u", root.filePath("watch-keys.py")]
+    command: ["python3", "-u", root.filePath("scripts/watch-keys.py")]
     stdout: SplitParser {
       onRead: function() { root.onKeyActivity() }
     }
@@ -1193,7 +1152,6 @@ Item {
 
     function ping(): string { return "ok" }
     function collapse(): string { return root.toggleCollapsed() }
-    function generate(prompt: string): string { return root.generate(prompt) }
     function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
     function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
     function pickPhoto(): string { return root.pickPhoto() }

@@ -62,6 +62,25 @@ cp .env.example .env   # set OMARCHY_HOST=omarchy-hp
 ./scripts/watch.sh
 ```
 
+## Privacy & security
+
+Everything runs locally and unsandboxed, like every Omarchy plugin — here is
+exactly what this one touches:
+
+- **Network**: GitHub releases (Higgsfield CLI download, sha256-verified
+  against the release's `checksums.txt`) and the Higgsfield API through that
+  CLI (login, generation jobs, result downloads). Nothing else.
+- **Webcam**: only while the panel's camera view is open or when you press
+  the capture button; the viewfinder unloads the instant the panel closes.
+- **Keyboard**: `scripts/watch-keys.py` watches evdev devices to know that
+  *a* key was pressed (it wakes and walks the pet). It emits a single `k`
+  per press and never records or transmits which key.
+- **Storage**: everything lives in `~/.local/share/higgsfield.signals/`
+  (CLI, venv, care state, photos, sheets, generated media). Removing the
+  plugin plus that directory removes every trace.
+- **Auth**: login happens in your browser via the official CLI; the plugin
+  never sees or stores credentials.
+
 ## Remove
 
 ```sh
