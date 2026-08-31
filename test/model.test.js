@@ -2,13 +2,19 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const Model = require("../Model.js")
 
-test("bundled default atlas is a full generated sheet", () => {
+test("the bundled sheet is the generated 16x12 layout", () => {
+  assert.equal(Model.defaultAtlas().file, "default-sheet.png")
   const frames = Model.framesForMode(null, "walk")
   assert.equal(frames.frameX, 0)
   assert.equal(frames.frameY, 0)
   assert.equal(frames.frameCount, 16)
   assert.equal(frames.frameWidth, 80)
   assert.equal(frames.frameHeight, 80)
+  assert.equal(frames.displayWidth, 80)
+  assert.equal(frames.displayHeight, 80)
+})
+
+test("idle and collapse use dedicated rows", () => {
   const idle = Model.framesForMode(null, "idle")
   assert.equal(idle.frameY, 80)
   assert.equal(idle.frameX, 0)
@@ -16,7 +22,6 @@ test("bundled default atlas is a full generated sheet", () => {
   const collapse = Model.framesForMode(null, "collapse")
   assert.equal(collapse.frameY, 160)
   assert.equal(collapse.frameX, 8 * 80)
-  assert.equal(Model.normalizeAtlas(null).file, "default-sheet.png")
 })
 
 test("resolveMode prefers drag, then fall/stun/sick, moods, care, media, and sneak", () => {
@@ -391,11 +396,10 @@ test("energy, health, attention, and desktop stats decay with the environment", 
 })
 
 test("desktop dock hides the overlay pet except during recall and release", () => {
-  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: false, docked: false }), false)
-  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: false }), true)
-  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: true }), false)
-  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: true, recalling: true }), true)
-  assert.equal(Model.desktopPetVisible({ hasGeneratedPet: true, docked: false, releasing: true }), true)
+  assert.equal(Model.desktopPetVisible({ docked: false }), true)
+  assert.equal(Model.desktopPetVisible({ docked: true }), false)
+  assert.equal(Model.desktopPetVisible({ docked: true, recalling: true }), true)
+  assert.equal(Model.desktopPetVisible({ docked: false, releasing: true }), true)
   assert.equal(Model.nestMode("run"), "idle")
   assert.equal(Model.nestMode("sneak"), "idle")
   assert.equal(Model.nestMode("eat"), "eat")

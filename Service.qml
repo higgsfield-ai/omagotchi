@@ -69,7 +69,8 @@ Item {
   property bool runtimeReady: false
   property string hfPath: ""
   property bool pendingLogin: false
-  property bool hasGeneratedPet: false
+  // The user replaced the bundled sheet with their own generated one.
+  property bool hasCustomAvatar: false
   property bool petDocked: false
   property bool petRecalling: false
   property bool petReleasing: false
@@ -77,12 +78,7 @@ Item {
   readonly property string photoName: Model.fileBaseName(root.photoPath)
   readonly property string generateLog: root.dataDir() + "/generate.log"
 
-  // The plugin ships a default sheet, so there is always a pet to show;
-  // hasGeneratedPet still tracks whether the user made their own.
-  readonly property bool hasPetSheet: true
-  readonly property bool petVisible: root.hasPetSheet
   readonly property bool petOnDesktop: Model.desktopPetVisible({
-    hasGeneratedPet: root.hasPetSheet,
     docked: root.petDocked,
     recalling: root.petRecalling,
     releasing: root.petReleasing
@@ -232,7 +228,7 @@ Item {
       atlas = Model.generatedAtlas(file)
     root.lastResultPath = file
     root.atlasSpec = atlas
-    root.hasGeneratedPet = true
+    root.hasCustomAvatar = true
     root.atlasRev += 1
     return true
   }
@@ -250,7 +246,7 @@ Item {
         var generated = JSON.parse(raw)
         if (generated && generated.file && String(generated.file).charAt(0) === "/") {
           root.atlasSpec = generated
-          root.hasGeneratedPet = true
+          root.hasCustomAvatar = true
           root.atlasRev += 1
           return
         }
@@ -260,7 +256,7 @@ Item {
       root.applyGeneratedSheet(root.lastResultPath)
       return
     }
-    root.hasGeneratedPet = false
+    root.hasCustomAvatar = false
     root.atlasSpec = root.readJsonFile(Qt.resolvedUrl("atlas.json"))
   }
 
@@ -452,7 +448,6 @@ Item {
   }
 
   function feedPet() {
-    if (!root.petVisible) return "hidden"
     root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "feed", Date.now(), root.careEnv()), true)
     root.eatUntil = Date.now() + Model.careDurationMs()
     root.touchActivity()
@@ -461,7 +456,6 @@ Item {
   }
 
   function washPet() {
-    if (!root.petVisible) return "hidden"
     root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "wash", Date.now(), root.careEnv()), true)
     root.washUntil = Date.now() + Model.careDurationMs()
     root.pendingWash = false
@@ -471,7 +465,6 @@ Item {
   }
 
   function playPet() {
-    if (!root.petVisible) return "hidden"
     root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "play", Date.now(), root.careEnv()), true)
     root.celebrate(Model.happyDurationMs(root.careSnapshot()))
     root.saveCare()
@@ -479,7 +472,6 @@ Item {
   }
 
   function tickCare() {
-    if (!root.petVisible) return
     var now = Date.now()
     root.applyCareStats(Model.decayCareStats(root.careSnapshot(), now, root.careEnv()), false)
     if (root.pendingWash && root.nowMs >= root.sickUntil && root.nowMs >= root.stunUntil
@@ -549,7 +541,6 @@ Item {
   }
 
   function recallPet() {
-    if (!root.hasGeneratedPet) return "hidden"
     if (root.petDocked && !root.petReleasing) return "docked"
     if (root.petRecalling) return "busy"
     root.petReleasing = false
@@ -568,7 +559,6 @@ Item {
   }
 
   function releasePet() {
-    if (!root.hasGeneratedPet) return "hidden"
     if (!root.petDocked && !root.petRecalling && !root.petReleasing) return "desktop"
     root.petRecalling = false
     root.petDocked = false
@@ -735,7 +725,7 @@ Item {
 
   Timer {
     interval: 1000
-    running: root.petVisible
+    running: true
     repeat: true
     onTriggered: root.tickCare()
   }

@@ -1,18 +1,9 @@
 // Tamagotchi helpers. Qt-free so it can be tested under node.
 
+// The sheet that ships with the plugin. Same 16x12 layout the generator
+// writes, so a fresh install already has a pet to put on the desktop.
 function defaultAtlas() {
-  // The bundled default pet: a full generated sheet shipped with the plugin,
-  // so users who never generate their own avatar still get a living pet.
-  return {
-    file: "default-sheet.png",
-    cellWidth: 80,
-    cellHeight: 80,
-    columns: 16,
-    rows: 12,
-    fps: 6,
-    scale: 1,
-    modes: generatedModeMap()
-  }
+  return generatedAtlas("default-sheet.png")
 }
 
 function generatedModeMap() {
@@ -91,10 +82,7 @@ function normalizeAtlas(raw) {
   var fps = Number(raw.fps)
   var scale = Number(raw.scale)
   var modes = raw.modes || {}
-  var gen = generatedModeMap()
-  var bundled = d.modes
-  var useGen = isFinite(rows) && rows >= 12
-  var fb = useGen ? gen : bundled
+  var fb = d.modes
   return {
     file: String(raw.file || d.file),
     cellWidth: isFinite(cellW) && cellW > 0 ? Math.floor(cellW) : d.cellWidth,
@@ -104,25 +92,25 @@ function normalizeAtlas(raw) {
     fps: isFinite(fps) && fps > 0 ? Math.floor(fps) : d.fps,
     scale: isFinite(scale) && scale > 0 ? scale : d.scale,
     modes: {
-      walk: cloneMode(modes.walk, fb.walk || bundled.walk),
-      idle: cloneMode(modes.idle, fb.idle || bundled.idle),
-      look: cloneMode(modes.look, fb.look || bundled.idle),
-      sleep: cloneMode(modes.sleep, fb.sleep || fb.collapse || bundled.collapse),
-      collapse: cloneMode(modes.collapse, fb.collapse || bundled.collapse),
-      drag: cloneMode(modes.drag, fb.drag || bundled.drag),
-      greet: cloneMode(modes.greet, fb.greet || bundled.idle),
-      dance: cloneMode(modes.dance, fb.dance || bundled.dance),
-      flip: cloneMode(modes.flip, fb.flip || bundled.flip),
-      run: cloneMode(modes.run, fb.run || fb.flip || bundled.flip),
-      sneak: cloneMode(modes.sneak, fb.sneak || fb.crawl || bundled.walk),
-      fall: cloneMode(modes.fall, fb.fall || fb.drag || bundled.drag),
-      trip: cloneMode(modes.trip, fb.trip || fb.sick || bundled.idle),
-      happy: cloneMode(modes.happy, fb.happy || fb.greet || bundled.idle),
-      grumpy: cloneMode(modes.grumpy, fb.grumpy || bundled.idle),
-      watch: cloneMode(modes.watch, fb.watch || fb.look || bundled.idle),
-      eat: cloneMode(modes.eat, fb.eat || fb.idle || bundled.idle),
-      sick: cloneMode(modes.sick, fb.sick || bundled.idle),
-      wash: cloneMode(modes.wash, fb.wash || fb.idle || bundled.idle)
+      walk: cloneMode(modes.walk, fb.walk),
+      idle: cloneMode(modes.idle, fb.idle),
+      look: cloneMode(modes.look, fb.look || fb.idle),
+      sleep: cloneMode(modes.sleep, fb.sleep || fb.collapse),
+      collapse: cloneMode(modes.collapse, fb.collapse),
+      drag: cloneMode(modes.drag, fb.drag),
+      greet: cloneMode(modes.greet, fb.greet || fb.idle),
+      dance: cloneMode(modes.dance, fb.dance),
+      flip: cloneMode(modes.flip, fb.flip),
+      run: cloneMode(modes.run, fb.run || fb.flip),
+      sneak: cloneMode(modes.sneak, fb.sneak || fb.walk),
+      fall: cloneMode(modes.fall, fb.fall || fb.drag),
+      trip: cloneMode(modes.trip, fb.trip || fb.sick || fb.idle),
+      happy: cloneMode(modes.happy, fb.happy || fb.greet || fb.idle),
+      grumpy: cloneMode(modes.grumpy, fb.grumpy || fb.idle),
+      watch: cloneMode(modes.watch, fb.watch || fb.look || fb.idle),
+      eat: cloneMode(modes.eat, fb.eat || fb.idle),
+      sick: cloneMode(modes.sick, fb.sick || fb.idle),
+      wash: cloneMode(modes.wash, fb.wash || fb.idle)
     }
   }
 }
@@ -686,9 +674,10 @@ function nestMode(mode) {
   return m
 }
 
+// The pet always exists — bundled sheet until the user generates their own —
+// so only the panel nest can take it off the desktop.
 function desktopPetVisible(opts) {
   var o = opts || {}
-  if (!o.hasGeneratedPet) return false
   if (o.recalling || o.releasing) return true
   return !o.docked
 }

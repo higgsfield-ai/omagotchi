@@ -4,13 +4,7 @@ A desktop Tamagotchi for Omarchy. He stays on the **bottom of the focused window
 
 Drag him inside the window — drop him from a height and he takes a tumble, then wants a wash. Click to pet him; double-click to collapse (lie down) or expand. He turns at the window edges and never leaves that window’s bounds.
 
-A default pet appears the moment the plugin is enabled — no account needed. The **HF** chip turns him into you: log in once, upload a photo, **Generate my avatar**. The new sheet replaces the default pet on your desktop. Progress shows in the panel and on the chip.
-
-The bundled default lives in `default-sheet.png`; refresh it by copying any generated sheet over it:
-
-```sh
-scp $OMARCHY_HOST:~/.local/share/higgsfield.signals/spritesheet_16x12.png default-sheet.png
-```
+A default pet ships with the plugin — `default-sheet.png` — so he is on your desktop from the first install, no login and no generation needed. The **HF** chip is the upgrade path: log in once, upload a photo, **Generate my avatar**. The new sheet replaces the default one. Progress shows in the panel and on the chip.
 
 ## Install
 
@@ -31,8 +25,12 @@ No extra packages. The plugin downloads the Higgsfield CLI and Python image libs
 
 ## Use
 
+The bundled pet needs no setup — feed, wash, play, and **Hide** / **Release** work right away.
+
+To make him yours:
+
 1. Click **HF** on the bar.
-2. Click **Generate my avatar**. A browser opens for Higgsfield login.
+2. Click **Change** on the pet island, then **Generate my avatar**. A browser opens for Higgsfield login.
 3. After login, the photo well unlocks. Choose a picture.
 4. Click **Generate my avatar** again. Keep the panel open — percent and step text update as clips finish.
 5. When it says **Tamagotchi ready**, the desktop pet is the new one.

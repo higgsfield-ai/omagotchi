@@ -35,14 +35,13 @@ Panel {
   readonly property var generateError: Model.classifyGenerateError(root.lastError)
   readonly property string generateLog: root.svc ? String(root.svc.generateLog || "") : ""
   readonly property bool canGenerate: root.loggedIn && root.hasPhoto && !root.generating && !root.loggingIn
-  readonly property bool hasPetSheet: root.svc ? !!root.svc.hasPetSheet : true
-  readonly property bool hasGeneratedPet: {
+  readonly property bool hasCustomAvatar: {
     if (!root.svc) return false
-    if (root.svc.hasGeneratedPet) return true
+    if (root.svc.hasCustomAvatar) return true
     var path = String(root.svc.lastResultPath || "")
     return path.charAt(0) === "/"
   }
-  readonly property bool showGenerate: !root.hasGeneratedPet || root.replaceAvatar || root.generating || root.loggingIn || root.lastError !== ""
+  readonly property bool showGenerate: root.replaceAvatar || root.generating || root.loggingIn || root.lastError !== ""
   readonly property real hunger: root.svc ? Number(root.svc.careHunger) : 0
   readonly property real hygiene: root.svc ? Number(root.svc.careHygiene) : 0
   readonly property real mood: root.svc ? Number(root.svc.careMood) : 0
@@ -70,8 +69,8 @@ Panel {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
   }
 
-  onHasGeneratedPetChanged: {
-    if (root.hasGeneratedPet && !root.generating) root.replaceAvatar = false
+  onHasCustomAvatarChanged: {
+    if (root.hasCustomAvatar && !root.generating) root.replaceAvatar = false
   }
 
   function open() {
@@ -214,9 +213,7 @@ Panel {
 
           Column {
             width: parent.width
-            visible: root.hasPetSheet
             spacing: Style.space(8)
-            height: visible ? implicitHeight : 0
 
             Rectangle {
               id: nest
@@ -366,8 +363,10 @@ Panel {
                 visible: (root.replaceAvatar && !root.hasPhoto && !root.generating)
                   || (!root.replaceAvatar && !root.generating && (nest.nestFade < 0.15 || !root.petDocked))
                 text: {
-                  if (root.replaceAvatar && !root.hasPhoto)
+                  if (root.replaceAvatar && !root.hasPhoto) {
+                    if (!root.loggedIn) return "Log in to Higgsfield to unlock photo capture"
                     return root.capturing ? "Smile…" : (root.picking ? "Opening picker…" : "Click to choose a photo, or Take photo")
+                  }
                   if (root.petRecalling) return "Coming home…"
                   return root.petReleasing ? "Heading out…" : "On the desktop"
                 }
@@ -568,176 +567,6 @@ Panel {
             }
 
 
-          }
-
-          Text {
-            width: parent.width
-            visible: root.showGenerate && !root.hasPetSheet
-            text: root.loggedIn
-              ? "Take a webcam photo or upload one, then generate. The new pet replaces the one on your desktop."
-              : "Log in to Higgsfield to unlock photo capture and Generate my avatar."
-            color: root.barForeground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
-            wrapMode: Text.WordWrap
-            opacity: 0.75
-          }
-
-          Rectangle {
-            width: parent.width
-            height: Style.space(132)
-            visible: root.showGenerate && !root.hasPetSheet
-            radius: Math.min(8, Style.cornerRadius)
-            opacity: root.loggedIn ? 1 : 0.45
-            color: Qt.rgba(0, 0, 0, 0.18)
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.1)
-            clip: true
-
-            Image {
-              anchors.fill: parent
-              anchors.margins: Style.space(6)
-              visible: root.loggedIn && root.hasPhoto
-              source: root.hasPhoto ? ("file://" + root.photoPath + "?r=" + root.photoRev) : ""
-              fillMode: Image.PreserveAspectFit
-              asynchronous: true
-              cache: false
-              opacity: root.generating ? 0.72 : 1
-              Behavior on opacity { NumberAnimation { duration: 240 } }
-            }
-
-            Rectangle {
-              visible: root.generating && root.hasPhoto
-              z: 1
-              width: parent.width
-              height: 10
-              color: Qt.rgba(1, 1, 1, 0.22)
-
-              SequentialAnimation on y {
-                running: root.generating && root.hasPhoto
-                loops: Animation.Infinite
-                NumberAnimation {
-                  from: -12
-                  to: Style.space(132)
-                  duration: 1600
-                  easing.type: Easing.InOutSine
-                }
-              }
-            }
-
-            Text {
-              anchors.centerIn: parent
-              visible: !root.hasPhoto || !root.loggedIn || root.capturing
-              width: parent.width - Style.space(16)
-              horizontalAlignment: Text.AlignHCenter
-              text: !root.loggedIn
-                ? "Photo capture unlocks after login"
-                : (root.capturing
-                  ? "Smile…"
-                  : (root.picking ? "Opening picker…" : "Click to choose a photo, or Take photo"))
-              color: root.barForeground
-              opacity: 0.55
-              wrapMode: Text.WordWrap
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
-            }
-
-            MouseArea {
-              anchors.fill: parent
-              z: 2
-              cursorShape: root.loggedIn ? Qt.PointingHandCursor : Qt.ArrowCursor
-              enabled: root.loggedIn && !root.generating && !root.capturing
-              onClicked: root.choosePhoto()
-            }
-          }
-
-          Text {
-            width: parent.width
-            visible: root.showGenerate && !root.hasPetSheet && root.loggedIn && root.hasPhoto
-            text: root.photoName
-            color: root.barForeground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
-            elide: Text.ElideMiddle
-            opacity: 0.7
-          }
-
-          ChipButton {
-            visible: root.showGenerate && !root.hasPetSheet && root.loggedIn && !root.generating && !root.loggingIn
-            outlined: false
-            text: root.capturing ? "Capturing…" : "Take photo"
-            tooltipText: "Capture a still from the webcam"
-            onChipPressed: function(buttonCode) {
-              if (buttonCode !== Qt.LeftButton) return
-              root.takePhoto()
-            }
-          }
-
-          ChipButton {
-            visible: root.showGenerate && !root.hasPetSheet
-            fill: root.limeColor
-            textColor: root.darkText
-            text: {
-              if (root.loggingIn) return "Waiting for browser…"
-              if (root.generating) return "Generating…"
-              if (root.lastError !== "") return "Retry"
-              return "Generate my avatar"
-            }
-            tooltipText: {
-              if (root.lastError !== "") return "Run the whole flow again from the base sprite"
-              if (!root.loggedIn) return "Opens the Higgsfield login browser"
-              return root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first"
-            }
-            onChipPressed: function(buttonCode) {
-              if (buttonCode !== Qt.LeftButton) return
-              if (root.generating) return
-              if (root.lastError !== "") {
-                if (root.svc && typeof root.svc.retryGenerate === "function") root.svc.retryGenerate()
-                else root.submitAvatar()
-                return
-              }
-              root.submitAvatar()
-            }
-          }
-
-          WidgetButton {
-            bar: root.bar
-            visible: root.generating && !root.hasPetSheet
-            text: "Cancel"
-            tooltipText: "Stop this generation"
-            onPressed: function(buttonCode) {
-              if (buttonCode !== Qt.LeftButton) return
-              if (root.svc && typeof root.svc.cancelGenerate === "function")
-                root.svc.cancelGenerate()
-            }
-          }
-
-          Column {
-            width: parent.width
-            visible: root.lastError !== "" && !root.generating && !root.hasPetSheet
-            spacing: Style.space(8)
-            height: visible ? implicitHeight : 0
-
-            Text {
-              width: parent.width
-              visible: root.generateError.message !== ""
-              text: root.generateError.message
-              color: root.errorColor
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
-              wrapMode: Text.WordWrap
-              opacity: 0.9
-            }
-
-            ChipButton {
-              visible: !!root.generateError.showUpgrade
-              text: "Upgrade plan"
-              tooltipText: "Open Higgsfield pricing"
-              onChipPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                Qt.openUrlExternally(root.generateError.pricingUrl)
-              }
-            }
           }
 
           GenerateProgress {

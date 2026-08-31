@@ -5,7 +5,7 @@
   "version": "0.53.0",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Desktop Tamagotchi. Bar chip builds an 8-bit sprite sheet from one photo via Higgsfield CLI.",
+  "description": "Desktop Tamagotchi. Ships with a default pet; the bar chip rebuilds him from one photo via Higgsfield CLI.",
   "keepLoaded": true,
   "kinds": ["overlay", "service", "bar-widget"],
   "entryPoints": {
