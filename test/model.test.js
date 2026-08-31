@@ -135,6 +135,10 @@ test("focusWindow maps activewindow into screen-local coords", () => {
   assert.equal(focus.y, 80)
   assert.equal(focus.w, 800)
   assert.equal(focus.h, 600)
+  const empty = Model.focusWindow(mons, "null")
+  assert.equal(empty.monitor, "HDMI-A-1")
+  assert.equal(empty.w, 0)
+  assert.equal(empty.h, 0)
 })
 
 test("clipWindowRect keeps the stage on the overlay screen", () => {
@@ -299,6 +303,9 @@ test("care stats decay smoothly and refill from feed, wash, and play", () => {
   assert.equal(Model.resolveMode({ lowMood: true, wander: "idle" }), "grumpy")
   assert.equal(Model.resolveMode({ eat: true, filthy: true, wander: "idle" }), "eat")
   assert.equal(Model.resolveMode({ happy: true, lowMood: true, wander: "idle" }), "happy")
+  const longAway = Model.decayCareStats(start, t0 + 48 * 3_600_000)
+  assert.ok(longAway.hunger > 20)
+  assert.ok(longAway.health > 50)
 })
 
 test("energy, health, attention, and desktop stats decay with the environment", () => {

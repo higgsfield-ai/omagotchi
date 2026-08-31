@@ -37,7 +37,7 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    mask: Region { item: pet }
+    mask: Region { item: pet.opacity > 0.08 ? pet : emptyMask }
     anchors { top: true; bottom: true; left: true; right: true }
 
     readonly property real winX: root.svc ? Number(root.svc.winX) : 0
@@ -59,7 +59,7 @@ Item {
       if (window.releasing && !window.falling) return "drag"
       if (window.collapsed) return "collapse"
       if (window.dragging) return "drag"
-      if (window.falling) return "sick"
+      if (window.falling) return "drag"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
@@ -293,6 +293,13 @@ Item {
         }
         window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
       }
+    }
+
+    Item {
+      id: emptyMask
+      width: 0
+      height: 0
+      visible: false
     }
 
     Item {

@@ -422,7 +422,8 @@ Item {
       night: Model.isNightHour(new Date(now)),
       mediaPlaying: false,
       sneakWindow: false,
-      active: false
+      active: false,
+      maxHours: 4
     })
     root.applyCareStats(s, false)
     root.petDocked = !!s.docked

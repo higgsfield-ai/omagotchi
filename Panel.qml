@@ -70,15 +70,25 @@ Panel {
     if (root.hasGeneratedPet && !root.generating) root.replaceAvatar = false
   }
 
+  function showPanel() {
+    if (root.controller && typeof root.controller.show === "function")
+      root.controller.show()
+  }
+
+  function hidePanel() {
+    if (root.controller && typeof root.controller.hide === "function")
+      root.controller.hide()
+  }
+
   function open() {
     root.openedFromHotkey = false
-    root.controller.show()
+    root.showPanel()
     if (root.svc && typeof root.svc.checkAuth === "function") root.svc.checkAuth()
   }
 
   function openFromHotkey() {
     root.openedFromHotkey = true
-    root.controller.show()
+    root.showPanel()
     Qt.callLater(function() {
       if (root.opened && root.bar && "centerHoverRevealSuppressed" in root.bar)
         root.bar.centerHoverRevealSuppressed = true
@@ -89,7 +99,7 @@ Panel {
   function close() {
     if (root.bar && "centerHoverRevealSuppressed" in root.bar)
       root.bar.centerHoverRevealSuppressed = false
-    root.controller.hide()
+    root.hidePanel()
   }
 
   function toggle() {

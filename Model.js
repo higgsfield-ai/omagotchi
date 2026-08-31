@@ -306,8 +306,10 @@ function decayCareStats(stats, nowMs, env) {
     s.updatedMs = now
     return s
   }
-  if (dtH > 48) dtH = 48
   var e = env || {}
+  var cap = Number(e.maxHours)
+  if (!isFinite(cap) || cap <= 0) cap = 6
+  if (dtH > cap) dtH = cap
   var sleeping = !!e.sleeping
   var night = !!e.night
   var playing = !!e.mediaPlaying
@@ -828,7 +830,9 @@ function focusWindow(monitorsRaw, windowRaw) {
       h: Number(win.size[1])
     }
   }
-  return { monitor: name, x: 0, y: 0, w: mw, h: mh }
+  // No focused client — stay hidden. Using the whole monitor would put a
+  // Top layer over the bar and eat HF clicks.
+  return { monitor: name, x: 0, y: 0, w: 0, h: 0 }
 }
 
 function danceFps(peak, stats) {
