@@ -82,6 +82,11 @@ Item {
   property bool loggingIn: false
   property bool runtimeReady: false
   property string hfPath: ""
+  onHfPathChanged: {
+    if (!root.hfPath) return
+    root.refreshCredits()
+    if (root.mediaPrice < 0) root.refreshMediaPrice()
+  }
   property bool pendingLogin: false
   // The user replaced the bundled sheet with their own generated one.
   property bool hasCustomAvatar: false
@@ -693,15 +698,18 @@ Item {
   function generateMedia(prompt, ref) {
     if (root.mediaBusy) return "busy"
     if (!root.loggedIn) {
+      root.mediaError = "Log in in the browser window that just opened, then press Generate again."
       root.login()
       return "login"
     }
+    if (root.mediaPrice < 0) root.refreshMediaPrice()
     var p = String(prompt || "").trim()
     var r = String(ref || "").trim()
     if (!p && !r) {
       root.mediaError = "Add a prompt or a reference image"
       return "empty"
     }
+    root.mediaError = ""
     root.mediaBusy = true
     root.mediaError = ""
     root.mediaStatus = "Submitting…"
