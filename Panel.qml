@@ -350,24 +350,18 @@ Panel {
               width: parent.width
               label: "Hunger"
               value: root.hunger
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Hygiene"
               value: root.hygiene
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Mood"
               value: root.mood
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             WidgetButton {
@@ -413,64 +407,48 @@ Panel {
               width: parent.width
               label: "Energy"
               value: root.energy
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Health"
               value: root.health
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Attention"
               value: root.attention
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Excitement"
               value: root.excitement
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Focus"
               value: root.focus
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Music"
               value: root.music
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Bond"
               value: root.bond
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             CareStatRow {
               width: parent.width
               label: "Weight"
               value: root.weight
-              foreground: root.barForeground
-              fontFamily: root.fontFamily
             }
 
             Text {
@@ -670,6 +648,53 @@ Panel {
             statusText: root.statusText
           }
         }
+      }
+    }
+  }
+
+  component CareStatRow: Column {
+    id: stat
+    property string label: ""
+    property real value: 0
+    spacing: Style.space(3)
+
+    Item {
+      width: parent.width
+      height: nameLabel.implicitHeight
+
+      Text {
+        id: nameLabel
+        anchors.left: parent.left
+        text: stat.label
+        color: root.barForeground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.subtitle
+        opacity: 0.8
+      }
+
+      Text {
+        anchors.right: parent.right
+        text: Math.round(Math.max(0, Math.min(100, stat.value))) + "%"
+        color: root.barForeground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.subtitle
+        opacity: 0.7
+      }
+    }
+
+    Rectangle {
+      width: parent.width
+      height: 8
+      radius: 4
+      color: Qt.rgba(1, 1, 1, 0.12)
+
+      Rectangle {
+        width: Math.max(0, Math.min(1, stat.value / 100)) * parent.width
+        height: parent.height
+        radius: parent.radius
+        color: root.barForeground
+        opacity: 0.85
+        Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
       }
     }
   }

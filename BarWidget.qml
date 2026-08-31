@@ -29,26 +29,18 @@ BarWidget {
   }
 
   function open() {
-    if (panelLoader.item && typeof panelLoader.item.open === "function")
+    if (panelLoader.item && panelLoader.item.openFromHotkey)
+      panelLoader.item.openFromHotkey()
+    else if (panelLoader.item)
       panelLoader.item.open()
   }
 
   function close() {
-    if (panelLoader.item && typeof panelLoader.item.close === "function")
-      panelLoader.item.close()
-  }
-
-  function togglePanel() {
-    if (panelLoader.status === Loader.Error) {
-      console.warn("higgsfield.signals: Panel.qml failed", panelLoader.errorString)
-      return
-    }
-    if (panelLoader.item && typeof panelLoader.item.toggle === "function")
-      panelLoader.item.toggle()
+    if (panelLoader.item) panelLoader.item.close()
   }
 
   function toggle() {
-    root.togglePanel()
+    if (panelLoader.item) panelLoader.item.toggle()
   }
 
   function closeForPopoutSwitch() {
@@ -70,9 +62,23 @@ BarWidget {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
     }
-    onStatusChanged: {
-      if (status === Loader.Error)
-        console.warn("higgsfield.signals: Panel.qml failed to load", source, errorString)
+  }
+
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: {
+      if (!root.generating) return "HF"
+      var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
+      return p > 0 ? (p + "%") : "…"
+    }
+    tooltipText: root.generating
+      ? (root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…")
+      : "Generate my avatar"
+
+    onPressed: function(buttonCode) {
+      if (buttonCode === Qt.LeftButton) root.toggle()
     }
   }
 
@@ -83,7 +89,7 @@ BarWidget {
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     height: 3
-    z: 0
+    z: 3
     color: Qt.rgba(1, 1, 1, 0.14)
     clip: true
 
@@ -110,25 +116,6 @@ BarWidget {
         }
         onStopped: chipFill.x = 0
       }
-    }
-  }
-
-  WidgetButton {
-    id: button
-    anchors.fill: parent
-    z: 1
-    bar: root.bar
-    text: {
-      if (!root.generating) return "HF"
-      var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
-      return p > 0 ? (p + "%") : "…"
-    }
-    tooltipText: root.generating
-      ? (root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…")
-      : "Generate my avatar"
-
-    onPressed: function(buttonCode) {
-      if (buttonCode === Qt.LeftButton) root.togglePanel()
     }
   }
 }

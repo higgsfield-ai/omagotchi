@@ -27,42 +27,29 @@ Item {
     required property var modelData
 
     screen: modelData
-    visible: root.svc && root.svc.petOnDesktop && window.stageRect.w > 16 && window.stageRect.h > 16 && (
-      !!root.svc.focusedMonitor && modelData && modelData.name === root.svc.focusedMonitor
+    visible: root.svc && root.svc.petOnDesktop && window.winW > 16 && window.winH > 16 && (
+      !root.svc.focusedMonitor
+      || root.svc.focusedMonitor === ""
+      || (modelData && modelData.name === root.svc.focusedMonitor)
     )
     color: "transparent"
     WlrLayershell.namespace: "higgsfield-signals-pet"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    anchors.left: true
-    anchors.top: true
-    margins.left: Math.round(window.stageRect.x)
-    margins.top: Math.round(window.stageRect.y)
-    implicitWidth: Math.max(1, Math.round(window.stageRect.w))
-    implicitHeight: Math.max(1, Math.round(window.stageRect.h))
-    mask: Region { item: hitbox }
+    mask: Region { item: pet }
+    anchors { top: true; bottom: true; left: true; right: true }
 
-    readonly property var omarchyBar: root.shell && root.shell.bar ? root.shell.bar : null
-    readonly property string barEdge: window.omarchyBar && window.omarchyBar.position
-      ? String(window.omarchyBar.position)
-      : "top"
-    readonly property real barReserve: {
-      var n = window.omarchyBar ? Number(window.omarchyBar.barSize) : 32
-      return isFinite(n) && n > 24 ? n + 6 : 32
-    }
-    readonly property real screenW: modelData ? Number(modelData.width) : 0
-    readonly property real screenH: modelData ? Number(modelData.height) : 0
     readonly property real winX: root.svc ? Number(root.svc.winX) : 0
     readonly property real winY: root.svc ? Number(root.svc.winY) : 0
     readonly property real winW: root.svc ? Number(root.svc.winW) : 0
     readonly property real winH: root.svc ? Number(root.svc.winH) : 0
-    readonly property var stageRect: Model.clipAwayFromBar({
+    readonly property var stageRect: Model.clipWindowRect({
       x: window.winX,
       y: window.winY,
       w: window.winW,
       h: window.winH
-    }, window.barEdge, window.barReserve, window.screenW, window.screenH)
+    }, window.width, window.height)
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
     readonly property bool recalling: root.svc ? !!root.svc.petRecalling : false
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
@@ -72,7 +59,7 @@ Item {
       if (window.releasing && !window.falling) return "drag"
       if (window.collapsed) return "collapse"
       if (window.dragging) return "drag"
-      if (window.falling) return "drag"
+      if (window.falling) return "sick"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
@@ -309,16 +296,11 @@ Item {
     }
 
     Item {
-      id: hitbox
-      x: pet.x
-      y: pet.y
-      width: pet.opacity > 0.08 ? pet.width : 0
-      height: pet.opacity > 0.08 ? pet.height : 0
-    }
-
-    Item {
       id: stage
-      anchors.fill: parent
+      x: Math.round(window.stageRect.x)
+      y: Math.round(window.stageRect.y)
+      width: Math.round(window.stageRect.w)
+      height: Math.round(window.stageRect.h)
       clip: true
       visible: width > 8 && height > 8
 

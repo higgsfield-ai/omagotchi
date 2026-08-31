@@ -306,10 +306,8 @@ function decayCareStats(stats, nowMs, env) {
     s.updatedMs = now
     return s
   }
+  if (dtH > 48) dtH = 48
   var e = env || {}
-  var cap = Number(e.maxHours)
-  if (!isFinite(cap) || cap <= 0) cap = 6
-  if (dtH > cap) dtH = cap
   var sleeping = !!e.sleeping
   var night = !!e.night
   var playing = !!e.mediaPlaying
@@ -527,7 +525,7 @@ function resolveMode(opts) {
   var danceAt = Number(o.dancePeak)
   if (!isFinite(danceAt) || danceAt < 0) danceAt = 0
   if (o.dragging) return "drag"
-  if (o.falling) return "drag"
+  if (o.falling) return "sick"
   if (o.trip) return "trip"
   if (o.sick) return "sick"
   if (o.grumpy) return "grumpy"
@@ -535,6 +533,7 @@ function resolveMode(opts) {
   if (o.happy) return "happy"
   if (o.wash) return "wash"
   if (o.eat) return "eat"
+  if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
   var wander = String(o.wander || "idle")
@@ -772,35 +771,6 @@ function clipWindowRect(win, screenW, screenH) {
   }
 }
 
-function clipAwayFromBar(rect, edge, reserve, screenW, screenH) {
-  var r = clipWindowRect(rect, screenW, screenH)
-  var pad = Number(reserve)
-  var sw = Number(screenW)
-  var sh = Number(screenH)
-  if (!isFinite(pad) || pad < 24) pad = 32
-  if (!isFinite(sw) || sw < 0) sw = 0
-  if (!isFinite(sh) || sh < 0) sh = 0
-  var e = String(edge || "top")
-  if (e === "bottom") {
-    r.h = Math.max(0, Math.min(r.h, sh - pad - r.y))
-    return r
-  }
-  if (e === "left") {
-    var x1 = Math.max(r.x, pad)
-    r.w = Math.max(0, r.x + r.w - x1)
-    r.x = x1
-    return r
-  }
-  if (e === "right") {
-    r.w = Math.max(0, Math.min(r.w, sw - pad - r.x))
-    return r
-  }
-  var y1 = Math.max(r.y, pad)
-  r.h = Math.max(0, r.y + r.h - y1)
-  r.y = y1
-  return r
-}
-
 function reviveCareStats(stats, nowMs) {
   var s = normalizeCareStats(stats, nowMs)
   if (s.health < 40) s.health = 72
@@ -868,9 +838,7 @@ function focusWindow(monitorsRaw, windowRaw) {
       h: Number(win.size[1])
     }
   }
-  // No focused client — stay hidden. Using the whole monitor would put a
-  // Top layer over the bar and eat HF clicks.
-  return { monitor: name, x: 0, y: 0, w: 0, h: 0 }
+  return { monitor: name, x: 0, y: 0, w: mw, h: mh }
 }
 
 function danceFps(peak, stats) {
@@ -1122,6 +1090,7 @@ if (typeof module !== "undefined") {
     normalizeCareStats: normalizeCareStats,
     careDecayRates: careDecayRates,
     decayCareStats: decayCareStats,
+    reviveCareStats: reviveCareStats,
     applyCareAction: applyCareAction,
     careFlags: careFlags,
     sleepAfterMsFor: sleepAfterMsFor,
@@ -1145,8 +1114,6 @@ if (typeof module !== "undefined") {
     clampPetX: clampPetX,
     petBottomY: petBottomY,
     clipWindowRect: clipWindowRect,
-    clipAwayFromBar: clipAwayFromBar,
-    reviveCareStats: reviveCareStats,
     focusWindow: focusWindow,
     trimPrompt: trimPrompt,
     parseGenerateResult: parseGenerateResult,
