@@ -402,3 +402,20 @@ test("desktop dock hides the overlay pet except during recall and release", () =
   assert.ok(Model.levitateDurationMs(400) > Model.levitateDurationMs(40))
   assert.ok(Model.levitateDurationMs(0) >= 520)
 })
+
+test("corrupted saved timestamps heal instead of reading as maximum decay", () => {
+  // Epoch ms folded through int32 wrap-around: decades in the past.
+  const now = 1_788_000_000_000
+  const wrapped = 870_000_000
+  const s = Model.normalizeCareStats({ hunger: 82, bornMs: wrapped, updatedMs: wrapped }, now)
+  assert.equal(s.updatedMs, now)
+  assert.equal(s.bornMs, now)
+  const decayed = Model.decayCareStats({ hunger: 82, updatedMs: wrapped }, now, {})
+  assert.equal(decayed.hunger, 82)
+  // A future timestamp is equally invalid.
+  const future = Model.decayCareStats({ hunger: 82, updatedMs: now + 3_600_000 }, now, {})
+  assert.equal(future.hunger, 82)
+  // A legitimate overnight gap still decays, capped at 48h.
+  const overnight = Model.decayCareStats({ hunger: 82, updatedMs: now - 8 * 3_600_000 }, now, {})
+  assert.equal(overnight.hunger, 82 - 8.5 * 8)
+})

@@ -244,12 +244,25 @@ function defaultCareStats(nowMs) {
   }
 }
 
+// A saved timestamp more than ~400 days behind now, or ahead of it, is
+// corruption rather than history — int32 wrap-around used to fold saved
+// epochs back to the 1970s, and one such value reads as maximum decay on
+// every tick. Fall back instead of decaying against it.
+function saneEpochMs(value, nowMs, fallback) {
+  var n = Number(value)
+  var now = Number(nowMs)
+  if (!isFinite(n) || n <= 0) return fallback
+  if (n > now + 60000) return fallback
+  if (now - n > 34560000000) return fallback
+  return n
+}
+
 function normalizeCareStats(raw, nowMs) {
   var d = defaultCareStats(nowMs)
   if (!raw || typeof raw !== "object") return d
-  var born = Number(raw.bornMs)
-  if (!isFinite(born) || born <= 0) {
-    born = Number(raw.updatedMs) > 0 ? Number(raw.updatedMs) : d.bornMs
+  var born = saneEpochMs(raw.bornMs, nowMs, 0)
+  if (born <= 0) {
+    born = saneEpochMs(raw.updatedMs, nowMs, d.bornMs)
   }
   return {
     hunger: clampStat(raw.hunger != null ? raw.hunger : d.hunger),
@@ -264,7 +277,7 @@ function normalizeCareStats(raw, nowMs) {
     bond: clampStat(raw.bond != null ? raw.bond : d.bond),
     weight: clampStat(raw.weight != null ? raw.weight : d.weight),
     bornMs: born,
-    updatedMs: Number(raw.updatedMs) > 0 ? Number(raw.updatedMs) : d.updatedMs,
+    updatedMs: saneEpochMs(raw.updatedMs, nowMs, d.updatedMs),
     docked: !!(raw.docked)
   }
 }

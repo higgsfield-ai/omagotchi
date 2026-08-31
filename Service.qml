@@ -17,19 +17,19 @@ Item {
   property real winW: 0
   property real winH: 0
   property bool collapsed: false
-  property int nowMs: 0
+  property real nowMs: 0
   property string wander: "idle"
-  property int greetUntil: 0
-  property int grumpyUntil: 0
-  property int sickUntil: 0
-  property int happyUntil: 0
-  property int eatUntil: 0
-  property int washUntil: 0
-  property int lastClickMs: 0
+  property real greetUntil: 0
+  property real grumpyUntil: 0
+  property real sickUntil: 0
+  property real happyUntil: 0
+  property real eatUntil: 0
+  property real washUntil: 0
+  property real lastClickMs: 0
   property int clickBurst: 0
-  property int lastActiveMs: 0
-  property int lastEatMs: 0
-  property int lastWashMs: 0
+  property real lastActiveMs: 0
+  property real lastEatMs: 0
+  property real lastWashMs: 0
   property real careHunger: 82
   property real careHygiene: 82
   property real careMood: 82
@@ -41,9 +41,9 @@ Item {
   property real careMusic: 16
   property real careBond: 8
   property real careWeight: 50
-  property int careBornMs: 0
-  property int careUpdatedMs: 0
-  property int lastDragCareMs: 0
+  property real careBornMs: 0
+  property real careUpdatedMs: 0
+  property real lastDragCareMs: 0
   property bool tripActive: false
   property bool pendingWash: false
   property string lastTrackKey: ""
