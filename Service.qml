@@ -47,6 +47,9 @@ Item {
   property string lastTrackKey: ""
   property real audioPeak: 0
   property bool careDirty: false
+  // Nothing is written until the saved stats are back from disk: the read is a
+  // process, and a save landing first would bury them under a newborn default.
+  property bool careLoaded: false
   property int careSaveTicks: 0
   property bool generating: false
   property string generateStatus: ""
@@ -404,6 +407,7 @@ Item {
   }
 
   function saveCare() {
+    if (!root.careLoaded) return
     if (!root.careDirty) return
     root.careDirty = false
     var payload = JSON.stringify(root.careSnapshot())
@@ -443,6 +447,7 @@ Item {
     root.stunUntil = 0
     root.pendingWash = false
     root.careDirty = false
+    root.careLoaded = true
   }
 
   function celebrate(ms) {
