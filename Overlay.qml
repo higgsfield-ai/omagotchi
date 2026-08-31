@@ -435,6 +435,57 @@ Item {
           }
         }
       }
+
+      // z Z z drifting up over the sleeper. Drawn by the shell, not baked
+      // into the sheet, so it works with every atlas and stays keyable.
+      Item {
+        id: sleepZs
+        visible: window.mode === "sleep" && pet.opacity > 0.5
+        x: Math.round(window.petX + window.frames.displayWidth * 0.55)
+        y: Math.round(window.petY - window.bounce)
+        width: Math.round(window.frames.displayWidth * 0.5)
+        height: window.frames.displayHeight
+
+        Repeater {
+          model: 3
+
+          Text {
+            id: zed
+            required property int index
+            text: index === 1 ? "Z" : "z"
+            x: index * 8
+            y: sleepZs.height * 0.5
+            font.family: "monospace"
+            font.bold: true
+            font.pixelSize: 10 + index * 3
+            color: "#ffffff"
+            style: Text.Outline
+            styleColor: "#1a1a1a"
+            opacity: 0
+
+            SequentialAnimation {
+              running: sleepZs.visible
+              loops: Animation.Infinite
+              PauseAnimation { duration: zed.index * 700 }
+              ParallelAnimation {
+                NumberAnimation {
+                  target: zed
+                  property: "y"
+                  from: sleepZs.height * 0.5
+                  to: -10
+                  duration: 2100
+                  easing.type: Easing.OutQuad
+                }
+                SequentialAnimation {
+                  NumberAnimation { target: zed; property: "opacity"; from: 0; to: 0.9; duration: 500 }
+                  NumberAnimation { target: zed; property: "opacity"; from: 0.9; to: 0; duration: 1600 }
+                }
+              }
+              PauseAnimation { duration: (2 - zed.index) * 700 }
+            }
+          }
+        }
+      }
     }
   }
 
