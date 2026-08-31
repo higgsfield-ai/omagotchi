@@ -71,6 +71,12 @@ Panel {
   readonly property string lastMedia: root.svc ? String(root.svc.lastMediaPath || "") : ""
   readonly property int lastMediaRev: root.svc ? Number(root.svc.lastMediaRev || 0) : 0
   readonly property int credits: root.svc ? Number(root.svc.credits) : -1
+  readonly property string mediaKind: root.svc && root.svc.mediaKind ? String(root.svc.mediaKind) : "image"
+  readonly property int mediaPrice: root.svc && root.svc.mediaPrice !== undefined ? Number(root.svc.mediaPrice) : -1
+  readonly property string lastMediaThumb: root.svc ? String(root.svc.lastMediaThumb || root.svc.lastMediaPath || "") : ""
+  // Set when the running service predates the panel: keepLoaded services
+  // survive plugin hot reloads, so new functions need a shell restart.
+  property bool staleService: false
 
   onGeneratingChanged: {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
@@ -590,13 +596,45 @@ Panel {
             statusText: root.statusText
           }
 
-          Text {
+          Item {
             width: parent.width
-            text: "Generate media"
-            color: root.barForeground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
+            height: mediaKindRow.implicitHeight
+
+            Text {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Generate media"
+              color: root.barForeground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
+
+            Row {
+              id: mediaKindRow
+              anchors.right: parent.right
+              spacing: Style.space(6)
+
+              Repeater {
+                model: [
+                  { label: "Image", value: "image" },
+                  { label: "Video", value: "video" }
+                ]
+
+                ChipButton {
+                  required property var modelData
+                  text: modelData.label
+                  selected: root.mediaKind === modelData.value
+                  onChipPressed: function(buttonCode) {
+                    if (buttonCode !== Qt.LeftButton) return
+                    if (root.svc && typeof root.svc.setMediaKind === "function")
+                      root.svc.setMediaKind(modelData.value)
+                    else
+                      root.staleService = true
+                  }
+                }
+              }
+            }
           }
 
           TextField {
@@ -641,16 +679,21 @@ Panel {
               textColor: root.darkText
               text: {
                 if (root.mediaBusy) return "Generating…"
-                return root.credits >= 0 ? ("Generate · " + root.credits) : "Generate"
+                return root.mediaPrice >= 0 ? ("Generate · " + root.mediaPrice) : "Generate"
               }
-              tooltipText: root.credits >= 0
-                ? (root.credits + " credits on the account")
-                : "Generate an image with Higgsfield"
+              tooltipText: {
+                var parts = []
+                if (root.mediaPrice >= 0) parts.push("Costs " + root.mediaPrice + " credits")
+                if (root.credits >= 0) parts.push(root.credits + " credits on the account")
+                return parts.length ? parts.join(" · ") : ("Generate " + root.mediaKind + " with Higgsfield")
+              }
               onChipPressed: function(buttonCode) {
                 if (buttonCode !== Qt.LeftButton) return
                 if (root.mediaBusy) return
                 if (root.svc && typeof root.svc.generateMedia === "function")
                   root.svc.generateMedia(promptField.text, root.mediaRef)
+                else
+                  root.staleService = true
               }
             }
 
@@ -677,6 +720,16 @@ Panel {
 
           Text {
             width: parent.width
+            visible: root.staleService
+            text: "Plugin updated under a running shell — run omarchy-restart-shell to finish."
+            color: root.errorColor
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            width: parent.width
             visible: root.mediaError !== ""
             text: root.mediaError
             color: root.errorColor
@@ -698,8 +751,8 @@ Panel {
             Image {
               anchors.fill: parent
               anchors.margins: Style.space(6)
-              source: root.lastMedia !== ""
-                ? ("file://" + root.lastMedia + "?r=" + root.lastMediaRev)
+              source: root.lastMediaThumb !== ""
+                ? ("file://" + root.lastMediaThumb + "?r=" + root.lastMediaRev)
                 : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true

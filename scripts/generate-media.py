@@ -41,6 +41,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", default="")
     parser.add_argument("--image", default="")
+    parser.add_argument("--kind", default="image", choices=["image", "video"])
     parser.add_argument("--out", required=True)
     parser.add_argument("--plugin-root", required=True)
     args = parser.parse_args()
@@ -75,30 +76,48 @@ def main() -> None:
     if ws_proc.returncode != 0 or not ws or not ws.get("ok"):
         fail(str((ws or {}).get("error") or ws_proc.stderr or "No Higgsfield workspace selected")[-400:])
 
-    create_args = [
-        "--prompt", prompt or "a high quality, detailed image based on the reference",
-        "--aspect_ratio", "1:1",
-        "--resolution", "1k",
-    ]
+    video = args.kind == "video"
+    model = "seedance_2_0_mini" if video else "nano_banana_2"
+    create_args = ["--prompt", prompt or "a high quality, detailed rendition of the reference"]
+    if video:
+        create_args += ["--aspect_ratio", "16:9", "--resolution", "720p",
+                        "--duration", "4", "--generate_audio", "false"]
+    else:
+        create_args += ["--aspect_ratio", "1:1", "--resolution", "1k"]
     if ref:
         create_args += ["--image", ref]
 
     status("Submitting…")
     try:
-        job_id = gs.start_job(hf, "nano_banana_2", create_args, log)
+        job_id = gs.start_job(hf, model, create_args, log)
         status("Generating…")
-        job = gs.wait_job(hf, job_id, log, timeout_s=gs.IMAGE_WAIT_S)
-        dest = media_dir / f"media_{time.strftime('%Y%m%d_%H%M%S')}.png"
+        wait_s = gs.CLIP_WAIT_S if video else gs.IMAGE_WAIT_S
+        job = gs.wait_job(hf, job_id, log, timeout_s=wait_s)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        dest = media_dir / (f"media_{stamp}.mp4" if video else f"media_{stamp}.png")
         gs.download(job["url"], dest)
+        thumb = dest
+        if video:
+            thumb = media_dir / f"media_{stamp}.png"
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-i", str(dest),
+                 "-frames:v", "1", str(thumb)],
+                capture_output=True, text=True, timeout=60,
+            )
+            if proc.returncode != 0 or not thumb.is_file():
+                thumb = dest
     except Exception as exc:  # noqa: BLE001 - surfaced verbatim to the panel
         fail(str(exc))
         return
 
     (media_dir / "last.json").write_text(json.dumps({
         "path": str(dest),
+        "thumb": str(thumb),
+        "kind": args.kind,
         "url": str(job.get("url") or ""),
     }, indent=2) + "\n")
-    print(json.dumps({"ok": True, "path": str(dest), "url": str(job.get("url") or "")}), flush=True)
+    print(json.dumps({"ok": True, "path": str(dest), "thumb": str(thumb),
+                      "kind": args.kind, "url": str(job.get("url") or "")}), flush=True)
 
 
 if __name__ == "__main__":

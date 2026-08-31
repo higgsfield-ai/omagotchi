@@ -48,7 +48,10 @@ Item {
   property string mediaError: ""
   property string mediaRefPath: ""
   property string lastMediaPath: ""
+  property string lastMediaThumb: ""
   property int lastMediaRev: 0
+  property string mediaKind: "image"
+  property int mediaPrice: -1
   property bool mediaPicking: false
   property int credits: -1
   property bool pendingWash: false
@@ -287,6 +290,7 @@ Item {
 
   function checkAuth() {
     root.refreshCredits()
+    if (root.mediaPrice < 0) root.refreshMediaPrice()
     authProc.command = ["python3", "-u", root.filePath("scripts/runtime.py"), "auth-status", "--out", root.dataDir()]
     authProc.running = false
     authProc.running = true
@@ -696,7 +700,7 @@ Item {
     root.mediaStatus = "Submitting…"
     var cmd = ["python3", "-u", root.filePath("scripts/generate-media.py"),
                "--out", root.dataDir(), "--plugin-root", root.pluginRoot(),
-               "--prompt", p]
+               "--kind", root.mediaKind, "--prompt", p]
     if (r) cmd = cmd.concat(["--image", r])
     mediaProc.command = cmd
     mediaProc.running = false
@@ -725,6 +729,7 @@ Item {
       root.mediaBusy = false
       root.mediaStatus = ""
       root.lastMediaPath = String(parsed.path)
+      root.lastMediaThumb = String(parsed.thumb || parsed.path)
       root.lastMediaRev += 1
       root.refreshCredits()
       return
@@ -755,6 +760,35 @@ Item {
     creditsProc.command = [root.hfPath, "account", "status", "--json"]
     creditsProc.running = false
     creditsProc.running = true
+  }
+
+  function setMediaKind(kind) {
+    var next = String(kind || "").toLowerCase()
+    if (next !== "image" && next !== "video") return "unknown"
+    if (root.mediaKind !== next) {
+      root.mediaKind = next
+      root.mediaPrice = -1
+      root.refreshMediaPrice()
+    }
+    return next
+  }
+
+  // Ask the CLI what the selected generation would cost, without creating
+  // a job. The placeholder prompt only shapes the estimate request.
+  function refreshMediaPrice() {
+    if (!root.hfPath) return
+    var cmd = [root.hfPath, "generate", "cost"]
+    if (root.mediaKind === "video")
+      cmd = cmd.concat(["seedance_2_0_mini", "--prompt", "estimate",
+                        "--aspect_ratio", "16:9", "--resolution", "720p",
+                        "--duration", "4", "--generate_audio", "false"])
+    else
+      cmd = cmd.concat(["nano_banana_2", "--prompt", "estimate",
+                        "--aspect_ratio", "1:1", "--resolution", "1k"])
+    cmd.push("--json")
+    priceProc.command = cmd
+    priceProc.running = false
+    priceProc.running = true
   }
 
   function cancelGenerate() {
@@ -1055,6 +1089,17 @@ Item {
   }
 
   Process {
+    id: priceProc
+    stdout: StdioCollector {
+      id: priceOut
+    }
+    onExited: function() {
+      var found = Model.costFromBlob(priceOut.text)
+      if (found >= 0) root.mediaPrice = found
+    }
+  }
+
+  Process {
     id: creditsProc
     stdout: StdioCollector {
       id: creditsOut
@@ -1108,8 +1153,10 @@ Item {
     root.loadAtlas()
     root.loadCare()
     var lastMedia = root.readJsonFile("file://" + root.dataDir() + "/media/last.json")
-    if (lastMedia && String(lastMedia.path || "").charAt(0) === "/")
+    if (lastMedia && String(lastMedia.path || "").charAt(0) === "/") {
       root.lastMediaPath = String(lastMedia.path)
+      root.lastMediaThumb = String(lastMedia.thumb || lastMedia.path)
+    }
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
     keysProc.running = true
@@ -1137,6 +1184,7 @@ Item {
     function setActivity(mode: string): string { return root.setActivity(mode) }
     function cancel(): string { return root.cancelGenerate() }
     function generateMedia(prompt: string): string { return root.generateMedia(prompt, root.mediaRefPath) }
+    function setMediaKind(kind: string): string { return root.setMediaKind(kind) }
     function cancelMedia(): string { return root.cancelMedia() }
   }
 }
