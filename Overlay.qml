@@ -64,10 +64,11 @@ Item {
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
     readonly property bool airborne: window.dragging || window.falling || window.recalling || window.releasing
     readonly property string mode: {
-      // Any time he is off the ground — held, dragged, lifted, dropped — he
-      // flails arms and legs. The faceplant/woozy faint is landing-only and
-      // comes from the service (trip/sick) after onLanded.
-      if (window.airborne) return "fall"
+      // Held or carried he hangs from the grabbed hand (drag row); in free
+      // fall he flails (fall row). The faceplant/woozy faint is landing-only
+      // and comes from the service (trip/sick) after onLanded.
+      if (window.falling) return "fall"
+      if (window.airborne) return "drag"
       if (window.collapsed) return "collapse"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
@@ -280,7 +281,8 @@ Item {
         if (window.mode === "happy") return 110
         if (window.mode === "eat" || window.mode === "wash") return 140
         if (window.mode === "fall") return 90
-        if (window.mode === "drag" || window.mode === "collapse" || window.mode === "sleep") return 240
+        if (window.mode === "drag") return 180
+        if (window.mode === "collapse" || window.mode === "sleep") return 240
         if (window.mode === "look" || window.mode === "greet") return 140
         if (window.mode === "grumpy" || window.mode === "sick") return 160
         return 180

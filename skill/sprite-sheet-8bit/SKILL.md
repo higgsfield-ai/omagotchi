@@ -153,7 +153,7 @@ Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
 | 0 | 16 | WALK: side-view walk/run cycle facing right, full gait, arms and legs clear, upright then slight forward lean as speed builds | loop |
 | 1 | 8+8 | IDLE: subtle idle bob/breath facing 3/4 right · LOOK-AROUND: gentle head/torso turns (right, camera, left, back to right) while standing | loop each |
 | 2 | 8+8 | SLEEP: lying on side or curled, eyes closed, tiny breathing · COLLAPSE/LIE: flat on stomach/back "minimized" pose, awake or half-awake, readable silhouette | loop each |
-| 3 | 8+8 | DRAG/CARRIED: tucked knees mid-air hold/jump pose variations · GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello | loop each |
+| 3 | 8+8 | DRAG/HANG: held up by one hand — one arm fixed straight overhead as if gripped from above, body hanging below it, legs dangling with a light pendulum sway, the held arm never moves · GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello | loop each |
 | 4 | 16 | DANCE/CHEER: music celebration facing camera/3-4, arms up, stepping in place, joyful cycle | loop |
 | 5 | 16 | DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak | loop |
 | 6 | 16 | SNEAK: deep crouch walk facing right, torso low, careful steps | loop |
