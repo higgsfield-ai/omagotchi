@@ -30,7 +30,7 @@ exist only inside their row's frames; no standalone prop assets.
 The character is ALWAYS 8-bit pixel art. Fixed style string — verbatim in EVERY
 image AND video prompt of this skill:
 
-`8-bit pixel art with small, even pixels (pixel size only — never zoom, never crop), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, flat colors, 1px dark outline, clean readable silhouette`
+`8-bit pixel art on a fine, even pixel grid — the figure is drawn at high pixel density, about 64 pixels of detail from head to feet (density only: NEVER zoom, NEVER crop, NEVER enlarge the character), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
 
 ## Prerequisites
 
@@ -81,7 +81,9 @@ media in every request, style string verbatim, same key-color background.
 
 CHARACTER LOCK — HARD RULE, include verbatim in EVERY start-frame AND clip
 prompt (ONE compact block; stacking more overlapping rule blocks dilutes them
-all and the model starts dropping details or shrinking the character):
+all and the model starts dropping details or shrinking the character). The
+style string's concrete density anchor (~64 pixels head to feet) is
+load-bearing for quality — never soften it to vague wording:
 `CHARACTER LOCK: exactly the same character as the reference — same face,
 hair, skin tone, the same outfit in the same colors down to the shoes; nothing
 added, removed or recolored. Same size and proportions as the reference: same

@@ -22,11 +22,17 @@ from pathlib import Path
 LOG_LOCK = threading.Lock()
 PROGRESS_LOCK = threading.Lock()
 
+# The concrete density anchor ("~64 pixels head to feet") is what separates
+# a finely drawn sprite from giant duplo blocks — every time it eroded from
+# this string, base quality dropped. The zoom/bust side effects it used to
+# cause are handled by the numeric guards now, not by softening the anchor.
 STYLE = (
-    "8-bit pixel art with small, even pixels (pixel size only — never zoom, "
-    "never crop), limited NES-era palette (max ~24 colors), hard pixel edges, "
-    "no anti-aliasing, no gradients, flat colors, 1px dark outline, clean "
-    "readable silhouette"
+    "8-bit pixel art on a fine, even pixel grid — the figure is drawn at "
+    "high pixel density, about 64 pixels of detail from head to feet "
+    "(density only: NEVER zoom, NEVER crop, NEVER enlarge the character), "
+    "limited NES-era palette (max ~24 colors), hard pixel edges, "
+    "no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, "
+    "clean readable silhouette"
 )
 
 FRAMING_LOCK = (
