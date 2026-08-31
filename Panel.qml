@@ -64,6 +64,13 @@ Panel {
   // dark text color on filled buttons.
   readonly property color limeColor: "#d1fe17"
   readonly property color darkText: Color.popups.background
+  readonly property bool mediaBusy: root.svc ? !!root.svc.mediaBusy : false
+  readonly property string mediaStatus: root.svc ? String(root.svc.mediaStatus || "") : ""
+  readonly property string mediaError: root.svc ? String(root.svc.mediaError || "") : ""
+  readonly property string mediaRef: root.svc ? String(root.svc.mediaRefPath || "") : ""
+  readonly property string lastMedia: root.svc ? String(root.svc.lastMediaPath || "") : ""
+  readonly property int lastMediaRev: root.svc ? Number(root.svc.lastMediaRev || 0) : 0
+  readonly property int credits: root.svc ? Number(root.svc.credits) : -1
 
   onGeneratingChanged: {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
@@ -175,6 +182,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: promptField.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -580,6 +588,123 @@ Panel {
             step: root.step
             steps: root.steps
             statusText: root.statusText
+          }
+
+          Text {
+            width: parent.width
+            text: "Generate media"
+            color: root.barForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+            font.bold: true
+          }
+
+          TextField {
+            id: promptField
+            width: parent.width
+            enabled: !root.mediaBusy
+            placeholderText: "Prompt (optional with a reference)"
+            font.pixelSize: Style.font.subtitle
+          }
+
+          Row {
+            spacing: Style.space(8)
+
+            ChipButton {
+              outlined: false
+              text: root.mediaRef === ""
+                ? "Add reference"
+                : Model.fileBaseName(root.mediaRef)
+              tooltipText: root.mediaRef === "" ? "Pick a reference image" : "Pick a different reference image"
+              onChipPressed: function(buttonCode) {
+                if (buttonCode !== Qt.LeftButton) return
+                if (root.svc && typeof root.svc.pickMediaRef === "function") root.svc.pickMediaRef()
+              }
+            }
+
+            ChipButton {
+              visible: root.mediaRef !== ""
+              text: "Clear"
+              tooltipText: "Drop the reference image"
+              onChipPressed: function(buttonCode) {
+                if (buttonCode !== Qt.LeftButton) return
+                if (root.svc && typeof root.svc.clearMediaRef === "function") root.svc.clearMediaRef()
+              }
+            }
+          }
+
+          Row {
+            spacing: Style.space(8)
+
+            ChipButton {
+              fill: root.limeColor
+              textColor: root.darkText
+              text: {
+                if (root.mediaBusy) return "Generating…"
+                return root.credits >= 0 ? ("Generate · " + root.credits) : "Generate"
+              }
+              tooltipText: root.credits >= 0
+                ? (root.credits + " credits on the account")
+                : "Generate an image with Higgsfield"
+              onChipPressed: function(buttonCode) {
+                if (buttonCode !== Qt.LeftButton) return
+                if (root.mediaBusy) return
+                if (root.svc && typeof root.svc.generateMedia === "function")
+                  root.svc.generateMedia(promptField.text, root.mediaRef)
+              }
+            }
+
+            ChipButton {
+              visible: root.mediaBusy
+              text: "Cancel"
+              tooltipText: "Stop this generation"
+              onChipPressed: function(buttonCode) {
+                if (buttonCode !== Qt.LeftButton) return
+                if (root.svc && typeof root.svc.cancelMedia === "function") root.svc.cancelMedia()
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            visible: root.mediaBusy && root.mediaStatus !== ""
+            text: root.mediaStatus
+            color: root.barForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+            opacity: 0.7
+          }
+
+          Text {
+            width: parent.width
+            visible: root.mediaError !== ""
+            text: root.mediaError
+            color: root.errorColor
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+            wrapMode: Text.WordWrap
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(140)
+            visible: root.lastMedia !== ""
+            radius: Math.min(8, Style.cornerRadius)
+            color: Qt.rgba(0, 0, 0, 0.18)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.1)
+            clip: true
+
+            Image {
+              anchors.fill: parent
+              anchors.margins: Style.space(6)
+              source: root.lastMedia !== ""
+                ? ("file://" + root.lastMedia + "?r=" + root.lastMediaRev)
+                : ""
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              cache: false
+            }
           }
         }
       }

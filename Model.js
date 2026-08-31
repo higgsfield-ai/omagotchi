@@ -823,6 +823,32 @@ function danceFps(peak, stats) {
   return fps
 }
 
+function creditsFromBlob(raw) {
+  var data = parseJsonBlob(String(raw || ""))
+  function dig(node, depth) {
+    if (node == null || depth > 4) return -1
+    if (typeof node !== "object") return -1
+    var keys = ["credits", "credit_balance", "balance", "credits_remaining", "remaining_credits"]
+    for (var i = 0; i < keys.length; i++) {
+      var v = node[keys[i]]
+      if (typeof v === "number" && isFinite(v) && v >= 0) return Math.floor(v)
+      if (typeof v === "string" && v !== "" && isFinite(Number(v))) return Math.floor(Number(v))
+      if (v && typeof v === "object") {
+        var inner = dig(v, depth + 1)
+        if (inner >= 0) return inner
+      }
+    }
+    for (var k in node) {
+      if (node[k] && typeof node[k] === "object") {
+        var found = dig(node[k], depth + 1)
+        if (found >= 0) return found
+      }
+    }
+    return -1
+  }
+  return dig(data, 0)
+}
+
 function trimPrompt(raw) {
   return String(raw || "").replace(/^\s+|\s+$/g, "")
 }
@@ -1075,6 +1101,7 @@ if (typeof module !== "undefined") {
     isMoveMode: isMoveMode,
     isVideoPlayerId: isVideoPlayerId,
     isBrowserPlayerId: isBrowserPlayerId,
+    creditsFromBlob: creditsFromBlob,
     movePace: movePace,
     pickWander: pickWander,
     nextClickState: nextClickState,

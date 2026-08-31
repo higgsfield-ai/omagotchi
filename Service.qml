@@ -43,6 +43,14 @@ Item {
   property real lastDragCareMs: 0
   property string petActivity: "walking"
   property real stunUntil: 0
+  property bool mediaBusy: false
+  property string mediaStatus: ""
+  property string mediaError: ""
+  property string mediaRefPath: ""
+  property string lastMediaPath: ""
+  property int lastMediaRev: 0
+  property bool mediaPicking: false
+  property int credits: -1
   property bool pendingWash: false
   property string lastTrackKey: ""
   property real audioPeak: 0
@@ -278,6 +286,7 @@ Item {
   }
 
   function checkAuth() {
+    root.refreshCredits()
     authProc.command = ["python3", "-u", root.filePath("scripts/runtime.py"), "auth-status", "--out", root.dataDir()]
     authProc.running = false
     authProc.running = true
@@ -670,6 +679,84 @@ Item {
     root.generatePercent = 0
   }
 
+  function generateMedia(prompt, ref) {
+    if (root.mediaBusy) return "busy"
+    if (!root.loggedIn) {
+      root.login()
+      return "login"
+    }
+    var p = String(prompt || "").trim()
+    var r = String(ref || "").trim()
+    if (!p && !r) {
+      root.mediaError = "Add a prompt or a reference image"
+      return "empty"
+    }
+    root.mediaBusy = true
+    root.mediaError = ""
+    root.mediaStatus = "Submitting…"
+    var cmd = ["python3", "-u", root.filePath("scripts/generate-media.py"),
+               "--out", root.dataDir(), "--plugin-root", root.pluginRoot(),
+               "--prompt", p]
+    if (r) cmd = cmd.concat(["--image", r])
+    mediaProc.command = cmd
+    mediaProc.running = false
+    mediaProc.running = true
+    return "started"
+  }
+
+  function cancelMedia() {
+    if (!root.mediaBusy) return "idle"
+    root.mediaBusy = false
+    mediaProc.running = false
+    root.mediaStatus = ""
+    root.mediaError = ""
+    return "canceled"
+  }
+
+  function onMediaLine(line) {
+    var parsed = null
+    try { parsed = JSON.parse(String(line || "")) } catch (e) { return }
+    if (!parsed) return
+    if (parsed.t === "mstatus") {
+      root.mediaStatus = String(parsed.label || "")
+      return
+    }
+    if (parsed.ok === true && parsed.path) {
+      root.mediaBusy = false
+      root.mediaStatus = ""
+      root.lastMediaPath = String(parsed.path)
+      root.lastMediaRev += 1
+      root.refreshCredits()
+      return
+    }
+    if (parsed.ok === false) {
+      root.mediaBusy = false
+      root.mediaStatus = ""
+      root.mediaError = String(parsed.error || "generate failed")
+    }
+  }
+
+  function pickMediaRef() {
+    if (root.mediaPicking || root.mediaBusy) return "busy"
+    root.mediaPicking = true
+    mediaRefProc.command = ["bash", root.filePath("scripts/pick-image.sh")]
+    mediaRefProc.running = false
+    mediaRefProc.running = true
+    return "started"
+  }
+
+  function clearMediaRef() {
+    root.mediaRefPath = ""
+    return "ok"
+  }
+
+  function refreshCredits() {
+    if (!root.hfPath) return
+    creditsProc.command = [root.hfPath, "account", "status", "--json"]
+    creditsProc.running = false
+    creditsProc.running = true
+  }
+
   function cancelGenerate() {
     if (!root.generating) return "idle"
     // Flip the flag first so genProc.onExited treats the kill as silence,
@@ -938,6 +1025,46 @@ Item {
     id: barChipProc
   }
 
+  Process {
+    id: mediaProc
+    stdout: SplitParser {
+      onRead: function(line) { root.onMediaLine(line) }
+    }
+    onExited: function(exitCode) {
+      if (!root.mediaBusy) return
+      root.mediaBusy = false
+      root.mediaStatus = ""
+      if (root.mediaError === "")
+        root.mediaError = "generate failed (" + exitCode + ")"
+    }
+  }
+
+  Process {
+    id: mediaRefProc
+    stdout: StdioCollector {
+      id: mediaRefOut
+    }
+    onExited: function() {
+      root.mediaPicking = false
+      var path = String(mediaRefOut.text || "").trim().split("\n").pop() || ""
+      if (Model.isImagePath(path)) {
+        root.mediaRefPath = path
+        root.mediaError = ""
+      }
+    }
+  }
+
+  Process {
+    id: creditsProc
+    stdout: StdioCollector {
+      id: creditsOut
+    }
+    onExited: function() {
+      var found = Model.creditsFromBlob(creditsOut.text)
+      if (found >= 0) root.credits = found
+    }
+  }
+
   Timer {
     interval: 400
     running: true
@@ -980,6 +1107,9 @@ Item {
     root.lastWashMs = now
     root.loadAtlas()
     root.loadCare()
+    var lastMedia = root.readJsonFile("file://" + root.dataDir() + "/media/last.json")
+    if (lastMedia && String(lastMedia.path || "").charAt(0) === "/")
+      root.lastMediaPath = String(lastMedia.path)
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
     keysProc.running = true
@@ -1006,5 +1136,7 @@ Item {
     function toggleDock(): string { return root.toggleDock() }
     function setActivity(mode: string): string { return root.setActivity(mode) }
     function cancel(): string { return root.cancelGenerate() }
+    function generateMedia(prompt: string): string { return root.generateMedia(prompt, root.mediaRefPath) }
+    function cancelMedia(): string { return root.cancelMedia() }
   }
 }
