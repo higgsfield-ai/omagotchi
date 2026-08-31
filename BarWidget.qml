@@ -40,7 +40,18 @@ BarWidget {
   }
 
   function toggle() {
-    if (panelLoader.item) panelLoader.item.toggle()
+    if (panelLoader.item) {
+      panelLoader.item.toggle()
+      return
+    }
+    // A dead chip is the worst failure mode: say why, then try once more so
+    // a transient load error does not leave HF mute until a shell restart.
+    console.warn("higgsfield.signals: HF click with no panel; loader status", panelLoader.status)
+    if (panelLoader.status === Loader.Error) {
+      panelLoader.active = false
+      panelLoader.active = true
+      if (panelLoader.item) panelLoader.item.toggle()
+    }
   }
 
   function closeForPopoutSwitch() {
@@ -62,6 +73,16 @@ BarWidget {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
     }
+    onStatusChanged: {
+      if (status !== Loader.Error) return
+      var detail = ""
+      try {
+        if (panelLoader.errorString) detail = panelLoader.errorString()
+        if (!detail && panelLoader.sourceComponent && panelLoader.sourceComponent.errorString)
+          detail = panelLoader.sourceComponent.errorString()
+      } catch (e) {}
+      console.warn("higgsfield.signals: Panel.qml failed to load:", detail)
+    }
   }
 
   WidgetButton {
@@ -74,9 +95,13 @@ BarWidget {
       var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
       return p > 0 ? (p + "%") : "…"
     }
-    tooltipText: root.generating
-      ? (root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…")
-      : "Generate my avatar"
+    tooltipText: {
+      if (panelLoader.status === Loader.Error)
+        return "Tamagotchi panel failed to load — check omarchy-shell logs"
+      if (root.generating)
+        return root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…"
+      return "Generate my avatar"
+    }
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()

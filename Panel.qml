@@ -139,6 +139,10 @@ Panel {
     function onPicked(path) { root.onDialogPicked(path) }
   }
 
+  function onDialogPicked(path) {
+    if (root.svc && typeof root.svc.setPhoto === "function") root.svc.setPhoto(path)
+  }
+
   function submitAvatar() {
     if (!root.svc || root.generating || root.loggingIn) return
     if (!root.loggedIn) {
