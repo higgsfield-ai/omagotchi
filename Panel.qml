@@ -431,8 +431,7 @@ Panel {
 
               ChipButton {
                 visible: root.loggedIn && !root.generating && !root.loggingIn
-                fill: Qt.alpha(root.barForeground, 0.35)
-                textColor: root.darkText
+                outlined: false
                 text: root.capturing ? "Capturing…" : "Take photo"
                 tooltipText: "Capture a still from the webcam"
                 onChipPressed: function(buttonCode) {
@@ -669,8 +668,7 @@ Panel {
 
           ChipButton {
             visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && !root.generating && !root.loggingIn
-            fill: Qt.alpha(root.barForeground, 0.35)
-            textColor: root.darkText
+            outlined: false
             text: root.capturing ? "Capturing…" : "Take photo"
             tooltipText: "Capture a still from the webcam"
             onChipPressed: function(buttonCode) {
@@ -774,6 +772,7 @@ Panel {
     property alias text: chipBtn.text
     property alias tooltipText: chipBtn.tooltipText
     property bool selected: false
+    property bool outlined: true
     property color fill: "transparent"
     property color textColor: root.barForeground
     readonly property bool filled: chip.fill.a > 0
@@ -782,7 +781,8 @@ Panel {
     color: chip.selected ? Qt.alpha(root.barForeground, 0.16) : chip.fill
     border.width: 1
     border.color: chip.selected ? root.barForeground
-      : (chip.filled ? chip.fill : Qt.alpha(root.barForeground, 0.35))
+      : (chip.filled ? chip.fill
+        : (chip.outlined ? Qt.alpha(root.barForeground, 0.35) : "transparent"))
     implicitWidth: chipBtn.implicitWidth + Style.space(6)
     implicitHeight: chipBtn.implicitHeight
 
