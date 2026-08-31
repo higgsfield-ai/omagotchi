@@ -28,7 +28,7 @@ test("resolveMode prefers drag, then fall/stun/sick, moods, care, media, and sne
   assert.equal(Model.resolveMode({ dragging: true, wander: "walk" }), "drag")
   assert.equal(Model.resolveMode({ falling: true, wander: "walk" }), "fall")
   assert.equal(Model.resolveMode({ stunned: true, wander: "walk" }), "collapse")
-  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, video: true, audioPeak: 1 }), "flip")
+  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, video: true, audioPeak: 1 }), "dance")
   assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, browserMedia: true }), "dance")
   assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, browserMedia: true, audioPeak: 0.4 }), "dance")
   assert.equal(Model.resolveMode({ sick: true, wander: "walk" }), "sick")
@@ -41,12 +41,12 @@ test("resolveMode prefers drag, then fall/stun/sick, moods, care, media, and sne
   assert.equal(Model.resolveMode({ sleep: true, mediaPlaying: true, wander: "idle" }), "dance")
   assert.equal(Model.resolveMode({ wander: "walk", sneak: true }), "sneak")
   assert.equal(Model.resolveMode({ wander: "look", sneak: true }), "look")
-  assert.equal(Model.resolveMode({ wander: "walk", mediaPlaying: true, audioPeak: 1 }), "flip")
+  assert.equal(Model.resolveMode({ wander: "walk", mediaPlaying: true, audioPeak: 1 }), "dance")
   assert.equal(Model.resolveMode({ wander: "walk", mediaPlaying: true, video: true }), "dance")
   assert.equal(Model.resolveMode({ wander: "walk", mediaPlaying: true }), "dance")
   assert.equal(Model.resolveMode({ wander: "run" }), "run")
   assert.equal(Model.resolveMode({ wander: "look" }), "look")
-  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, audioPeak: 0.8 }), "flip")
+  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, audioPeak: 0.8 }), "dance")
   assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, audioPeak: 0.1 }), "dance")
   assert.equal(Model.resolveMode({ wander: "idle", night: true }), "idle")
   assert.equal(Model.resolveMode({ wander: "idle" }), "idle")
@@ -403,7 +403,7 @@ test("energy, health, attention, and desktop stats decay with the environment", 
     mediaPlaying: true,
     audioPeak: 0.4,
     flipPeak: 0.3
-  }), "flip")
+  }), "dance")
   const bonded = Model.nextClickState({ clickBurst: 0, lastClickMs: 0 }, 1000, { bond: 80 })
   assert.equal(bonded.clickBurst, 1)
   const third = Model.nextClickState(bonded, 1300, { bond: 80 })

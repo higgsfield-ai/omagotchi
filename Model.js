@@ -484,10 +484,10 @@ function resolveMode(opts) {
   if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
-  // Media preempts wandering. Music means dancing; speech-like audio (a
-  // podcast, an interview) sits him down with the laptop instead.
+  // Media preempts wandering. Music means the dance row, full stop — the
+  // flip row is drawn as a sprint and kept reading as "running in place"
+  // whenever loudness routed to it. Speech sits him down with the laptop.
   if (playing && o.speech) return "watch"
-  if (playing && peak > flipAt) return "flip"
   if (playing) return "dance"
   var wander = String(o.wander || "idle")
   if (isMoveMode(wander)) {
