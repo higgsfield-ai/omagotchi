@@ -27,7 +27,7 @@ Item {
     required property var modelData
 
     screen: modelData
-    visible: root.svc && root.svc.petOnDesktop && window.winW > 16 && window.winH > 16 && (
+    visible: root.svc && root.svc.petOnDesktop && window.stageRect.w > 16 && window.stageRect.h > 16 && (
       !root.svc.focusedMonitor
       || root.svc.focusedMonitor === ""
       || (modelData && modelData.name === root.svc.focusedMonitor)
@@ -37,9 +37,18 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    mask: Region { item: pet.opacity > 0.08 ? pet : emptyMask }
-    anchors { top: true; bottom: true; left: true; right: true }
+    // Cover only the focused window. A fullscreen Top surface sits on the
+    // Omarchy bar (also Top) and eats HF clicks.
+    anchors.left: true
+    anchors.top: true
+    margins.left: Math.round(window.stageRect.x)
+    margins.top: Math.round(window.stageRect.y)
+    implicitWidth: Math.max(1, Math.round(window.stageRect.w))
+    implicitHeight: Math.max(1, Math.round(window.stageRect.h))
+    mask: Region { item: hitbox }
 
+    readonly property real screenW: modelData ? Number(modelData.width) : 0
+    readonly property real screenH: modelData ? Number(modelData.height) : 0
     readonly property real winX: root.svc ? Number(root.svc.winX) : 0
     readonly property real winY: root.svc ? Number(root.svc.winY) : 0
     readonly property real winW: root.svc ? Number(root.svc.winW) : 0
@@ -49,7 +58,7 @@ Item {
       y: window.winY,
       w: window.winW,
       h: window.winH
-    }, window.width, window.height)
+    }, window.screenW, window.screenH)
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
     readonly property bool recalling: root.svc ? !!root.svc.petRecalling : false
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
@@ -296,18 +305,16 @@ Item {
     }
 
     Item {
-      id: emptyMask
-      width: 0
-      height: 0
-      visible: false
+      id: hitbox
+      x: pet.x
+      y: pet.y
+      width: pet.opacity > 0.08 ? pet.width : 0
+      height: pet.opacity > 0.08 ? pet.height : 0
     }
 
     Item {
       id: stage
-      x: Math.round(window.stageRect.x)
-      y: Math.round(window.stageRect.y)
-      width: Math.round(window.stageRect.w)
-      height: Math.round(window.stageRect.h)
+      anchors.fill: parent
       clip: true
       visible: width > 8 && height > 8
 
