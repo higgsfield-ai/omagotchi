@@ -27,6 +27,33 @@ STYLE = (
     "no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette"
 )
 
+FRAMING_LOCK = (
+    "FRAMING RULE — CRITICAL: the character is SMALL in the frame, occupying only "
+    "about 60-65% of the frame HEIGHT (never more than 70%), positioned exactly in "
+    "the center, with LARGE empty solid-background margins: at least 18% of the frame "
+    "height empty ABOVE the head and at least 18% empty BELOW the feet, wide empty "
+    "margins left and right, full body visible, nothing cropped at the edges."
+)
+
+SCALE_RULE = (
+    "SCALE RULE: keep the character at EXACTLY the same size, scale and proportions as "
+    "in the reference image — the same on-screen height, the same margins around him; "
+    "do not zoom in, do not zoom out, do not crop."
+)
+
+CAMERA_LOCK = (
+    "CAMERA LOCK — ABSOLUTE RULE: the camera is completely frozen for the entire "
+    "clip. Frame 1 must be a PIXEL-PERFECT copy of the input start image INCLUDING "
+    "all its empty background margins: the character occupies the same small portion "
+    "of the frame as in the start image, with the same wide empty margins above the "
+    "head, below the feet and on both sides. NEVER zoom in, NEVER enlarge the "
+    "character, NEVER push the character toward the frame edges, NEVER recompose or "
+    "recrop. The wide empty margins stay visible in EVERY frame; any zoom-in or "
+    "tighter framing is a failure."
+)
+
+FRAME_MS = 156
+
 # Overlay plays these names from the 16x12 sheet (look / greet / grumpy / sick included).
 PET_MODES = {
     "walk": {"row": 0, "start": 0, "count": 16},
@@ -74,40 +101,58 @@ SMOKE_MODES = {
 
 CLIPS = [
     {"row": 0, "name": "walk", "frames": 16, "loop": True,
+     "pose": "first pose of a side-view walk cycle facing right, mid-stride, full body",
      "spec": "WALK: side-view walk/run cycle facing right, full gait, arms and legs clear, upright then slight forward lean as speed builds"},
     {"row": 1, "name": "idle", "frames": 8, "loop": True,
+     "pose": "first pose of a subtle idle bob, facing 3/4 right, standing full body",
      "spec": "IDLE: subtle idle bob/breath facing 3/4 right"},
     {"row": 1, "name": "look", "frames": 8, "loop": True,
+     "pose": "first pose of a look-around, standing, head turned slightly right, full body",
      "spec": "LOOK-AROUND: gentle head/torso turns (right, camera, left, back to right) while standing"},
     {"row": 2, "name": "sleep", "frames": 8, "loop": True,
+     "pose": "lying on side or curled, eyes closed, sleeping, full body visible",
      "spec": "SLEEP: lying on side or curled, eyes closed, tiny breathing"},
     {"row": 2, "name": "collapse", "frames": 8, "loop": True,
+     "pose": "flat on stomach or back minimized pose, awake, readable silhouette, full body",
      "spec": "COLLAPSE/LIE: flat on stomach/back minimized pose, awake or half-awake, readable silhouette"},
     {"row": 3, "name": "drag", "frames": 8, "loop": True,
+     "pose": "tucked knees mid-air hold pose, carried/jump, full body",
      "spec": "DRAG/CARRIED: tucked knees mid-air hold/jump pose variations"},
     {"row": 3, "name": "greet", "frames": 8, "loop": True,
+     "pose": "facing camera/3-4, friendly wave, first frame of a hello, full body",
      "spec": "GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello"},
     {"row": 4, "name": "dance", "frames": 16, "loop": True,
+     "pose": "facing camera, arms up, first pose of a dance/cheer, full body",
      "spec": "DANCE/CHEER: music celebration facing camera/3-4, arms up, stepping in place, joyful cycle"},
     {"row": 5, "name": "flip", "frames": 16, "loop": True,
+     "pose": "aggressive sprint facing right, long stride, strong lean, full body",
      "spec": "DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak"},
     {"row": 6, "name": "sneak", "frames": 16, "loop": True,
+     "pose": "deep crouch walk facing right, torso low, first sneak step, full body",
      "spec": "SNEAK: deep crouch walk facing right, torso low, careful steps"},
     {"row": 7, "name": "crawl", "frames": 16, "loop": True,
+     "pose": "on all fours facing right, crawling start pose, full body",
      "spec": "CRAWL: on all fours facing right, crawling loop"},
     {"row": 8, "name": "trip", "frames": 16, "loop": False,
+     "pose": "upright facing right just starting to stumble, full body, still standing",
      "spec": "TRIP/FACEPLANT one-shot: stumble then fall forward then hit ground then briefly flat, clear progression"},
     {"row": 9, "name": "happy", "frames": 8, "loop": True,
+     "pose": "big smile, first happy pose, optional tiny pixel hearts, full body",
      "spec": "HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur)"},
     {"row": 9, "name": "grumpy", "frames": 8, "loop": True,
+     "pose": "frown, crossed arms, first grumpy pose, same character, full body",
      "spec": "GRUMPY/ANGRY: frown, crossed arms or dismissive gesture, same character"},
     {"row": 10, "name": "eat", "frames": 8, "loop": True,
+     "pose": "holding a small snack or drink, first chew/sip pose, full body",
      "spec": "EAT/SNACK: holding a small snack/drink, chew or sip cycle"},
     {"row": 10, "name": "sick", "frames": 8, "loop": True,
+     "pose": "woozy stance, hand-to-head, light pale/greenish face tint, full body",
      "spec": "SICK/DIZZY: light pale/greenish tint on face only, dizzy swirl or hand-to-head, woozy stance, outfit readable"},
     {"row": 11, "name": "wash", "frames": 8, "loop": True,
+     "pose": "soap bubbles or towel wipe, first wash pose, clean and happy, full body",
      "spec": "WASH/HYGIENE: soap bubbles or towel wipe, clean and happy"},
     {"row": 11, "name": "night", "frames": 8, "loop": True,
+     "pose": "same character standing in a simple darker hooded jacket, idle, full body",
      "spec": "NIGHT/RAINCOAT: same character in a simple darker jacket or tiny hood/coat variant, optional pixel raindrops, standing/idle poses — cosmetic outfit only, identity unchanged"},
 ]
 
@@ -677,9 +722,8 @@ def pick_key_color(path: Path) -> str:
 def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
-        f"{spec}, {STYLE}, locked static camera, character centered and fully in "
-        f"frame, flat solid {key} background that never changes, no camera motion, "
-        f"no zoom, no background elements, no text{extra}"
+        f"{spec}, {STYLE}, {CAMERA_LOCK}, {SCALE_RULE}, "
+        f"flat solid {key} background that never changes, no background elements, no text{extra}"
     )
 
 
@@ -687,25 +731,92 @@ def base_prompt(key: str, notes: str) -> str:
     extra = (" " + notes.strip()) if notes.strip() else ""
     return (
         f"{STYLE}. Full body, standing, facing right, centered, nothing cropped, "
-        f"solid {key} background, no ground plane, no cast shadow. Keep the "
-        f"character's recognizable traits (hair, outfit colors, distinctive features) "
+        f"solid {key} background, no ground plane, no cast shadow. {FRAMING_LOCK} "
+        f"Keep the character's recognizable traits (hair, outfit colors, distinctive features) "
         f"translated into 8-bit.{extra}"
     )
 
 
-def clip_video_args(clip: dict, key: str, base_path: Path) -> list[str]:
+def start_prompt(clip: dict, key: str, notes: str) -> str:
+    extra = (" " + notes.strip()) if notes.strip() else ""
+    pose = clip.get("pose") or clip["spec"]
+    return (
+        f"{STYLE}. {pose}. {FRAMING_LOCK} {SCALE_RULE} "
+        f"Solid {key} background, no ground plane, no cast shadow. "
+        f"Keep identity, outfit and proportions from the reference sprite.{extra}"
+    )
+
+
+def start_image_args(clip: dict, key: str, base_path: Path, notes: str) -> list[str]:
+    return [
+        "--prompt", start_prompt(clip, key, notes),
+        "--image", str(base_path),
+        "--aspect_ratio", "1:1",
+        "--resolution", "1k",
+    ]
+
+
+def clip_video_args(clip: dict, key: str, start_path: Path) -> list[str]:
     args = [
         "--prompt", video_prompt(clip["spec"], key, clip["loop"]),
-        "--image", str(base_path),
-        "--start-image", str(base_path),
+        "--image", str(start_path),
+        "--start-image", str(start_path),
         "--aspect_ratio", "1:1",
-        "--resolution", "480p",
-        "--duration", "5",
+        "--resolution", "720p",
+        "--duration", "4",
         "--generate_audio", "false",
     ]
     if clip["loop"]:
-        args += ["--end-image", str(base_path)]
+        args += ["--end-image", str(start_path)]
     return args
+
+
+def hex_to_rgb(s: str) -> tuple[int, int, int]:
+    s = s.lstrip("#")
+    return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+
+
+def subject_height_ratio(path: Path, key: str) -> float:
+    try:
+        from PIL import Image
+        import numpy as np
+    except ImportError:
+        return 0.0
+    if not path.is_file():
+        return 0.0
+    im = Image.open(path).convert("RGB")
+    a = np.asarray(im, dtype=np.int32)
+    kr, kg, kb = hex_to_rgb(key)
+    dist = np.sqrt(((a - np.array((kr, kg, kb), dtype=np.int32)) ** 2).sum(axis=2))
+    mask = dist > 110
+    ys = np.where(mask.any(axis=1))[0]
+    if len(ys) == 0:
+        return 0.0
+    return float(ys.max() - ys.min() + 1) / float(im.height)
+
+
+def extract_video_frame(video: Path, dest: Path, at_end: bool = False) -> bool:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-v", "error"]
+    if at_end:
+        cmd += ["-sseof", "-0.12"]
+    cmd += ["-i", str(video), "-frames:v", "1", str(dest)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    return proc.returncode == 0 and dest.is_file() and dest.stat().st_size > 200
+
+
+def framing_ok(start_path: Path, video: Path, key: str, one_shot: bool) -> bool:
+    if one_shot:
+        return True
+    tmp = video.parent / f".frame_{video.stem}.png"
+    if not extract_video_frame(video, tmp, at_end=False):
+        return True
+    start_h = subject_height_ratio(start_path, key)
+    first_h = subject_height_ratio(tmp, key)
+    tmp.unlink(missing_ok=True)
+    if start_h <= 0 or first_h <= 0:
+        return True
+    return first_h <= start_h + 0.10
 
 
 CLIP_STOP = threading.Event()
@@ -720,7 +831,7 @@ def write_atlas(out_dir: Path, sheet: Path, rows: int, frame_size: int, smoke: b
         "cellHeight": frame_size,
         "columns": 16,
         "rows": rows,
-        "fps": 10,
+        "fps": max(1, round(1000 / FRAME_MS)),
         "scale": 1,
         "modes": SMOKE_MODES if smoke else PET_MODES,
     }
@@ -785,7 +896,9 @@ def main() -> None:
 
     key = pick_key_color(image)
     jobs = CLIPS[:1] if args.smoke else CLIPS
-    total = 2 + len(jobs)  # base + clips + postprocess
+    total = 2 + 2 * len(jobs)  # base + start frames + clips + postprocess
+    starts_dir = work_dir / "starts"
+    starts_dir.mkdir(parents=True, exist_ok=True)
 
     progress("Drawing the base sprite…", phase="base", step=0, steps=total)
     try:
@@ -801,14 +914,91 @@ def main() -> None:
     download(base_job["url"], base_path)
     progress("Base sprite ready", phase="base", step=1, steps=total)
 
+    start_paths: dict[str, Path] = {}
+    start_errors: list[str] = []
+    CLIP_STOP.clear()
+    progress(
+        f"Posing {len(jobs)} start frames…",
+        phase="start",
+        step=1,
+        steps=total,
+    )
+
+    def create_start(clip: dict) -> tuple[dict, str, Path]:
+        if CLIP_STOP.is_set():
+            raise RuntimeError(f"{clip['name']}: skipped after a billing failure")
+        dest = starts_dir / f"{clip['name']}.png"
+        job_id = start_job(hf, "nano_banana_2", start_image_args(clip, key, base_path, args.notes), log)
+        return clip, job_id, dest
+
+    start_submitted: list[tuple[dict, str, Path]] = []
+    start_pool = ThreadPoolExecutor(max_workers=min(CREATE_WORKERS, len(jobs)))
+    start_futs = [start_pool.submit(create_start, clip) for clip in jobs]
+    try:
+        for fut in as_completed(start_futs):
+            try:
+                clip, job_id, dest = fut.result()
+                start_submitted.append((clip, job_id, dest))
+                progress(
+                    f"Submitted poses {len(start_submitted)}/{len(jobs)} · {clip['name']}",
+                    phase="start",
+                    step=1,
+                    steps=total,
+                )
+            except Exception as exc:
+                err = str(exc)
+                start_errors.append(err)
+                if is_hard_failure(err):
+                    CLIP_STOP.set()
+                    start_pool.shutdown(wait=False, cancel_futures=True)
+                    fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
+        start_pool.shutdown(wait=True)
+    except Exception as exc:
+        CLIP_STOP.set()
+        start_pool.shutdown(wait=False, cancel_futures=True)
+        fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
+
+    if not start_submitted:
+        err = start_errors[0] if start_errors else "no start-frame jobs submitted"
+        fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
+
+    start_wait_errors: list[str] = []
+
+    def wait_start(item: tuple[dict, str, Path]) -> tuple[dict, Path]:
+        clip, job_id, dest = item
+        job = wait_job(hf, job_id, log)
+        download(job["url"], dest)
+        return clip, dest
+
+    start_wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(start_submitted)))
+    start_wait_futs = [start_wait_pool.submit(wait_start, item) for item in start_submitted]
+    for fut in as_completed(start_wait_futs):
+        try:
+            clip, dest = fut.result()
+            start_paths[clip["name"]] = dest
+            progress(
+                f"{len(start_paths)}/{len(jobs)} poses ready · {clip['name']}",
+                phase="start",
+                step=1 + len(start_paths),
+                steps=total,
+            )
+        except Exception as exc:
+            start_wait_errors.append(str(exc))
+    start_wait_pool.shutdown(wait=True)
+
+    if start_wait_errors or len(start_paths) < len(jobs) or start_errors:
+        err = (start_wait_errors or start_errors or ["missing start frames"])[0]
+        fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
+
     plan_rows = {}
     completed = {"n": 0}
     finished = {}
     CLIP_STOP.clear()
+    clip_base = 1 + len(jobs)
     progress(
         f"Submitting {len(jobs)} clip jobs…",
         phase="clip",
-        step=1,
+        step=clip_base,
         steps=total,
     )
 
@@ -819,7 +1009,8 @@ def main() -> None:
         if CLIP_STOP.is_set():
             raise RuntimeError(f"{clip['name']}: skipped after a billing failure")
         dest = clips_dir / f"r{clip['row']:02d}_{clip['name']}.mp4"
-        job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, base_path), log)
+        start = start_paths[clip["name"]]
+        job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
         return clip, job_id, dest
 
     create_pool = ThreadPoolExecutor(max_workers=min(CREATE_WORKERS, len(jobs)))
@@ -832,7 +1023,7 @@ def main() -> None:
                 progress(
                     f"Submitted {len(submitted)}/{len(jobs)} · {clip['name']}",
                     phase="clip",
-                    step=1,
+                    step=clip_base,
                     steps=total,
                 )
             except Exception as exc:
@@ -855,7 +1046,7 @@ def main() -> None:
     progress(
         f"Waiting for {len(submitted)} clips…",
         phase="clip",
-        step=1,
+        step=clip_base,
         steps=total,
     )
 
@@ -865,6 +1056,12 @@ def main() -> None:
         clip, job_id, dest = item
         job = wait_job(hf, job_id, log)
         download(job["url"], dest)
+        start = start_paths[clip["name"]]
+        if not framing_ok(start, dest, key, not clip["loop"]):
+            append_log(log, f"framing reroll {clip['name']}\n")
+            job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
+            job = wait_job(hf, job_id, log)
+            download(job["url"], dest)
         return clip, dest
 
     wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(submitted)))
@@ -878,7 +1075,7 @@ def main() -> None:
             progress(
                 f"{n}/{len(submitted)} clips ready · {clip['name']}",
                 phase="clip",
-                step=1 + n,
+                step=clip_base + n,
                 steps=total,
             )
         except Exception as exc:
@@ -910,6 +1107,7 @@ def main() -> None:
         "max_colors": 0,
         "key_color": key,
         "key_tolerance": 110,
+        "frame_ms": FRAME_MS,
         "out_dir": str(work_dir / "sheet"),
         "rows": [plan_rows[k] for k in sorted(plan_rows)],
     }
@@ -929,6 +1127,9 @@ def main() -> None:
         fail("postprocess did not write spritesheet_16x12.png")
     sheet_dest = out_dir / "spritesheet_16x12.png"
     shutil.copy2(sheet_src, sheet_dest)
+    timings_src = work_dir / "sheet" / "timings.json"
+    if timings_src.is_file():
+        shutil.copy2(timings_src, out_dir / "timings.json")
     actions_src = work_dir / "sheet" / "actions"
     if actions_src.is_dir():
         actions_dest = out_dir / "actions"

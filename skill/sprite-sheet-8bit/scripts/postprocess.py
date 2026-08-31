@@ -9,9 +9,14 @@ Turns per-action video clips into per-action sprite strips. DEFAULT pipeline:
 No crop, no downscale, no quantization by default.
 
 Opt-in extras via plan.json:
-  "frame_size": N   (> 0) pixel-grid mode: ONE fixed crop box per clip,
-                    BOX downscale to NxN;
-  "max_colors": M   (> 0) snap each action to ONE shared MEDIANCUT palette.
+  "frame_ms": ms       uniform per-frame duration (default 156 -> 16-frame
+                       action cycles in ~2.5 s, 8-frame half in ~1.25 s);
+  "hold_frames": H     (> 1) hold-based timing instead of uniform: key poses
+                       picked by motion (~H grid frames per pose), holds baked
+                       into the strip as repeats, variable GIF durations;
+  "frame_size": N      (> 0) pixel-grid mode: ONE fixed crop box per clip,
+                       BOX downscale to NxN;
+  "max_colors": M      (> 0) snap each action to ONE shared MEDIANCUT palette.
 
 Usage:
     python3 postprocess.py plan.json
@@ -46,7 +51,7 @@ from PIL import Image, ImageFilter
 
 COLS = 16
 MAX_COLORS = 24
-GIF_FPS = 10
+FRAME_MS = 156  # uniform per-frame ms; a 16-frame action cycles in ~2.5 s
 
 
 def hex_to_rgb(s):
@@ -205,9 +210,69 @@ def pixelize_action(frames, frame_size, max_colors=0, magenta_key=False):
     return out
 
 
-def save_gif(frames, path, one_shot, fs):
+def frame_diff(a, b):
+    """Mean abs RGB difference (0-255) over the subject area, on small proxies."""
+    sa = a.resize((96, 96), Image.BOX)
+    sb = b.resize((96, 96), Image.BOX)
+    na = np.asarray(sa).astype(int)
+    nb = np.asarray(sb).astype(int)
+    mask = (na[..., 3] > 0) | (nb[..., 3] > 0)
+    if not mask.any():
+        return 0.0
+    d = np.abs(na[..., :3] - nb[..., :3]).mean(axis=2)
+    return float(d[mask].mean())
+
+
+def dedupe_holds(frames, k):
+    """Impose classic hold-based animation timing on smooth video frames.
+
+    Generated video moves continuously (no natural holds), so key poses are
+    CHOSEN, not detected: walk the candidates accumulating frame-to-frame
+    motion and start a new pose every equal share of the total motion. Slow
+    stretches collapse into long holds, fast stretches get more poses.
+    Returns (unique_frames, ticks): ticks[i] = candidates the pose covers.
+    """
+    if len(frames) < 2 or k <= 1:
+        return frames[:1], [len(frames)]
+    diffs = [frame_diff(frames[i - 1], frames[i]) for i in range(1, len(frames))]
+    total = sum(diffs)
+    if total <= 0:
+        return frames[:1], [len(frames)]
+    step = total / k
+    uniq, ticks, acc = [frames[0]], [1], 0.0
+    for f, d in zip(frames[1:], diffs):
+        acc += d
+        if acc >= step * len(uniq) and len(uniq) < k:
+            uniq.append(f)
+            ticks.append(1)
+        else:
+            ticks[-1] += 1
+    return uniq, ticks
+
+
+def expand_to_grid(uniq, ticks, n):
+    """Bake holds into a fixed n-column strip: repeat each unique pose
+    proportionally to its hold length; total is exactly n frames."""
+    if len(uniq) >= n:  # too many poses: pick n evenly, no repeats
+        idx = [round(i * (len(uniq) - 1) / (n - 1)) for i in range(n)]
+        return [uniq[i] for i in idx], [1] * n
+    total = sum(ticks)
+    reps = [max(1, round(t / total * n)) for t in ticks]
+    while sum(reps) > n:
+        i = max(range(len(reps)), key=lambda j: reps[j])
+        reps[i] -= 1
+    while sum(reps) < n:
+        i = max(range(len(ticks)), key=lambda j: ticks[j] / reps[j])
+        reps[i] += 1
+    out = []
+    for f, r in zip(uniq, reps):
+        out += [f] * r
+    return out, reps
+
+
+def save_gif(frames, path, one_shot, fs, durations=None):
     """Preview GIF: neutral dark backdrop; NEAREST upscale only for tiny
-    pixel-grid frames (native-resolution frames go out as-is)."""
+    pixel-grid frames. `durations` = per-frame ms (variable animation timing)."""
     scale = max(1, 256 // fs) if fs and fs < 256 else 1
     gif = []
     for f in frames:
@@ -217,13 +282,19 @@ def save_gif(frames, path, one_shot, fs):
             (f.width * scale, f.height * scale), Image.NEAREST)
         gif.append(big.convert("P", palette=Image.ADAPTIVE, colors=64))
     gif[0].save(path, save_all=True, append_images=gif[1:],
-                duration=int(1000 / GIF_FPS), loop=1 if one_shot else 0)
+                duration=durations or FRAME_MS,
+                loop=1 if one_shot else 0)
 
 
 def main():
     plan = json.loads(Path(sys.argv[1]).read_text())
     fs = int(plan.get("frame_size", 0))  # 0 = NATIVE: no crop, no downscale
     max_colors = int(plan.get("max_colors", 0))  # quantization OFF by default
+    # DEFAULT timing (variant A, final): every grid frame unique, uniform
+    # frame_ms per frame -> 16-frame cycle ~2.5 s. hold_frames > 1 opts into
+    # hold-based timing (key poses by motion, baked repeats).
+    hold_frames = float(plan.get("hold_frames", 1))
+    frame_ms = int(plan.get("frame_ms", FRAME_MS))
     key = hex_to_rgb(plan["key_color"])
     tol = int(plan.get("key_tolerance", 110))
     out_dir = Path(plan.get("out_dir", "out"))
@@ -233,25 +304,39 @@ def main():
     rows = sorted(plan["rows"], key=lambda r: r["row"])
     magenta = key[0] > 200 and key[2] > 200
     sheet_rows = []
+    timings = {}
 
     with tempfile.TemporaryDirectory() as tmp:
         for r in rows:
             row_frames = []
             for ci, clip in enumerate(r["clips"]):
                 aname = clip.get("name") or r["name"]
+                n = clip["frames"]
+                uniform = hold_frames <= 1
+                # uniform mode samples exactly n frames; hold mode samples
+                # DENSER (2x) so pose selection has material to collapse
+                count = n if uniform else n * 2
                 keyed = [chroma_key(Image.open(p), key, tol)
-                         for p in sample_frames(clip["path"], clip["frames"],
-                                                tmp)]
+                         for p in sample_frames(clip["path"], count, tmp)]
                 if fs:  # opt-in pixel-grid mode
                     box = union_box(keyed)
                     if box is None:
                         print(f"[warn] {aname}: empty after keying, skipped")
                         continue
                     cropped = [crop_fixed_square(f, box) for f in keyed]
-                    frames = pixelize_action(cropped, fs, max_colors,
-                                             magenta_key=magenta)
+                    cand = pixelize_action(cropped, fs, max_colors,
+                                           magenta_key=magenta)
                 else:   # default: native resolution, untouched geometry
-                    frames = finalize_native(keyed, magenta_key=magenta)
+                    cand = finalize_native(keyed, magenta_key=magenta)
+                if uniform:  # variant A (default): all frames unique
+                    uniq, ticks = cand, [1] * len(cand)
+                    frames, reps = cand, [1] * len(cand)
+                else:
+                    # B: key poses chosen by motion, ~hold_frames per pose
+                    k = max(2, round(n / hold_frames))
+                    uniq, ticks = dedupe_holds(cand, k)
+                    # C: bake the holds into the fixed n-column strip
+                    frames, reps = expand_to_grid(uniq, ticks, n)
                 cw, ch = frames[0].size
                 strip = Image.new("RGBA", (len(frames) * cw, ch), (0, 0, 0, 0))
                 for i, f in enumerate(frames):
@@ -259,13 +344,28 @@ def main():
                 tag = (f"row{r['row']:02d}"
                        f"{chr(97 + ci) if len(r['clips']) > 1 else ''}_{aname}")
                 strip.save(out_dir / "actions" / f"{tag}.png")
-                save_gif(frames, out_dir / "gifs" / f"{tag}.gif",
-                         r.get("one_shot"), cw)
+                cycle_ms = round(n * frame_ms)
+                total = sum(ticks)
+                durations = ([frame_ms] * len(uniq) if uniform else
+                             [max(60, round(cycle_ms * t / total))
+                              for t in ticks])
+                save_gif(uniq, out_dir / "gifs" / f"{tag}.gif",
+                         r.get("one_shot"), cw, durations)
+                timings[tag] = {
+                    "frames_in_strip": n,
+                    "unique_poses": len(uniq),
+                    "strip_repeats": reps,
+                    "durations_ms": durations,
+                    "cycle_ms": cycle_ms,
+                    "loop": not r.get("one_shot", False),
+                }
                 row_frames += frames
             if len(row_frames) != COLS:
                 print(f"[warn] row {r['row']} has {len(row_frames)} frames, "
                       f"expected {COLS}")
             sheet_rows.append((r["row"], row_frames))
+
+    (out_dir / "timings.json").write_text(json.dumps(timings, indent=1))
 
     # optional combined master sheet (uniform cell = the largest frame)
     cell = max((f.width for _, fr in sheet_rows for f in fr), default=0)

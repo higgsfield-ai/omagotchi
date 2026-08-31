@@ -610,7 +610,7 @@ Item {
     root.generating = true
     root.generateStatus = smoke ? "Walk test…" : "Starting…"
     root.generateStep = 0
-    root.generateSteps = smoke ? 3 : 20
+    root.generateSteps = smoke ? 4 : 38
     root.generatePercent = 0
     root.lastPrompt = img
     root.photoPath = img

@@ -52,7 +52,7 @@ function generatedAtlas(file) {
     cellHeight: 80,
     columns: 16,
     rows: 12,
-    fps: 10,
+    fps: 6,
     scale: 1,
     modes: {
       walk: modes.walk,
