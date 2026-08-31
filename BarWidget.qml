@@ -19,6 +19,10 @@ BarWidget {
     ? panelLoader.item.popoutSwitchClosing === true
     : false
   readonly property bool generating: root.svc ? !!root.svc.generating : false
+  readonly property int genPercent: root.svc ? Number(root.svc.generatePercent || 0) : 0
+  // Chip states: idle logo / pulsing logo (generating, no percent yet) /
+  // percent text (generating with progress).
+  readonly property bool showPercent: root.generating && root.genPercent > 0
 
   // The QML error that killed Panel.qml, surfaced on the chip tooltip so a
   // broken panel can be diagnosed with a hover instead of a journal dive.
@@ -100,26 +104,28 @@ BarWidget {
     anchors.fill: parent
     z: 1
     bar: root.bar
-    // While generating the chip narrates percent as text; otherwise it shows
-    // the pixel HF monogram instead of plain letters.
-    text: {
-      if (!root.generating) return ""
-      var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
-      return p > 0 ? (p + "%") : "…"
-    }
+    text: root.showPercent ? (root.genPercent + "%") : ""
     hasVisualContent: true
-    fixedWidth: root.generating ? -1 : Math.round(chipLogo.implicitWidth * chipLogo.scale) + 17
+    fixedWidth: root.showPercent ? -1 : Math.round(chipLogo.implicitWidth * chipLogo.scale) + 17
 
     // Sized and tinted like the native status icons (wifi, bluetooth):
     // foreground color, icon-font height, solid strokes instead of fat dots.
     HfLogo {
       id: chipLogo
       anchors.centerIn: parent
-      visible: !root.generating
+      visible: !root.showPercent
       cell: 1
       dotInset: 0
       color: button.foreground
       scale: Style.font.icon / chipLogo.implicitHeight
+
+      SequentialAnimation on opacity {
+        running: root.generating && !root.showPercent
+        loops: Animation.Infinite
+        NumberAnimation { to: 0.25; duration: 650; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1; duration: 650; easing.type: Easing.InOutSine }
+        onStopped: chipLogo.opacity = 1
+      }
     }
     tooltipText: {
       if (panelLoader.status === Loader.Error)
@@ -131,43 +137,6 @@ BarWidget {
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
-    }
-  }
-
-  Rectangle {
-    id: chipTrack
-    visible: root.generating
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottom: parent.bottom
-    height: 3
-    z: 0
-    color: Qt.rgba(1, 1, 1, 0.14)
-    clip: true
-
-    Rectangle {
-      id: chipFill
-      height: parent.height
-      width: {
-        var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
-        if (p <= 0) return Math.max(8, parent.width * 0.3)
-        return parent.width * Math.min(1, p / 100)
-      }
-      color: root.bar && "foreground" in root.bar ? root.bar.foreground : "#fff"
-      x: 0
-      Behavior on width { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
-
-      SequentialAnimation on x {
-        running: root.generating && chipTrack.width > 8 && (!root.svc || Number(root.svc.generatePercent || 0) <= 0)
-        loops: Animation.Infinite
-        NumberAnimation {
-          from: -chipFill.width
-          to: chipTrack.width
-          duration: 1100
-          easing.type: Easing.InOutSine
-        }
-        onStopped: chipFill.x = 0
-      }
     }
   }
 }
