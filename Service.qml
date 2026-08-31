@@ -63,6 +63,7 @@ Item {
   property bool careLoaded: false
   property int careSaveTicks: 0
   property bool generating: false
+  property int failStreak: 0
   property string generateStatus: ""
   property string lastResultPath: ""
   property string lastResultUrl: ""
@@ -644,11 +645,13 @@ Item {
       root.lastError = ""
       root.generateStatus = "Tamagotchi ready"
       root.generatePercent = 100
+      root.failStreak = 0
       root.applyGeneratedSheet(parsed.path, parsed.atlasSpec)
       root.celebrate(4000)
       return
     }
     var err = parsed.error || ("generate failed (" + code + ")")
+    root.failStreak += 1
     root.lastError = err
     root.generateStatus = ""
     root.generatePercent = 0

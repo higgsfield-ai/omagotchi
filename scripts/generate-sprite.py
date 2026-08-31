@@ -1117,23 +1117,32 @@ def main() -> None:
     # still missing — whether its submission or its wait died — before giving
     # up, and fail only on what is still absent afterwards.
     for clip in [c for c in jobs if c["name"] not in start_paths]:
-        progress(
-            f"Rerolling pose · {clip['name']}",
-            phase="start",
-            step=1 + len(start_paths),
-            steps=total,
-        )
-        try:
-            job_id = start_job(hf, "nano_banana_2", start_image_args(clip, key, base_path, args.notes), log)
-            job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
-            dest = starts_dir / f"{clip['name']}.png"
-            download(job["url"], dest)
-            ok, why = start_frame_ok(clip, dest, key, base_frac)
-            if not ok:
-                raise RuntimeError(why)
-            start_paths[clip["name"]] = dest
-        except Exception as exc:
-            start_wait_errors.append(f"pose {clip['name']} failed twice: {exc}")
+        last_err = ""
+        for attempt in range(2):
+            progress(
+                f"Rerolling pose · {clip['name']}",
+                phase="start",
+                step=1 + len(start_paths),
+                steps=total,
+            )
+            try:
+                job_id = start_job(hf, "nano_banana_2", start_image_args(clip, key, base_path, args.notes), log)
+                job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
+                dest = starts_dir / f"{clip['name']}.png"
+                download(job["url"], dest)
+                ok, why = start_frame_ok(clip, dest, key, base_frac)
+                if not ok:
+                    raise RuntimeError(why)
+                start_paths[clip["name"]] = dest
+                break
+            except Exception as exc:
+                last_err = str(exc)
+                append_log(log, f"pose rescue {attempt + 1} failed for {clip['name']}: {last_err}\n")
+                if is_hard_failure(last_err):
+                    fail(f"pose {clip['name']}: {last_err}",
+                         {"reason": last_err, "job_id": extract_uuid(last_err), "log": str(log)})
+        else:
+            start_wait_errors.append(f"pose {clip['name']} failed 3 times: {last_err}")
 
     if len(start_paths) < len(jobs):
         err = (start_wait_errors or start_errors or ["missing start frames"])[0]
@@ -1252,21 +1261,30 @@ def main() -> None:
     # clips whose creation 503'd never reached the wait pool at all.
     for clip in [c for c in jobs if id(c) not in finished]:
         dest = clips_dir / f"r{clip['row']:02d}_{clip['name']}.mp4"
-        progress(
-            f"Rerolling clip · {clip['name']}",
-            phase="clip",
-            step=clip_base + completed["n"],
-            steps=total,
-        )
-        try:
-            append_log(log, f"clip resubmit {clip['name']}\n")
-            job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start_paths[clip["name"]]), log)
-            job = wait_job(hf, job_id, log)
-            download(job["url"], dest)
-            finished[id(clip)] = dest
-            completed["n"] += 1
-        except Exception as exc:
-            wait_errors.append(f"clip {clip['name']} failed twice: {exc}")
+        last_err = ""
+        for attempt in range(2):
+            progress(
+                f"Rerolling clip · {clip['name']}",
+                phase="clip",
+                step=clip_base + completed["n"],
+                steps=total,
+            )
+            try:
+                append_log(log, f"clip resubmit {clip['name']} (attempt {attempt + 1})\n")
+                job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start_paths[clip["name"]]), log)
+                job = wait_job(hf, job_id, log, timeout_s=CLIP_WAIT_S)
+                download(job["url"], dest)
+                finished[id(clip)] = dest
+                completed["n"] += 1
+                break
+            except Exception as exc:
+                last_err = str(exc)
+                append_log(log, f"clip rescue {attempt + 1} failed for {clip['name']}: {last_err}\n")
+                if is_hard_failure(last_err):
+                    fail(f"clip {clip['name']}: {last_err}",
+                         {"reason": last_err, "job_id": extract_uuid(last_err), "log": str(log)})
+        else:
+            wait_errors.append(f"clip {clip['name']} failed repeatedly: {last_err}")
 
     if len(finished) < len(jobs):
         err = (wait_errors or create_errors or ["missing clips"])[0]

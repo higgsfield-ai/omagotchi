@@ -554,6 +554,18 @@ Panel {
               opacity: 0.9
             }
 
+            Text {
+              width: parent.width
+              visible: root.lastError !== "" && !root.generating
+                && root.svc && Number(root.svc.failStreak) >= 2
+              text: "Two runs failed in a row — Retry starts everything fresh from the base sprite, which usually clears a bad streak."
+              color: root.barForeground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              wrapMode: Text.WordWrap
+              opacity: 0.7
+            }
+
             Row {
               spacing: Style.space(8)
               visible: root.lastError !== "" && !root.generating && !!root.generateError.showUpgrade
