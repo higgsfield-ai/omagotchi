@@ -99,10 +99,22 @@ BarWidget {
     anchors.fill: parent
     z: 1
     bar: root.bar
+    // While generating the chip narrates percent as text; otherwise it shows
+    // the pixel HF monogram instead of plain letters.
     text: {
-      if (!root.generating) return "HF"
+      if (!root.generating) return ""
       var p = root.svc ? Number(root.svc.generatePercent || 0) : 0
       return p > 0 ? (p + "%") : "…"
+    }
+    hasVisualContent: true
+    fixedWidth: root.generating ? -1 : chipLogo.implicitWidth + 17
+
+    HfLogo {
+      id: chipLogo
+      anchors.centerIn: parent
+      visible: !root.generating
+      cell: 2
+      color: button.foreground
     }
     tooltipText: {
       if (panelLoader.status === Loader.Error)

@@ -48,11 +48,6 @@ Panel {
   readonly property real energy: root.svc ? Number(root.svc.careEnergy) : 0
   readonly property real health: root.svc ? Number(root.svc.careHealth) : 0
   readonly property real attention: root.svc ? Number(root.svc.careAttention) : 0
-  readonly property real excitement: root.svc ? Number(root.svc.careExcitement) : 0
-  // Named to dodge Item.focus, a FINAL property QML refuses to override —
-  // shadowing it kills the whole document at load.
-  readonly property real focusStat: root.svc ? Number(root.svc.careFocus) : 0
-  readonly property real music: root.svc ? Number(root.svc.careMusic) : 0
   readonly property real bond: root.svc ? Number(root.svc.careBond) : 0
   readonly property real weight: root.svc ? Number(root.svc.careWeight) : 50
   readonly property string ageText: root.svc
@@ -191,13 +186,24 @@ Panel {
           width: flick.width
           spacing: Style.space(10)
 
-          Text {
+          Row {
             width: parent.width
-            text: "Tamagotchi"
-            color: root.barForeground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
+            spacing: Style.space(8)
+
+            HfLogo {
+              anchors.verticalCenter: parent.verticalCenter
+              cell: 3
+              color: root.barForeground
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Tamagotchi"
+              color: root.barForeground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
           }
 
           Column {
@@ -220,6 +226,31 @@ Panel {
               property real nestFade: 1
               property string modeKey: root.nestMode
               onModeKeyChanged: nest.nestFrame = 0
+
+              WidgetButton {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: Style.space(4)
+                z: 3
+                bar: root.bar
+                fontSize: Style.font.caption
+                text: root.petDocked || root.petRecalling ? "Release" : "Hide"
+                tooltipText: root.petDocked
+                  ? "Drop the pet onto the focused window"
+                  : "Levitate the pet back into this panel"
+                onPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (!root.svc) return
+                  if (root.petRecalling || root.petReleasing || nestExitAnim.running) return
+                  if (root.petDocked) {
+                    nest.nestLift = 0
+                    nest.nestFade = 1
+                    nestExitAnim.restart()
+                    return
+                  }
+                  root.svc.recallPet()
+                }
+              }
 
               Connections {
                 target: root.svc
@@ -290,7 +321,9 @@ Panel {
               Item {
                 id: nestPet
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: Math.round((nest.height - nestPet.height) / 2 + nest.nestLift)
+                // Floor-anchored like the desktop, so lying poses rest on
+                // the island instead of hovering mid-air.
+                y: Math.round(nest.height - nestPet.height - Style.space(6) + nest.nestLift)
                 width: root.nestFrames.displayWidth
                 height: root.nestFrames.displayHeight
                 opacity: root.petDocked ? nest.nestFade : 0
@@ -332,129 +365,90 @@ Panel {
               }
             }
 
-            WidgetButton {
-              bar: root.bar
-              text: root.petDocked || root.petRecalling ? "Release to desktop" : "Hide in panel"
-              tooltipText: root.petDocked
-                ? "Drop the pet onto the focused window"
-                : "Levitate the pet back into this panel"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                if (!root.svc) return
-                if (root.petRecalling || root.petReleasing || nestExitAnim.running) return
-                if (root.petDocked) {
-                  nest.nestLift = 0
-                  nest.nestFade = 1
-                  nestExitAnim.restart()
-                  return
+            Row {
+              spacing: Style.space(8)
+
+              WidgetButton {
+                bar: root.bar
+                text: "Feed"
+                tooltipText: "Feed the pet"
+                onPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.svc && typeof root.svc.feedPet === "function") root.svc.feedPet()
                 }
-                root.svc.recallPet()
               }
-            }
 
-            CareStatRow {
-              width: parent.width
-              label: "Hunger"
-              value: root.hunger
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Hygiene"
-              value: root.hygiene
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Mood"
-              value: root.mood
-            }
-
-            WidgetButton {
-              bar: root.bar
-              text: "Feed"
-              tooltipText: "Feed the pet"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                if (root.svc && typeof root.svc.feedPet === "function") root.svc.feedPet()
+              WidgetButton {
+                bar: root.bar
+                text: "Wash"
+                tooltipText: "Wash the pet"
+                onPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.svc && typeof root.svc.washPet === "function") root.svc.washPet()
+                }
               }
-            }
 
-            WidgetButton {
-              bar: root.bar
-              text: "Wash"
-              tooltipText: "Wash the pet"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                if (root.svc && typeof root.svc.washPet === "function") root.svc.washPet()
-              }
-            }
-
-            WidgetButton {
-              bar: root.bar
-              text: "Play"
-              tooltipText: "Play with the pet"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                if (root.svc && typeof root.svc.playPet === "function") root.svc.playPet()
+              WidgetButton {
+                bar: root.bar
+                text: "Play"
+                tooltipText: "Play with the pet"
+                onPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  if (root.svc && typeof root.svc.playPet === "function") root.svc.playPet()
+                }
               }
             }
 
             Text {
               width: parent.width
-              text: "Wellbeing"
+              text: "Activity"
               color: root.barForeground
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtitle
               font.bold: true
             }
 
-            CareStatRow {
-              width: parent.width
-              label: "Energy"
-              value: root.energy
+            Row {
+              spacing: Style.space(8)
+
+              Repeater {
+                model: [
+                  { label: "Stand", value: "standing" },
+                  { label: "Walk", value: "walking" },
+                  { label: "Run", value: "running" }
+                ]
+
+                WidgetButton {
+                  required property var modelData
+                  bar: root.bar
+                  text: modelData.label
+                  active: root.svc && String(root.svc.petActivity) === modelData.value
+                  tooltipText: ""
+                  onPressed: function(buttonCode) {
+                    if (buttonCode !== Qt.LeftButton) return
+                    if (root.svc && typeof root.svc.setActivity === "function")
+                      root.svc.setActivity(modelData.value)
+                  }
+                }
+              }
             }
 
-            CareStatRow {
+            Grid {
+              id: statGrid
               width: parent.width
-              label: "Health"
-              value: root.health
-            }
+              columns: 2
+              columnSpacing: Style.space(12)
+              rowSpacing: Style.space(6)
+              readonly property real cellWidth: (width - columnSpacing) / 2
 
-            CareStatRow {
-              width: parent.width
-              label: "Attention"
-              value: root.attention
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Excitement"
-              value: root.excitement
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Focus"
-              value: root.focusStat
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Music"
-              value: root.music
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Bond"
-              value: root.bond
-            }
-
-            CareStatRow {
-              width: parent.width
-              label: "Weight"
-              value: root.weight
+              CareStatRow { width: statGrid.cellWidth; label: "Hunger"; value: root.hunger }
+              CareStatRow { width: statGrid.cellWidth; label: "Hygiene"; value: root.hygiene }
+              CareStatRow { width: statGrid.cellWidth; label: "Mood"; value: root.mood }
+              CareStatRow { width: statGrid.cellWidth; label: "Energy"; value: root.energy }
+              CareStatRow { width: statGrid.cellWidth; label: "Health"; value: root.health }
+              CareStatRow { width: statGrid.cellWidth; label: "Attention"; value: root.attention }
+              CareStatRow { width: statGrid.cellWidth; label: "Bond"; value: root.bond }
+              CareStatRow { width: statGrid.cellWidth; label: "Weight"; value: root.weight }
             }
 
             Text {

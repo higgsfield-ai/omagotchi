@@ -202,8 +202,7 @@ function happyDurationMs(stats) {
   var base = 3200
   if (!stats) return base
   var s = normalizeCareStats(stats)
-  var extra = s.bond * 16 + Math.max(0, s.excitement - 40) * 6
-  return Math.round(base + extra)
+  return Math.round(base + s.bond * 16)
 }
 
 function careDurationMs() {
@@ -228,14 +227,12 @@ function defaultCareStats(nowMs) {
     energy: 78,
     health: 88,
     attention: 70,
-    excitement: 18,
-    focus: 12,
-    music: 16,
     bond: 8,
     weight: 50,
     bornMs: now,
     updatedMs: now,
-    docked: false
+    docked: false,
+    activity: "walking"
   }
 }
 
@@ -266,14 +263,12 @@ function normalizeCareStats(raw, nowMs) {
     energy: clampStat(raw.energy != null ? raw.energy : d.energy),
     health: clampStat(raw.health != null ? raw.health : d.health),
     attention: clampStat(raw.attention != null ? raw.attention : d.attention),
-    excitement: clampStat(raw.excitement != null ? raw.excitement : d.excitement),
-    focus: clampStat(raw.focus != null ? raw.focus : d.focus),
-    music: clampStat(raw.music != null ? raw.music : d.music),
     bond: clampStat(raw.bond != null ? raw.bond : d.bond),
     weight: clampStat(raw.weight != null ? raw.weight : d.weight),
     bornMs: born,
     updatedMs: saneEpochMs(raw.updatedMs, nowMs, d.updatedMs),
-    docked: !!(raw.docked)
+    docked: !!(raw.docked),
+    activity: raw.activity === "standing" || raw.activity === "running" ? raw.activity : "walking"
   }
 }
 
@@ -291,13 +286,6 @@ function careDecayRates() {
     attentionIdle: 9,
     attentionActive: 4,
     attentionMusic: 6,
-    excitement: 220,
-    excitementLoud: 90,
-    excitementSoft: 25,
-    focusSneak: 28,
-    focusOpen: 22,
-    musicOn: 12,
-    musicOff: 8,
     bond: 0.12,
     weightDrift: 0.8
   }
@@ -319,7 +307,6 @@ function decayCareStats(stats, nowMs, env) {
   var sleeping = !!e.sleeping
   var night = !!e.night
   var playing = !!e.mediaPlaying
-  var sneak = !!e.sneakWindow
   var active = !!e.active
   var peak = Number(e.audioPeak)
   if (!isFinite(peak) || peak < 0) peak = 0
@@ -349,18 +336,6 @@ function decayCareStats(stats, nowMs, env) {
   else attention -= rates.attentionIdle * dtH
   if (playing) attention += rates.attentionMusic * dtH
   attention = clampStat(attention)
-  var excitement = s.excitement - rates.excitement * dtH
-  if (playing && peak > 0.55) excitement += rates.excitementLoud * dtH
-  else if (playing) excitement += rates.excitementSoft * dtH
-  excitement = clampStat(excitement)
-  var focus = sneak
-    ? s.focus + rates.focusSneak * dtH
-    : s.focus - rates.focusOpen * dtH
-  focus = clampStat(focus)
-  var music = playing
-    ? s.music + rates.musicOn * dtH
-    : s.music - rates.musicOff * dtH
-  music = clampStat(music)
   var bond = clampStat(s.bond + rates.bond * dtH)
   var weight = s.weight
   if (weight > 50) weight -= rates.weightDrift * dtH
@@ -373,14 +348,12 @@ function decayCareStats(stats, nowMs, env) {
     energy: energy,
     health: health,
     attention: attention,
-    excitement: excitement,
-    focus: focus,
-    music: music,
     bond: bond,
     weight: weight,
     bornMs: s.bornMs,
     updatedMs: now,
-    docked: !!s.docked
+    docked: !!s.docked,
+    activity: s.activity
   }
 }
 
@@ -408,30 +381,24 @@ function applyCareAction(stats, action, nowMs, env) {
     s.hygiene = clampStat(s.hygiene - 4)
     s.energy = clampStat(s.energy - 10)
     s.attention = clampStat(s.attention + 18)
-    s.excitement = clampStat(s.excitement + 42)
     s.weight = clampStat(s.weight - 5)
     s.health = clampStat(s.health + 2)
     s.bond = clampStat(s.bond + 3)
   } else if (act === "pet") {
     s.mood = clampStat(s.mood + 10)
     s.attention = clampStat(s.attention + 12)
-    s.excitement = clampStat(s.excitement + 8)
     s.bond = clampStat(s.bond + 1)
   } else if (act === "mess") {
     s.hygiene = clampStat(s.hygiene - 10)
     s.mood = clampStat(s.mood - 6)
     s.health = clampStat(s.health - 8)
-    s.excitement = clampStat(s.excitement - 12)
     s.attention = clampStat(s.attention - 4)
   } else if (act === "drag") {
-    s.excitement = clampStat(s.excitement + 18)
     s.attention = clampStat(s.attention + 6)
     s.energy = clampStat(s.energy - 2)
   } else if (act === "track") {
-    s.excitement = clampStat(s.excitement + 22)
     s.attention = clampStat(s.attention + 10)
     s.mood = clampStat(s.mood + 4)
-    s.music = clampStat(s.music + 6)
   }
   s.updatedMs = now
   return s
@@ -454,10 +421,6 @@ function careFlags(stats) {
     lonely: s.attention < 28,
     neglected: s.attention < 12,
     loved: s.attention > 75,
-    hyped: s.excitement > 62,
-    focused: s.focus > 55,
-    musical: s.music > 55,
-    grooving: s.music > 78,
     heavy: s.weight > 70,
     light: s.weight < 35,
     bonded: s.bond >= 65
@@ -491,13 +454,7 @@ function ageLabel(bornMs, nowMs) {
 }
 
 function flipPeak(stats) {
-  var t = 0.55
-  if (!stats) return t
-  var s = normalizeCareStats(stats)
-  if (s.music > 70) t -= 0.16
-  if (s.excitement > 70) t -= 0.12
-  if (t < 0.22) t = 0.22
-  return t
+  return 0.55
 }
 
 function dancePeak(stats) {
@@ -546,7 +503,7 @@ function resolveMode(opts) {
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
   var wander = String(o.wander || "idle")
   if (isMoveMode(wander)) {
-    if (o.sneak || o.focused) return "sneak"
+    if (o.sneak) return "sneak"
     return wander
   }
   if (wander === "look") return "look"
@@ -555,7 +512,6 @@ function resolveMode(opts) {
   if (playing && o.browserMedia && peak < 0.28) return "watch"
   if (playing && peak >= danceAt) return "dance"
   if (o.lonely) return "look"
-  if (o.focused) return "look"
   return "idle"
 }
 
@@ -589,13 +545,17 @@ function wanderWeights(stats) {
     look += 18
     walk = Math.max(4, walk - 8)
   }
-  if (s.excitement > 62) {
-    run += 12
-    idle = Math.max(4, idle - 8)
-  }
-  if (s.focus > 55) {
-    look += 12
-    run = Math.max(0, run - 10)
+  // The user-picked activity level bounds how mobile he gets: standing
+  // never moves, walking never runs, running does it all.
+  if (s.activity === "standing") {
+    idle += walk + Math.round(run / 2)
+    look += Math.round(run / 2)
+    walk = 0
+    run = 0
+  } else if (s.activity === "walking") {
+    walk += Math.round(run / 2)
+    idle += Math.round(run / 2)
+    run = 0
   }
   return { walk: walk, run: run, idle: idle, look: look }
 }
@@ -873,11 +833,6 @@ function danceFps(peak, stats) {
   if (!isFinite(p) || p < 0) p = 0
   if (p > 1) p = 1
   var fps = Math.round(7 + p * 16)
-  if (stats) {
-    var s = normalizeCareStats(stats)
-    if (s.excitement > 70) fps += 4
-    if (s.music > 75) fps += 2
-  }
   if (fps > 26) fps = 26
   return fps
 }

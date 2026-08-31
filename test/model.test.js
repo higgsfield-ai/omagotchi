@@ -87,6 +87,24 @@ test("pickWander mixes walk, run, idle, and look", () => {
   assert.equal(Model.pickWander(1), "look")
 })
 
+test("activity level bounds the wander pool", () => {
+  const base = Model.defaultCareStats(1_000_000)
+  for (let i = 0; i <= 20; i++) {
+    const stand = Model.pickWander(i / 20, Object.assign({}, base, { activity: "standing" }))
+    assert.ok(stand === "idle" || stand === "look")
+    const walk = Model.pickWander(i / 20, Object.assign({}, base, { activity: "walking" }))
+    assert.notEqual(walk, "run")
+  }
+  const modes = new Set()
+  for (let i = 0; i <= 40; i++)
+    modes.add(Model.pickWander(i / 40, Object.assign({}, base, { activity: "running" })))
+  assert.ok(modes.has("run"))
+  assert.ok(modes.has("walk"))
+  assert.equal(Model.normalizeCareStats({ activity: "standing" }).activity, "standing")
+  assert.equal(Model.normalizeCareStats({ activity: "bogus" }).activity, "walking")
+  assert.equal(Model.normalizeCareStats({}).activity, "walking")
+})
+
 test("nextClickState greets once and turns grumpy on a click burst", () => {
   const first = Model.nextClickState({ clickBurst: 0, lastClickMs: 0 }, 1000)
   assert.equal(first.clickBurst, 1)
@@ -333,24 +351,6 @@ test("energy, health, attention, and desktop stats decay with the environment", 
     {}
   )
   assert.ok(hurt.health < 50)
-  const hyped = Model.decayCareStats(
-    Object.assign({}, start, { excitement: 80, updatedMs: t0 }),
-    t0 + 600_000,
-    {}
-  )
-  assert.ok(hyped.excitement < 50)
-  const sneak = Model.decayCareStats(
-    Object.assign({}, start, { focus: 10, updatedMs: t0 }),
-    t0 + 3_600_000,
-    { sneakWindow: true }
-  )
-  assert.ok(sneak.focus > 10)
-  const jam = Model.decayCareStats(
-    Object.assign({}, start, { music: 20, updatedMs: t0 }),
-    t0 + 3_600_000,
-    { mediaPlaying: true }
-  )
-  assert.ok(jam.music > 20)
   const stuffed = Model.applyCareAction(
     Object.assign({}, start, { hunger: 80, weight: 50, updatedMs: t0 }),
     "feed",
@@ -363,23 +363,20 @@ test("energy, health, attention, and desktop stats decay with the environment", 
     t0
   )
   assert.ok(slim.weight < 60)
-  const flags = Model.careFlags({ energy: 6, health: 10, attention: 8, focus: 70, excitement: 80 })
+  const flags = Model.careFlags({ energy: 6, health: 10, attention: 8 })
   assert.equal(flags.criticalTired, true)
   assert.equal(flags.ill, true)
   assert.equal(flags.neglected, true)
-  assert.equal(flags.focused, true)
-  assert.equal(flags.hyped, true)
   assert.equal(Model.ageLabel(t0, t0 + 3 * 3600000), "3h")
   assert.equal(Model.ageLabel(t0, t0 + 26 * 3600000), "1d 2h")
-  assert.ok(Model.happyDurationMs({ bond: 80, excitement: 90 }) > Model.happyDurationMs())
-  assert.ok(Model.flipPeak({ music: 90, excitement: 90 }) < 0.55)
+  assert.ok(Model.happyDurationMs({ bond: 80 }) > Model.happyDurationMs())
+  assert.equal(Model.flipPeak(), 0.55)
   assert.equal(Model.dancePeak(), 0)
   assert.ok(Model.movePace("run", { weight: 90, energy: 10 }).step < Model.movePace("run").step)
-  const tired = Object.assign({}, start, { energy: 8, weight: 85, health: 20, attention: 10, focus: 80 })
+  const tired = Object.assign({}, start, { energy: 8, weight: 85, health: 20, attention: 10 })
   for (let i = 0; i <= 20; i++)
     assert.notEqual(Model.pickWander(i / 20, tired), "run")
   assert.equal(Model.resolveMode({ greet: true, focused: true, wander: "idle" }), "greet")
-  assert.equal(Model.resolveMode({ focused: true, wander: "idle" }), "look")
   assert.equal(Model.resolveMode({ unhealthy: true, wander: "idle" }), "sick")
   assert.equal(Model.resolveMode({ exhausted: true, wander: "walk" }), "sleep")
   assert.equal(Model.resolveMode({ lonely: true, wander: "idle" }), "look")

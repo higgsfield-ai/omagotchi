@@ -36,14 +36,12 @@ Item {
   property real careEnergy: 78
   property real careHealth: 88
   property real careAttention: 70
-  property real careExcitement: 18
-  property real careFocus: 12
-  property real careMusic: 16
   property real careBond: 8
   property real careWeight: 50
   property real careBornMs: 0
   property real careUpdatedMs: 0
   property real lastDragCareMs: 0
+  property string petActivity: "walking"
   property real stunUntil: 0
   property bool pendingWash: false
   property string lastTrackKey: ""
@@ -150,13 +148,11 @@ Item {
     energy: root.careEnergy,
     health: root.careHealth,
     attention: root.careAttention,
-    excitement: root.careExcitement,
-    focus: root.careFocus,
-    music: root.careMusic,
     bond: root.careBond,
     weight: root.careWeight,
     bornMs: root.careBornMs,
-    updatedMs: root.careUpdatedMs
+    updatedMs: root.careUpdatedMs,
+    activity: root.petActivity
   })
   readonly property var careFlags: Model.careFlags(root.careLive)
   readonly property string mode: Model.resolveMode({
@@ -173,9 +169,8 @@ Item {
     neglected: !!root.careFlags.neglected,
     lonely: !!root.careFlags.lonely,
     exhausted: !!root.careFlags.criticalTired,
-    focused: !!root.careFlags.focused,
     sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMsFor(root.careLive),
-    sneak: Model.sneakWindow(root.winW, root.winH) || !!root.careFlags.focused,
+    sneak: Model.sneakWindow(root.winW, root.winH),
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying,
     video: root.mediaIsVideo,
@@ -376,14 +371,12 @@ Item {
       energy: root.careEnergy,
       health: root.careHealth,
       attention: root.careAttention,
-      excitement: root.careExcitement,
-      focus: root.careFocus,
-      music: root.careMusic,
       bond: root.careBond,
       weight: root.careWeight,
       bornMs: root.careBornMs,
       updatedMs: root.careUpdatedMs,
-      docked: root.petDocked
+      docked: root.petDocked,
+      activity: root.petActivity
     }
   }
 
@@ -407,13 +400,11 @@ Item {
     root.careEnergy = s.energy
     root.careHealth = s.health
     root.careAttention = s.attention
-    root.careExcitement = s.excitement
-    root.careFocus = s.focus
-    root.careMusic = s.music
     root.careBond = s.bond
     root.careWeight = s.weight
     root.careBornMs = s.bornMs
     root.careUpdatedMs = s.updatedMs
+    if (s.activity) root.petActivity = s.activity
     if (!root.petRecalling && !root.petReleasing)
       root.petDocked = !!s.docked
     if (persist) root.careDirty = true
@@ -588,6 +579,16 @@ Item {
     root.petReleasing = false
     root.petDocked = false
     return "desktop"
+  }
+
+  function setActivity(mode) {
+    var next = String(mode || "").toLowerCase()
+    if (next !== "standing" && next !== "walking" && next !== "running") return "unknown activity"
+    root.petActivity = next
+    root.careDirty = true
+    root.saveCare()
+    root.wander = Model.pickWander(Math.random(), root.careSnapshot())
+    return next
   }
 
   function toggleDock() {
@@ -977,5 +978,6 @@ Item {
     function hide(): string { return root.recallPet() }
     function release(): string { return root.releasePet() }
     function toggleDock(): string { return root.toggleDock() }
+    function setActivity(mode: string): string { return root.setActivity(mode) }
   }
 }
