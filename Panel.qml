@@ -62,6 +62,7 @@ Panel {
   readonly property string nestMode: Model.nestMode(root.svc ? String(root.svc.mode || "idle") : "idle")
   readonly property var nestFrames: Model.framesForMode(root.atlas, root.nestMode)
   readonly property string fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+  readonly property color errorColor: "#ef5350"
 
   onGeneratingChanged: {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
@@ -459,7 +460,7 @@ Panel {
               width: parent.width
               visible: root.lastError !== "" && !root.generating && root.generateError.message !== ""
               text: root.generateError.message
-              color: root.barForeground
+              color: root.errorColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtitle
               wrapMode: Text.WordWrap
@@ -720,7 +721,7 @@ Panel {
               width: parent.width
               visible: root.generateError.message !== ""
               text: root.generateError.message
-              color: root.barForeground
+              color: root.errorColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.subtitle
               wrapMode: Text.WordWrap
