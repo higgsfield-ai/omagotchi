@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random  # retry jitter only, nothing security-sensitive
 import re
 import shutil
 import subprocess
@@ -662,22 +663,32 @@ def poll_job(hf: str, job_id: str, log: Path) -> dict:
 
 # One Higgsfield create per call. Failures surface to the panel; only Retry starts again.
 def start_job(hf: str, model: str, args: list[str], log: Path) -> str:
-    proc = subprocess.run(
-        [hf, "generate", "create", model, *args, "--json"],
-        capture_output=True,
-        text=True,
-    )
-    blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    append_log(log, blob)
-    data = parse_job(proc.stdout or "") or last_json(blob)
-    job_id = extract_job_id(data)
-    if not job_id and proc.returncode == 0:
-        job_id = extract_uuid(blob)
-    if job_id and proc.returncode == 0:
-        return job_id
-    if extract_job_id(data) and is_transport_error(blob):
-        return extract_job_id(data)
-    raise RuntimeError(describe_hf_error(proc.stderr or proc.stdout or "higgsfield create failed"))
+    # 503/timeout on create is a burst, not a verdict — a run fires up to 18
+    # parallel creates and the API sheds load. Back off with jitter and try
+    # again before treating it as a real failure.
+    last_err = "higgsfield create failed"
+    for attempt in range(3):
+        if attempt:
+            time.sleep(min(4 * attempt, 8) + random.uniform(0.0, 1.5))
+        proc = subprocess.run(
+            [hf, "generate", "create", model, *args, "--json"],
+            capture_output=True,
+            text=True,
+        )
+        blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        append_log(log, blob)
+        data = parse_job(proc.stdout or "") or last_json(blob)
+        job_id = extract_job_id(data)
+        if not job_id and proc.returncode == 0:
+            job_id = extract_uuid(blob)
+        if job_id and proc.returncode == 0:
+            return job_id
+        if extract_job_id(data) and is_transport_error(blob):
+            return extract_job_id(data)
+        last_err = describe_hf_error(proc.stderr or proc.stdout or "higgsfield create failed")
+        if not is_transport_error(blob) or is_hard_failure(blob):
+            break
+    raise RuntimeError(last_err)
 
 
 def wait_job(hf: str, job_id: str, log: Path) -> dict:
@@ -972,7 +983,6 @@ def main() -> None:
 
     start_wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(start_submitted)))
     start_wait_futs = {start_wait_pool.submit(wait_start, item): item for item in start_submitted}
-    start_retry: list[dict] = []
     for fut in as_completed(start_wait_futs):
         clip = start_wait_futs[fut][0]
         try:
@@ -991,13 +1001,13 @@ def main() -> None:
                 CLIP_STOP.set()
                 start_wait_pool.shutdown(wait=False, cancel_futures=True)
                 fail(err, {"reason": err, "job_id": extract_uuid(str(exc)), "log": str(log)})
-            start_retry.append(clip)
     start_wait_pool.shutdown(wait=True)
 
     # Out of 18 parallel image jobs one flake is routine, and it used to sink
-    # the whole run after every job was already paid for. Reroll the failed
-    # poses once before giving up.
-    for clip in start_retry:
+    # the whole run after every job was already paid for. Reroll every pose
+    # still missing — whether its submission or its wait died — before giving
+    # up, and fail only on what is still absent afterwards.
+    for clip in [c for c in jobs if c["name"] not in start_paths]:
         progress(
             f"Rerolling pose · {clip['name']}",
             phase="start",
@@ -1013,7 +1023,7 @@ def main() -> None:
         except Exception as exc:
             start_wait_errors.append(f"pose {clip['name']} failed twice: {exc}")
 
-    if start_wait_errors or len(start_paths) < len(jobs) or start_errors:
+    if len(start_paths) < len(jobs):
         err = (start_wait_errors or start_errors or ["missing start frames"])[0]
         fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
 
@@ -1123,9 +1133,30 @@ def main() -> None:
             )
         except Exception as exc:
             wait_errors.append(str(exc))
+            append_log(log, str(exc) + "\n")
     wait_pool.shutdown(wait=True)
 
-    if wait_errors or len(finished) < len(jobs) or create_errors:
+    # Same tolerance as the poses: resubmit whatever is still missing —
+    # clips whose creation 503'd never reached the wait pool at all.
+    for clip in [c for c in jobs if id(c) not in finished]:
+        dest = clips_dir / f"r{clip['row']:02d}_{clip['name']}.mp4"
+        progress(
+            f"Rerolling clip · {clip['name']}",
+            phase="clip",
+            step=clip_base + completed["n"],
+            steps=total,
+        )
+        try:
+            append_log(log, f"clip resubmit {clip['name']}\n")
+            job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start_paths[clip["name"]]), log)
+            job = wait_job(hf, job_id, log)
+            download(job["url"], dest)
+            finished[id(clip)] = dest
+            completed["n"] += 1
+        except Exception as exc:
+            wait_errors.append(f"clip {clip['name']} failed twice: {exc}")
+
+    if len(finished) < len(jobs):
         err = (wait_errors or create_errors or ["missing clips"])[0]
         fail(err, {"reason": err, "job_id": extract_uuid(err), "log": str(log)})
 
