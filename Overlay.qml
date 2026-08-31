@@ -111,7 +111,14 @@ Item {
 
     onModeChanged: window.frame = 0
     onVisibleChanged: {
-      if (!window.visible) return
+      if (!window.visible) {
+        // The surface unmapped; any pointer grab died with it.
+        if (window.dragging) {
+          window.dragging = false
+          window.snapInside()
+        }
+        return
+      }
       if (root.svc && root.svc.petReleasing) {
         window.startSpawnFall()
         return
@@ -133,6 +140,18 @@ Item {
       window.petX = Model.clampPetX(window.petX, window.frames.displayWidth, window.stageRect.w)
       if (!window.airborne)
         window.petY = window.floorY
+    }
+
+    // End a drag however it ended: fall if he is high enough, otherwise
+    // settle straight onto the floor. Used by release, cancel, and the
+    // stuck-drag watchdog.
+    function settleFromDrag() {
+      if (Model.shouldFall(window.petY, window.floorY, 8)) {
+        window.startFall()
+        return
+      }
+      window.dragging = false
+      window.petY = window.floorY
     }
 
     function stopFall() {
@@ -266,6 +285,17 @@ Item {
       }
     }
 
+    // Watchdog: dragging with no button held means the grab was lost some
+    // way the handlers above did not see. Settle instead of freezing.
+    Timer {
+      interval: 1500
+      running: window.dragging && !petMouse.pressed
+      repeat: false
+      onTriggered: {
+        if (window.dragging && !petMouse.pressed) window.settleFromDrag()
+      }
+    }
+
     Timer {
       interval: window.pace.interval
       running: window.visible && Model.isMoveMode(window.mode) && !window.airborne
@@ -343,6 +373,7 @@ Item {
         }
 
         MouseArea {
+          id: petMouse
           anchors.fill: parent
           enabled: !window.recalling && !window.releasing
           cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -392,12 +423,15 @@ Item {
               return
             }
             didCollapse = false
-            if (Model.shouldFall(window.petY, window.floorY, 8)) {
-              window.startFall()
-              return
-            }
-            window.dragging = false
-            window.petY = window.floorY
+            window.settleFromDrag()
+          }
+          // Wayland cancels a grab instead of releasing it when the surface
+          // unmaps mid-drag or the compositor takes the pointer. Without this
+          // the dragging flag stayed true forever and the pet froze airborne.
+          onCanceled: {
+            didCollapse = false
+            if (didMove) window.settleFromDrag()
+            else window.dragging = false
           }
         }
       }
