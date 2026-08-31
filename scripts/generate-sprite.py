@@ -23,9 +23,11 @@ LOG_LOCK = threading.Lock()
 PROGRESS_LOCK = threading.Lock()
 
 STYLE = (
-    "8-bit pixel art, chunky low-resolution pixels on a coarse pixel grid, "
-    "limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, "
-    "no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette"
+    "8-bit pixel art with a CONSISTENT fine pixel density — the character reads "
+    "as roughly 64 virtual pixels tall (even pixel grid, never giant chunky "
+    "blocks), limited NES-era palette (max ~24 colors), hard pixel edges, "
+    "no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, "
+    "clean readable silhouette"
 )
 
 FRAMING_LOCK = (
@@ -115,8 +117,8 @@ CLIPS = [
      "pose": "flat on stomach or back minimized pose, awake, readable silhouette, full body",
      "spec": "COLLAPSE/LIE: flat on stomach/back minimized pose, awake or half-awake, readable silhouette"},
     {"row": 3, "name": "drag", "frames": 8, "loop": True,
-     "pose": "hanging by one raised arm as if held by the hand from above, that arm straight up overhead, body and legs dangling relaxed below, full body",
-     "spec": "DRAG/HANG: held up by one hand — one arm fixed straight overhead as if gripped from above, body hanging below it, legs dangling with a light pendulum sway, the held arm never moves"},
+     "pose": "one arm stretched straight up overhead, body and legs dangling relaxed below it as if hanging by that hand, COMPLETELY ALONE in the frame — no rope, no hand holding him, no other characters, full body",
+     "spec": "DRAG/HANG: one arm fixed straight overhead, body hanging below it, legs dangling with a light pendulum sway, the raised arm never moves; COMPLETELY ALONE — no rope, no hand holding him, no other characters, no props"},
     {"row": 3, "name": "greet", "frames": 8, "loop": True,
      "pose": "facing camera/3-4, friendly wave, first frame of a hello, full body",
      "spec": "GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello"},
@@ -725,11 +727,29 @@ def pick_key_color(path: Path) -> str:
     return "#FF00FF"
 
 
+def start_background_ok(path: Path, key: str) -> bool:
+    try:
+        from PIL import Image
+        import numpy as np
+    except ImportError:
+        return True
+    try:
+        im = Image.open(path).convert("RGB").resize((64, 64))
+    except Exception:
+        return True
+    arr = np.asarray(im).astype(int)
+    kr, kg, kb = int(key[1:3], 16), int(key[3:5], 16), int(key[5:7], 16)
+    border = np.concatenate([arr[0], arr[-1], arr[:, 0], arr[:, -1]])
+    dist = np.abs(border - np.array([kr, kg, kb])).sum(axis=1)
+    return float((dist < 180).mean()) >= 0.85
+
+
 def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
         f"{spec}, {STYLE}, {CAMERA_LOCK}, {SCALE_RULE}, "
-        f"flat solid {key} background that never changes, no background elements, no text{extra}"
+        f"flat solid {key} background that never changes, no background elements, "
+        f"no other characters, no props, no text{extra}"
     )
 
 
@@ -748,7 +768,9 @@ def start_prompt(clip: dict, key: str, notes: str) -> str:
     pose = clip.get("pose") or clip["spec"]
     return (
         f"{STYLE}. {pose}. {FRAMING_LOCK} {SCALE_RULE} "
-        f"Solid {key} background, no ground plane, no cast shadow. "
+        f"Flat solid {key} background filling the ENTIRE frame, no ground plane, "
+        f"no cast shadow, no scenery, no props, no other characters — the character "
+        f"is completely alone. "
         f"Keep identity, outfit and proportions from the reference sprite.{extra}"
     )
 
@@ -974,6 +996,8 @@ def main() -> None:
         clip, job_id, dest = item
         job = wait_job(hf, job_id, log)
         download(job["url"], dest)
+        if not start_background_ok(dest, key):
+            raise RuntimeError("start frame background is not the key color")
         return clip, dest
 
     start_wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(start_submitted)))
@@ -1014,6 +1038,8 @@ def main() -> None:
             job = wait_job(hf, job_id, log)
             dest = starts_dir / f"{clip['name']}.png"
             download(job["url"], dest)
+            if not start_background_ok(dest, key):
+                raise RuntimeError("start frame background is not the key color")
             start_paths[clip["name"]] = dest
         except Exception as exc:
             start_wait_errors.append(f"pose {clip['name']} failed twice: {exc}")

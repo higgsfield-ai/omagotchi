@@ -135,19 +135,24 @@ def union_box(frames):
     return None if x1 < 0 else (int(x0), int(y0), int(x1), int(y1))
 
 
-def crop_fixed_square(img, box, pad_ratio=0.05):
-    """Crop the SAME padded square in every frame -> stable position/scale."""
+def crop_anchored(img, box, side):
+    """One square size for EVERY action: horizontally centered on the
+    subject, BOTTOM-anchored so lying and standing poses share one floor
+    line and one scale across the whole sheet. A per-action square zoomed
+    lying poses (short, wide bbox) up and floated them mid-cell."""
     x0, y0, x1, y1 = box
-    side = max(x1 - x0, y1 - y0)
-    side += 2 * int(side * pad_ratio)
-    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
-    half = side // 2
+    cx = (x0 + x1) // 2
+    pad = int(side * 0.04)
+    left = cx - side // 2
+    bottom = min(y1 + pad, img.height)
+    top = bottom - side
     canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    bx = (max(cx - half, 0), max(cy - half, 0),
-          min(cx + half, img.width), min(cy + half, img.height))
+    bx = (max(left, 0), max(top, 0),
+          min(left + side, img.width), min(bottom, img.height))
+    if bx[2] <= bx[0] or bx[3] <= bx[1]:
+        return canvas
     region = img.crop(bx)
-    canvas.paste(region, ((side - region.width) // 2,
-                          (side - region.height) // 2))
+    canvas.paste(region, (bx[0] - left, bx[1] - top))
     return canvas
 
 
@@ -307,27 +312,59 @@ def main():
     timings = {}
 
     with tempfile.TemporaryDirectory() as tmp:
+        # Pass 1: sample every clip and measure its subject box on cheap
+        # quarter-scale proxies, so pass 2 can crop every action with ONE
+        # shared square size (single scale + single floor line sheet-wide).
+        prepared = []
         for r in rows:
-            row_frames = []
             for ci, clip in enumerate(r["clips"]):
-                aname = clip.get("name") or r["name"]
                 n = clip["frames"]
                 uniform = hold_frames <= 1
                 # uniform mode samples exactly n frames; hold mode samples
                 # DENSER (2x) so pose selection has material to collapse
                 count = n if uniform else n * 2
-                keyed = [chroma_key(Image.open(p), key, tol)
-                         for p in sample_frames(clip["path"], count, tmp)]
-                if fs:  # opt-in pixel-grid mode
-                    box = union_box(keyed)
-                    if box is None:
-                        print(f"[warn] {aname}: empty after keying, skipped")
-                        continue
-                    cropped = [crop_fixed_square(f, box) for f in keyed]
-                    cand = pixelize_action(cropped, fs, max_colors,
-                                           magenta_key=magenta)
-                else:   # default: native resolution, untouched geometry
-                    cand = finalize_native(keyed, magenta_key=magenta)
+                paths = sample_frames(clip["path"], count, tmp)
+                box = None
+                if fs:
+                    proxies = []
+                    for pth in paths:
+                        im = Image.open(pth)
+                        im = im.resize((max(1, im.width // 4),
+                                        max(1, im.height // 4)))
+                        proxies.append(chroma_key(im, key, tol))
+                    b = union_box(proxies)
+                    if b is not None:
+                        box = tuple(v * 4 for v in b)
+                prepared.append({"r": r, "ci": ci, "clip": clip,
+                                 "paths": paths, "box": box,
+                                 "uniform": uniform, "n": n})
+
+        global_side = 0
+        for item in prepared:
+            if item["box"] is None:
+                continue
+            x0, y0, x1, y1 = item["box"]
+            side = max(x1 - x0, y1 - y0)
+            global_side = max(global_side, side + 2 * int(side * 0.05))
+
+        frames_by_row = {}
+        for item in prepared:
+            r, ci, clip = item["r"], item["ci"], item["clip"]
+            aname = clip.get("name") or r["name"]
+            n = item["n"]
+            uniform = item["uniform"]
+            keyed = [chroma_key(Image.open(pth), key, tol)
+                     for pth in item["paths"]]
+            if fs:  # opt-in pixel-grid mode
+                if item["box"] is None or global_side <= 0:
+                    print(f"[warn] {aname}: empty after keying, skipped")
+                    continue
+                cropped = [crop_anchored(f, item["box"], global_side)
+                           for f in keyed]
+                cand = pixelize_action(cropped, fs, max_colors,
+                                       magenta_key=magenta)
+            else:   # default: native resolution, untouched geometry
+                cand = finalize_native(keyed, magenta_key=magenta)
                 if uniform:  # variant A (default): all frames unique
                     uniq, ticks = cand, [1] * len(cand)
                     frames, reps = cand, [1] * len(cand)
@@ -359,7 +396,10 @@ def main():
                     "cycle_ms": cycle_ms,
                     "loop": not r.get("one_shot", False),
                 }
-                row_frames += frames
+                frames_by_row.setdefault(r["row"], []).extend(frames)
+
+        for r in rows:
+            row_frames = frames_by_row.get(r["row"], [])
             if len(row_frames) != COLS:
                 print(f"[warn] row {r['row']} has {len(row_frames)} frames, "
                       f"expected {COLS}")

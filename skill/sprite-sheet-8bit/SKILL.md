@@ -30,7 +30,7 @@ exist only inside their row's frames; no standalone prop assets.
 The character is ALWAYS 8-bit pixel art. Fixed style string — verbatim in EVERY
 image AND video prompt of this skill:
 
-`8-bit pixel art, chunky low-resolution pixels on a coarse pixel grid, limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
+`8-bit pixel art with a CONSISTENT fine pixel density — the character reads as roughly 64 virtual pixels tall (even pixel grid, never giant chunky blocks), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
 
 ## Prerequisites
 
@@ -85,8 +85,12 @@ in the reference image — the same on-screen height, the same margins around hi
 do not zoom in, do not zoom out, do not crop.`
 
 Submit in two batched calls (10 + 7). QC all 17 in ONE batched `image_analyze`
-pass (identity, pose, scale vs base, clean key background). Regen budget: 2 per
-start frame.
+pass (identity, pose, scale vs base, clean key background). Additionally verify
+each start frame's BORDER is ≥85% key color (a cheap numeric check) — a frame
+that invented scenery or another character fails it and gets rerolled. Regen
+budget: 2 per start frame. Never describe an off-screen agent in a pose prompt
+("held by a hand from above") — the model will draw it; describe only the
+character's own body and state "completely alone in the frame".
 
 ## Step 4 — clip plan (the video-driven core)
 
@@ -153,7 +157,7 @@ Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
 | 0 | 16 | WALK: side-view walk/run cycle facing right, full gait, arms and legs clear, upright then slight forward lean as speed builds | loop |
 | 1 | 8+8 | IDLE: subtle idle bob/breath facing 3/4 right · LOOK-AROUND: gentle head/torso turns (right, camera, left, back to right) while standing | loop each |
 | 2 | 8+8 | SLEEP: lying on side or curled, eyes closed, tiny breathing · COLLAPSE/LIE: flat on stomach/back "minimized" pose, awake or half-awake, readable silhouette | loop each |
-| 3 | 8+8 | DRAG/HANG: held up by one hand — one arm fixed straight overhead as if gripped from above, body hanging below it, legs dangling with a light pendulum sway, the held arm never moves · GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello | loop each |
+| 3 | 8+8 | DRAG/HANG: one arm fixed straight overhead, body hanging below it, legs dangling with a light pendulum sway, the raised arm never moves; COMPLETELY ALONE — no rope, no hand holding him, no other characters, no props · GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello | loop each |
 | 4 | 16 | DANCE/CHEER: music celebration facing camera/3-4, arms up, stepping in place, joyful cycle | loop |
 | 5 | 16 | DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak | loop |
 | 6 | 16 | SNEAK: deep crouch walk facing right, torso low, careful steps | loop |
@@ -176,7 +180,11 @@ over point feedback.
 
 Download the clips, write a `plan.json` (see the script header), run the script.
 Per clip: even frame sampling (ffmpeg) → chroma-key by hex distance including
-enclosed regions → despill (rim + global soft pass) → NATIVE clip resolution
+enclosed regions → despill (rim + global soft pass). In pixel-grid mode every
+action is cropped with ONE shared square (sized by the largest subject across
+ALL actions) and BOTTOM-anchored, so a lying pose keeps the same scale as a
+standing one and rests on the shared floor line instead of floating zoomed-in
+mid-cell → otherwise NATIVE clip resolution
 (default: no crop, no downscale, no quantization — `frame_size`/`max_colors` in
 plan.json opt into the small pixel-grid mode) → TIMING (FINAL DEFAULT, variant A):
 every grid frame is unique and holds a uniform **156 ms** → a 16-frame action
