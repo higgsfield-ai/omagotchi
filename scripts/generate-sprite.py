@@ -1251,6 +1251,9 @@ def main() -> None:
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
     progress("Cutting frames…", phase="post", step=total - 1, steps=total)
+    # A stale sheet from a previous run must never masquerade as this run's
+    # output: postprocess writes into work/sheet, so start it empty.
+    shutil.rmtree(work_dir / "sheet", ignore_errors=True)
     proc = subprocess.run([venv_py, str(post), str(plan_path)], capture_output=True, text=True)
     with log.open("a") as fh:
         fh.write(proc.stdout or "")

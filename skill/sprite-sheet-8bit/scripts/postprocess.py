@@ -379,38 +379,38 @@ def main():
                                        magenta_key=magenta)
             else:   # default: native resolution, untouched geometry
                 cand = finalize_native(keyed, magenta_key=magenta)
-                if uniform:  # variant A (default): all frames unique
-                    uniq, ticks = cand, [1] * len(cand)
-                    frames, reps = cand, [1] * len(cand)
-                else:
-                    # B: key poses chosen by motion, ~hold_frames per pose
-                    k = max(2, round(n / hold_frames))
-                    uniq, ticks = dedupe_holds(cand, k)
-                    # C: bake the holds into the fixed n-column strip
-                    frames, reps = expand_to_grid(uniq, ticks, n)
-                cw, ch = frames[0].size
-                strip = Image.new("RGBA", (len(frames) * cw, ch), (0, 0, 0, 0))
-                for i, f in enumerate(frames):
-                    strip.paste(f, (i * cw, 0))
-                tag = (f"row{r['row']:02d}"
-                       f"{chr(97 + ci) if len(r['clips']) > 1 else ''}_{aname}")
-                strip.save(out_dir / "actions" / f"{tag}.png")
-                cycle_ms = round(n * frame_ms)
-                total = sum(ticks)
-                durations = ([frame_ms] * len(uniq) if uniform else
-                             [max(60, round(cycle_ms * t / total))
-                              for t in ticks])
-                save_gif(uniq, out_dir / "gifs" / f"{tag}.gif",
-                         r.get("one_shot"), cw, durations)
-                timings[tag] = {
-                    "frames_in_strip": n,
-                    "unique_poses": len(uniq),
-                    "strip_repeats": reps,
-                    "durations_ms": durations,
-                    "cycle_ms": cycle_ms,
-                    "loop": not r.get("one_shot", False),
-                }
-                frames_by_row.setdefault(r["row"], []).extend(frames)
+            if uniform:  # variant A (default): all frames unique
+                uniq, ticks = cand, [1] * len(cand)
+                frames, reps = cand, [1] * len(cand)
+            else:
+                # B: key poses chosen by motion, ~hold_frames per pose
+                k = max(2, round(n / hold_frames))
+                uniq, ticks = dedupe_holds(cand, k)
+                # C: bake the holds into the fixed n-column strip
+                frames, reps = expand_to_grid(uniq, ticks, n)
+            cw, ch = frames[0].size
+            strip = Image.new("RGBA", (len(frames) * cw, ch), (0, 0, 0, 0))
+            for i, f in enumerate(frames):
+                strip.paste(f, (i * cw, 0))
+            tag = (f"row{r['row']:02d}"
+                   f"{chr(97 + ci) if len(r['clips']) > 1 else ''}_{aname}")
+            strip.save(out_dir / "actions" / f"{tag}.png")
+            cycle_ms = round(n * frame_ms)
+            total = sum(ticks)
+            durations = ([frame_ms] * len(uniq) if uniform else
+                         [max(60, round(cycle_ms * t / total))
+                          for t in ticks])
+            save_gif(uniq, out_dir / "gifs" / f"{tag}.gif",
+                     r.get("one_shot"), cw, durations)
+            timings[tag] = {
+                "frames_in_strip": n,
+                "unique_poses": len(uniq),
+                "strip_repeats": reps,
+                "durations_ms": durations,
+                "cycle_ms": cycle_ms,
+                "loop": not r.get("one_shot", False),
+            }
+            frames_by_row.setdefault(r["row"], []).extend(frames)
 
         for r in rows:
             row_frames = frames_by_row.get(r["row"], [])
@@ -418,6 +418,9 @@ def main():
                 print(f"[warn] row {r['row']} has {len(row_frames)} frames, "
                       f"expected {COLS}")
             sheet_rows.append((r["row"], row_frames))
+
+    if not any(fr for _, fr in sheet_rows):
+        sys.exit("no frames produced — every action came out empty after keying")
 
     (out_dir / "timings.json").write_text(json.dumps(timings, indent=1))
 
