@@ -25,6 +25,7 @@ function generatedModeMap() {
     walk: { row: 0, start: 0, count: 16 },
     idle: { row: 1, start: 0, count: 8 },
     look: { row: 1, start: 8, count: 8 },
+    sleep: { row: 2, start: 0, count: 8 },
     collapse: { row: 2, start: 8, count: 8 },
     drag: { row: 3, start: 0, count: 8 },
     greet: { row: 3, start: 8, count: 8 },
@@ -51,6 +52,7 @@ function generatedAtlas(file) {
       walk: modes.walk,
       idle: modes.idle,
       look: modes.look,
+      sleep: modes.sleep,
       collapse: modes.collapse,
       drag: modes.drag,
       greet: modes.greet,
@@ -102,6 +104,7 @@ function normalizeAtlas(raw) {
       walk: cloneMode(modes.walk, fb.walk || bundled.walk),
       idle: cloneMode(modes.idle, fb.idle || bundled.idle),
       look: cloneMode(modes.look, fb.look || bundled.idle),
+      sleep: cloneMode(modes.sleep, fb.sleep || fb.collapse || bundled.collapse),
       collapse: cloneMode(modes.collapse, fb.collapse || bundled.collapse),
       drag: cloneMode(modes.drag, fb.drag || bundled.drag),
       greet: cloneMode(modes.greet, fb.greet || bundled.idle),
@@ -141,6 +144,10 @@ function movePace(mode) {
   return { step: 8, interval: 90 }
 }
 
+function sleepAfterMs() {
+  return 60000
+}
+
 function resolveMode(opts) {
   var o = opts || {}
   var playing = !!o.mediaPlaying
@@ -150,6 +157,7 @@ function resolveMode(opts) {
   if (o.falling || o.sick) return "sick"
   if (o.grumpy) return "grumpy"
   if (o.greet) return "greet"
+  if (o.sleep && !playing) return "sleep"
   var wander = String(o.wander || "idle")
   if (isMoveMode(wander) || wander === "look") return wander
   if (playing && peak > 0.55) return "flip"
@@ -580,6 +588,7 @@ if (typeof module !== "undefined") {
     normalizeAtlas: normalizeAtlas,
     framesForMode: framesForMode,
     resolveMode: resolveMode,
+    sleepAfterMs: sleepAfterMs,
     isMoveMode: isMoveMode,
     movePace: movePace,
     pickWander: pickWander,

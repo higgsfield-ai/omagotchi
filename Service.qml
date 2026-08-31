@@ -24,6 +24,7 @@ Item {
   property int sickUntil: 0
   property int lastClickMs: 0
   property int clickBurst: 0
+  property int lastActiveMs: 0
   property real audioPeak: 0
   property bool generating: false
   property string generateStatus: ""
@@ -60,11 +61,15 @@ Item {
     }
     return false
   }
-  onMediaPlayingChanged: if (!root.mediaPlaying) root.audioPeak = 0
+  onMediaPlayingChanged: {
+    if (!root.mediaPlaying) root.audioPeak = 0
+    else root.touchActivity()
+  }
   readonly property string mode: Model.resolveMode({
     sick: root.nowMs < root.sickUntil,
     grumpy: root.nowMs < root.grumpyUntil,
     greet: root.nowMs < root.greetUntil,
+    sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMs(),
     mediaPlaying: root.mediaPlaying,
     audioPeak: root.audioPeak,
     wander: root.wander
@@ -226,7 +231,12 @@ Item {
     }
   }
 
+  function touchActivity() {
+    root.lastActiveMs = Date.now()
+  }
+
   function onPetClicked() {
+    root.touchActivity()
     var next = Model.nextClickState({
       lastClickMs: root.lastClickMs,
       clickBurst: root.clickBurst,
@@ -241,6 +251,7 @@ Item {
   }
 
   function onDroppedFromHeight() {
+    root.touchActivity()
     root.sickUntil = Date.now() + 4500
     return "sick"
   }
@@ -377,6 +388,11 @@ Item {
     running: root.petVisible
     repeat: true
     onTriggered: {
+      if (root.mode === "sleep") {
+        root.wander = "idle"
+        wanderTimer.interval = 4000
+        return
+      }
       root.wander = Model.pickWander(Math.random())
       wanderTimer.interval = 1800 + Math.floor(Math.random() * 2800)
     }
@@ -525,6 +541,7 @@ Item {
   }
 
   Component.onCompleted: {
+    root.touchActivity()
     root.wander = Model.pickWander(Math.random())
     root.loadAtlas()
     root.ensureRuntime()

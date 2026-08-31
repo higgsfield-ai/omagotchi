@@ -23,12 +23,14 @@ test("idle and collapse use dedicated rows", () => {
   assert.equal(collapse.frameX, 6 * 80)
 })
 
-test("resolveMode prefers drag, then sick, then click moods, then locomotion", () => {
+test("resolveMode prefers drag, then sick, then click moods, then sleep, then locomotion", () => {
   assert.equal(Model.resolveMode({ dragging: true, wander: "walk" }), "drag")
   assert.equal(Model.resolveMode({ falling: true, wander: "walk" }), "sick")
   assert.equal(Model.resolveMode({ sick: true, wander: "walk" }), "sick")
   assert.equal(Model.resolveMode({ grumpy: true, greet: true, wander: "walk" }), "grumpy")
   assert.equal(Model.resolveMode({ greet: true, wander: "walk" }), "greet")
+  assert.equal(Model.resolveMode({ sleep: true, wander: "walk" }), "sleep")
+  assert.equal(Model.resolveMode({ sleep: true, mediaPlaying: true, wander: "idle" }), "dance")
   assert.equal(Model.resolveMode({ wander: "walk", mediaPlaying: true, audioPeak: 1 }), "walk")
   assert.equal(Model.resolveMode({ wander: "crawl" }), "crawl")
   assert.equal(Model.resolveMode({ wander: "run" }), "run")
@@ -37,6 +39,14 @@ test("resolveMode prefers drag, then sick, then click moods, then locomotion", (
   assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, audioPeak: 0.1 }), "dance")
   assert.equal(Model.resolveMode({ wander: "idle" }), "idle")
   assert.equal(Model.resolveMode({ keysRecent: true, wander: "idle" }), "idle")
+  assert.equal(Model.sleepAfterMs(), 60000)
+})
+
+test("generated atlas maps sleep onto row 2", () => {
+  const sleep = Model.framesForMode(Model.generatedAtlas("/tmp/sheet.png"), "sleep")
+  assert.equal(sleep.frameY, 160)
+  assert.equal(sleep.frameX, 0)
+  assert.equal(sleep.frameCount, 8)
 })
 
 test("pickWander mixes walk, crawl, run, idle, and look", () => {

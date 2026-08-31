@@ -63,6 +63,7 @@ Item {
     readonly property real peak: root.svc ? Number(root.svc.audioPeak) : 0
     readonly property int bounce: {
       if (window.airborne || window.collapsed) return 0
+      if (window.mode === "sleep") return 0
       if (Model.isMoveMode(window.mode) || window.mode === "greet" || window.mode === "grumpy" || window.mode === "sick")
         return 0
       return Math.round(Math.max(0, window.peak) * 16)
@@ -160,7 +161,7 @@ Item {
       interval: {
         if (window.mode === "dance" || window.mode === "flip")
           return Math.max(40, Math.round(1000 / Model.danceFps(window.peak)))
-        if (window.mode === "drag" || window.mode === "collapse") return 240
+        if (window.mode === "drag" || window.mode === "collapse" || window.mode === "sleep") return 240
         if (window.mode === "look" || window.mode === "greet") return 140
         if (window.mode === "grumpy" || window.mode === "sick") return 160
         return 180
@@ -234,6 +235,8 @@ Item {
             didMove = true
             window.stopFall()
             window.dragging = true
+            if (root.svc && typeof root.svc.touchActivity === "function")
+              root.svc.touchActivity()
             window.petX = Model.clampPetX(nx, pet.width, stage.width)
             window.petY = Model.clamp(ny, 0, Math.max(0, stage.height - pet.height))
           }
