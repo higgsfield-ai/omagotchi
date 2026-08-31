@@ -143,10 +143,8 @@ Item {
     updatedMs: root.careUpdatedMs
   })
   readonly property var careFlags: Model.careFlags(root.careLive)
-  readonly property string mode: Model.resolveMode({
+    readonly property string mode: Model.resolveMode({
     sick: root.nowMs < root.sickUntil,
-    filthy: !!root.careFlags.filthy,
-    unhealthy: !!root.careFlags.ill,
     trip: root.tripActive,
     grumpy: root.nowMs < root.grumpyUntil,
     greet: root.nowMs < root.greetUntil,
@@ -418,15 +416,18 @@ Item {
   function loadCare() {
     var data = root.readJsonFile("file://" + root.dataDir() + "/care.json")
     var now = Date.now()
-    var s = Model.decayCareStats(data || Model.defaultCareStats(now), now, {
+    var s = Model.reviveCareStats(Model.decayCareStats(data || Model.defaultCareStats(now), now, {
       night: Model.isNightHour(new Date(now)),
       mediaPlaying: false,
       sneakWindow: false,
       active: false,
       maxHours: 4
-    })
+    }), now)
     root.applyCareStats(s, false)
     root.petDocked = !!s.docked
+    root.sickUntil = 0
+    root.tripActive = false
+    root.pendingWash = false
     root.careDirty = false
   }
 

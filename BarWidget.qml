@@ -29,18 +29,26 @@ BarWidget {
   }
 
   function open() {
-    if (panelLoader.item && panelLoader.item.openFromHotkey)
-      panelLoader.item.openFromHotkey()
-    else if (panelLoader.item)
+    if (panelLoader.item && typeof panelLoader.item.open === "function")
       panelLoader.item.open()
   }
 
   function close() {
-    if (panelLoader.item) panelLoader.item.close()
+    if (panelLoader.item && typeof panelLoader.item.close === "function")
+      panelLoader.item.close()
+  }
+
+  function togglePanel() {
+    if (panelLoader.status === Loader.Error) {
+      console.warn("higgsfield.signals: Panel.qml failed", panelLoader.errorString)
+      return
+    }
+    if (panelLoader.item && typeof panelLoader.item.toggle === "function")
+      panelLoader.item.toggle()
   }
 
   function toggle() {
-    if (panelLoader.item) panelLoader.item.toggle()
+    root.togglePanel()
   }
 
   function closeForPopoutSwitch() {
@@ -120,7 +128,7 @@ BarWidget {
       : "Generate my avatar"
 
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.LeftButton) root.toggle()
+      if (buttonCode === Qt.LeftButton) root.togglePanel()
     }
   }
 }

@@ -28,17 +28,13 @@ Item {
 
     screen: modelData
     visible: root.svc && root.svc.petOnDesktop && window.stageRect.w > 16 && window.stageRect.h > 16 && (
-      !root.svc.focusedMonitor
-      || root.svc.focusedMonitor === ""
-      || (modelData && modelData.name === root.svc.focusedMonitor)
+      !!root.svc.focusedMonitor && modelData && modelData.name === root.svc.focusedMonitor
     )
     color: "transparent"
     WlrLayershell.namespace: "higgsfield-signals-pet"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    // Cover only the focused window. A fullscreen Top surface sits on the
-    // Omarchy bar (also Top) and eats HF clicks.
     anchors.left: true
     anchors.top: true
     margins.left: Math.round(window.stageRect.x)
@@ -47,18 +43,26 @@ Item {
     implicitHeight: Math.max(1, Math.round(window.stageRect.h))
     mask: Region { item: hitbox }
 
+    readonly property var omarchyBar: root.shell && root.shell.bar ? root.shell.bar : null
+    readonly property string barEdge: window.omarchyBar && window.omarchyBar.position
+      ? String(window.omarchyBar.position)
+      : "top"
+    readonly property real barReserve: {
+      var n = window.omarchyBar ? Number(window.omarchyBar.barSize) : 32
+      return isFinite(n) && n > 24 ? n + 6 : 32
+    }
     readonly property real screenW: modelData ? Number(modelData.width) : 0
     readonly property real screenH: modelData ? Number(modelData.height) : 0
     readonly property real winX: root.svc ? Number(root.svc.winX) : 0
     readonly property real winY: root.svc ? Number(root.svc.winY) : 0
     readonly property real winW: root.svc ? Number(root.svc.winW) : 0
     readonly property real winH: root.svc ? Number(root.svc.winH) : 0
-    readonly property var stageRect: Model.clipWindowRect({
+    readonly property var stageRect: Model.clipAwayFromBar({
       x: window.winX,
       y: window.winY,
       w: window.winW,
       h: window.winH
-    }, window.screenW, window.screenH)
+    }, window.barEdge, window.barReserve, window.screenW, window.screenH)
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
     readonly property bool recalling: root.svc ? !!root.svc.petRecalling : false
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false

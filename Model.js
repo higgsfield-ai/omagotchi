@@ -527,7 +527,7 @@ function resolveMode(opts) {
   var danceAt = Number(o.dancePeak)
   if (!isFinite(danceAt) || danceAt < 0) danceAt = 0
   if (o.dragging) return "drag"
-  if (o.falling) return "sick"
+  if (o.falling) return "drag"
   if (o.trip) return "trip"
   if (o.sick) return "sick"
   if (o.grumpy) return "grumpy"
@@ -535,7 +535,6 @@ function resolveMode(opts) {
   if (o.happy) return "happy"
   if (o.wash) return "wash"
   if (o.eat) return "eat"
-  if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
   var wander = String(o.wander || "idle")
@@ -771,6 +770,45 @@ function clipWindowRect(win, screenW, screenH) {
     w: Math.max(0, x2 - x1),
     h: Math.max(0, y2 - y1)
   }
+}
+
+function clipAwayFromBar(rect, edge, reserve, screenW, screenH) {
+  var r = clipWindowRect(rect, screenW, screenH)
+  var pad = Number(reserve)
+  var sw = Number(screenW)
+  var sh = Number(screenH)
+  if (!isFinite(pad) || pad < 24) pad = 32
+  if (!isFinite(sw) || sw < 0) sw = 0
+  if (!isFinite(sh) || sh < 0) sh = 0
+  var e = String(edge || "top")
+  if (e === "bottom") {
+    r.h = Math.max(0, Math.min(r.h, sh - pad - r.y))
+    return r
+  }
+  if (e === "left") {
+    var x1 = Math.max(r.x, pad)
+    r.w = Math.max(0, r.x + r.w - x1)
+    r.x = x1
+    return r
+  }
+  if (e === "right") {
+    r.w = Math.max(0, Math.min(r.w, sw - pad - r.x))
+    return r
+  }
+  var y1 = Math.max(r.y, pad)
+  r.h = Math.max(0, r.y + r.h - y1)
+  r.y = y1
+  return r
+}
+
+function reviveCareStats(stats, nowMs) {
+  var s = normalizeCareStats(stats, nowMs)
+  if (s.health < 40) s.health = 72
+  if (s.hygiene < 25) s.hygiene = 72
+  if (s.hunger < 25) s.hunger = 72
+  if (s.mood < 25) s.mood = 72
+  if (s.energy < 20) s.energy = 70
+  return s
 }
 
 function asList(raw) {
@@ -1107,6 +1145,8 @@ if (typeof module !== "undefined") {
     clampPetX: clampPetX,
     petBottomY: petBottomY,
     clipWindowRect: clipWindowRect,
+    clipAwayFromBar: clipAwayFromBar,
+    reviveCareStats: reviveCareStats,
     focusWindow: focusWindow,
     trimPrompt: trimPrompt,
     parseGenerateResult: parseGenerateResult,

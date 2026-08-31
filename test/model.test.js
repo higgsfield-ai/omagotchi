@@ -25,7 +25,7 @@ test("idle and collapse use dedicated rows", () => {
 
 test("resolveMode prefers drag, then trip/sick, moods, care, sleep, sneak, night", () => {
   assert.equal(Model.resolveMode({ dragging: true, wander: "walk" }), "drag")
-  assert.equal(Model.resolveMode({ falling: true, wander: "walk" }), "sick")
+  assert.equal(Model.resolveMode({ falling: true, wander: "walk" }), "drag")
   assert.equal(Model.resolveMode({ trip: true, wander: "walk" }), "trip")
   assert.equal(Model.resolveMode({ sick: true, wander: "walk" }), "sick")
   assert.equal(Model.resolveMode({ grumpy: true, greet: true, wander: "walk" }), "grumpy")
@@ -146,6 +146,12 @@ test("clipWindowRect keeps the stage on the overlay screen", () => {
   assert.equal(clipped.x, 0)
   assert.equal(clipped.y, 10)
   assert.equal(clipped.w, 180)
+  const overBar = Model.clipAwayFromBar({ x: 0, y: 0, w: 1920, h: 1080 }, "top", 26, 1920, 1080)
+  assert.ok(overBar.y >= 26)
+  assert.ok(overBar.y + overBar.h <= 1080)
+  const revived = Model.reviveCareStats({ hunger: 0, hygiene: 0, health: 5, mood: 5 })
+  assert.ok(revived.health >= 40)
+  assert.ok(revived.hunger >= 40)
 })
 
 test("danceFps follows the waveform peak", () => {
@@ -299,7 +305,7 @@ test("care stats decay smoothly and refill from feed, wash, and play", () => {
   assert.equal(flags.filthy, true)
   assert.equal(flags.sad, true)
   assert.ok(Model.sleepAfterMsFor({ hunger: 10, hygiene: 50, mood: 20 }) < Model.sleepAfterMs())
-  assert.equal(Model.resolveMode({ filthy: true, wander: "idle" }), "sick")
+  assert.equal(Model.resolveMode({ filthy: true, wander: "idle" }), "idle")
   assert.equal(Model.resolveMode({ lowMood: true, wander: "idle" }), "grumpy")
   assert.equal(Model.resolveMode({ eat: true, filthy: true, wander: "idle" }), "eat")
   assert.equal(Model.resolveMode({ happy: true, lowMood: true, wander: "idle" }), "happy")
@@ -374,7 +380,7 @@ test("energy, health, attention, and desktop stats decay with the environment", 
     assert.notEqual(Model.pickWander(i / 20, tired), "run")
   assert.equal(Model.resolveMode({ greet: true, focused: true, wander: "idle" }), "greet")
   assert.equal(Model.resolveMode({ focused: true, wander: "idle" }), "look")
-  assert.equal(Model.resolveMode({ unhealthy: true, wander: "idle" }), "sick")
+  assert.equal(Model.resolveMode({ unhealthy: true, wander: "idle" }), "idle")
   assert.equal(Model.resolveMode({ exhausted: true, wander: "walk" }), "sleep")
   assert.equal(Model.resolveMode({ lonely: true, wander: "idle" }), "look")
   assert.equal(Model.resolveMode({
