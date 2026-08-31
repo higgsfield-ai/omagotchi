@@ -30,7 +30,9 @@ exist only inside their row's frames; no standalone prop assets.
 The character is ALWAYS 8-bit pixel art. Fixed style string — verbatim in EVERY
 image AND video prompt of this skill:
 
-`8-bit pixel art on a fine, even pixel grid — the figure is drawn at high pixel density, about 64 pixels of detail from head to feet (density only: NEVER zoom, NEVER crop, NEVER enlarge the character), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
+`8-bit pixel art drawn at high pixel density — about 64 pixels of detail from head to feet, small square pixels (density only: NEVER zoom, NEVER crop, NEVER enlarge the character), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, NO visible grid lines, no mesh or checkerboard overlay, flat colors, 1px dark outline, clean readable silhouette`
+
+Never say the art sits "on a pixel grid" — the model draws literal grid lines over the frame.
 
 ## Prerequisites
 
