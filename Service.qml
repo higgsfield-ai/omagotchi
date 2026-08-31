@@ -210,18 +210,6 @@ Item {
     return home + "/.local/share/higgsfield.signals"
   }
 
-  function readJsonFile(url) {
-    var xhr = new XMLHttpRequest()
-    xhr.open("GET", url, false)
-    xhr.send()
-    if (xhr.status !== 200 && xhr.status !== 0) return null
-    try {
-      return JSON.parse(xhr.responseText)
-    } catch (e) {
-      return null
-    }
-  }
-
   function applyGeneratedSheet(path, spec) {
     var file = Model.fileUrlToPath(path)
     if (!file || file.charAt(0) !== "/") return false
@@ -261,7 +249,9 @@ Item {
       return
     }
     root.hasCustomAvatar = false
-    root.atlasSpec = root.readJsonFile(Qt.resolvedUrl("atlas.json"))
+    // No generated sheet: fall back to the bundled one, which normalizeAtlas
+    // supplies from Model.defaultAtlas().
+    root.atlasSpec = null
   }
 
   function applyRuntime(raw) {
@@ -428,7 +418,18 @@ Item {
   }
 
   function loadCare() {
-    var data = root.readJsonFile("file://" + root.dataDir() + "/care.json")
+    careReadProc.command = ["cat", root.dataDir() + "/care.json"]
+    careReadProc.running = false
+    careReadProc.running = true
+  }
+
+  function applyCareText(text) {
+    var data = null
+    try {
+      data = JSON.parse(String(text || "").replace(/^\s+|\s+$/g, ""))
+    } catch (e) {
+      data = null
+    }
     var now = Date.now()
     var s = Model.reviveCareStats(Model.decayCareStats(data || Model.defaultCareStats(now), now, {
       night: Model.isNightHour(new Date(now)),
@@ -882,6 +883,15 @@ Item {
 
   Process {
     id: careSaveProc
+  }
+
+  Process {
+    id: careReadProc
+    stdout: StdioCollector {
+      id: careReadOut
+      waitForEnd: true
+    }
+    onExited: root.applyCareText(careReadOut.text)
   }
 
   Process {
