@@ -110,8 +110,12 @@ Item {
     return false
   }
   onMediaPlayingChanged: {
-    if (!root.mediaPlaying) root.audioPeak = 0
-    else root.touchActivity()
+    if (!root.mediaPlaying) {
+      root.audioPeak = 0
+      root.playingStoppedMs = Date.now()
+    } else {
+      root.touchActivity()
+    }
   }
   readonly property string mediaTrackKey: {
     var player = null
@@ -158,6 +162,7 @@ Item {
   property var beatState: ({})
   property int beatPulse: 0
   property real lastBeatMs: 0
+  property real playingStoppedMs: 0
   readonly property bool metaSaysPodcast: {
     var pl = root.playingPlayer
     if (!pl) return false
@@ -232,11 +237,12 @@ Item {
     sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMsFor(root.careLive),
     sneak: Model.sneakWindow(root.winW, root.winH),
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
-    mediaPlaying: root.mediaPlaying,
+    mediaPlaying: root.mediaPlaying
+      || (root.playingStoppedMs > 0 && root.nowMs - root.playingStoppedMs < 2000),
     video: root.mediaIsVideo,
     browserMedia: root.mediaIsBrowser,
     speech: root.mediaSpeech,
-    audioPeak: root.audioPeak,
+    audioPeak: Number(root.beatState.ema || 0),
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),
     wander: root.wander
