@@ -77,6 +77,10 @@ Panel {
   // Set when the running service predates the panel: keepLoaded services
   // survive plugin hot reloads, so new functions need a shell restart.
   property bool staleService: false
+  // Live viewfinder state for the island: Open camera -> preview -> snap.
+  property bool cameraOn: false
+
+  onOpenedChanged: if (!root.opened) root.cameraOn = false
 
   onGeneratingChanged: {
     if (!root.generating && root.lastError === "") root.replaceAvatar = false
@@ -287,10 +291,43 @@ Panel {
               MouseArea {
                 anchors.fill: parent
                 z: 2
-                visible: root.replaceAvatar && !root.generating
+                visible: root.replaceAvatar && !root.generating && !root.cameraOn
                 cursorShape: Qt.PointingHandCursor
                 enabled: !root.capturing
                 onClicked: root.choosePhoto()
+              }
+
+              Loader {
+                id: cameraLoader
+                anchors.fill: parent
+                anchors.margins: Style.space(6)
+                z: 2
+                active: root.cameraOn && root.opened
+                source: Qt.resolvedUrl("CameraCapture.qml")
+                onLoaded: {
+                  if (item && root.svc && typeof root.svc.dataDir === "function")
+                    item.savePath = root.svc.dataDir() + "/webcam-live.jpg"
+                }
+                onStatusChanged: {
+                  // No QtMultimedia on this system: fall back to the old
+                  // instant capture instead of a dead button.
+                  if (status === Loader.Error) {
+                    root.cameraOn = false
+                    root.takePhoto()
+                  }
+                }
+              }
+
+              Connections {
+                target: cameraLoader.item
+                function onCaptured(path) {
+                  root.cameraOn = false
+                  if (root.svc && typeof root.svc.setPhoto === "function") root.svc.setPhoto(path)
+                }
+                function onFailed(message) {
+                  root.cameraOn = false
+                  root.takePhoto()
+                }
               }
 
               WidgetButton {
@@ -446,11 +483,36 @@ Panel {
               ChipButton {
                 visible: root.loggedIn && !root.generating && !root.loggingIn
                 outlined: false
-                text: root.capturing ? "Capturing…" : "Take photo"
-                tooltipText: "Capture a still from the webcam"
+                text: {
+                  if (root.capturing) return "Capturing…"
+                  return root.cameraOn ? "Take a photo" : "Open camera"
+                }
+                tooltipText: root.cameraOn
+                  ? "Capture the frame you see"
+                  : "Turn the webcam on with a live preview"
                 onChipPressed: function(buttonCode) {
                   if (buttonCode !== Qt.LeftButton) return
-                  root.takePhoto()
+                  if (!root.loggedIn) {
+                    if (root.svc) root.svc.login()
+                    return
+                  }
+                  if (root.cameraOn) {
+                    if (cameraLoader.item) cameraLoader.item.snap()
+                    return
+                  }
+                  root.replaceAvatar = true
+                  root.cameraOn = true
+                }
+              }
+
+              ChipButton {
+                visible: root.cameraOn && !root.generating
+                outlined: false
+                text: "Close camera"
+                tooltipText: "Turn the webcam off"
+                onChipPressed: function(buttonCode) {
+                  if (buttonCode !== Qt.LeftButton) return
+                  root.cameraOn = false
                 }
               }
 
