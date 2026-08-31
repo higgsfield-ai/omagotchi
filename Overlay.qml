@@ -63,8 +63,9 @@ Item {
     readonly property real peak: root.svc ? Number(root.svc.audioPeak) : 0
     readonly property int bounce: {
       if (window.airborne || window.collapsed) return 0
-      if (window.mode === "sleep") return 0
-      if (Model.isMoveMode(window.mode) || window.mode === "greet" || window.mode === "grumpy" || window.mode === "sick")
+      if (window.mode === "sleep" || window.mode === "trip" || window.mode === "eat" || window.mode === "wash")
+        return 0
+      if (Model.isMoveMode(window.mode) || window.mode === "greet" || window.mode === "grumpy" || window.mode === "sick" || window.mode === "happy")
         return 0
       return Math.round(Math.max(0, window.peak) * 16)
     }
@@ -73,6 +74,7 @@ Item {
     property real petX: 12
     property real petY: 0
     property real fallVel: 0
+    property real fallFromY: 0
     property int facing: 1
     property int frame: 0
     property bool dragging: false
@@ -103,6 +105,7 @@ Item {
       window.falling = true
       window.dragging = false
       window.fallVel = 0
+      window.fallFromY = window.petY
       fallAnim.from = window.petY
       fallAnim.to = window.floorY
       fallAnim.duration = Model.fallDurationMs(window.floorY - window.petY)
@@ -111,10 +114,13 @@ Item {
 
     function land() {
       if (!window.falling) return
+      var drop = window.floorY - window.fallFromY
       window.petY = window.floorY
       window.falling = false
       window.fallVel = 0
-      if (root.svc && root.svc.onDroppedFromHeight)
+      if (root.svc && typeof root.svc.onLanded === "function")
+        root.svc.onLanded(drop)
+      else if (root.svc && root.svc.onDroppedFromHeight)
         root.svc.onDroppedFromHeight()
     }
 
@@ -161,6 +167,10 @@ Item {
       interval: {
         if (window.mode === "dance" || window.mode === "flip")
           return Math.max(40, Math.round(1000 / Model.danceFps(window.peak)))
+        if (window.mode === "trip") return 90
+        if (window.mode === "happy") return 110
+        if (window.mode === "eat" || window.mode === "wash") return 140
+        if (window.mode === "night") return 200
         if (window.mode === "drag" || window.mode === "collapse" || window.mode === "sleep") return 240
         if (window.mode === "look" || window.mode === "greet") return 140
         if (window.mode === "grumpy" || window.mode === "sick") return 160
@@ -168,7 +178,19 @@ Item {
       }
       running: window.visible && !Model.isMoveMode(window.mode)
       repeat: true
-      onTriggered: window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
+      onTriggered: {
+        if (window.mode === "trip") {
+          if (window.frame + 1 >= window.frames.frameCount) {
+            window.frame = Math.max(0, window.frames.frameCount - 1)
+            if (root.svc && typeof root.svc.onTripFinished === "function")
+              root.svc.onTripFinished()
+            return
+          }
+          window.frame += 1
+          return
+        }
+        window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
+      }
     }
 
     Item {

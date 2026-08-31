@@ -22,9 +22,17 @@ Item {
   property int greetUntil: 0
   property int grumpyUntil: 0
   property int sickUntil: 0
+  property int happyUntil: 0
+  property int eatUntil: 0
+  property int washUntil: 0
   property int lastClickMs: 0
   property int clickBurst: 0
   property int lastActiveMs: 0
+  property int lastEatMs: 0
+  property int lastWashMs: 0
+  property bool tripActive: false
+  property bool pendingWash: false
+  property string lastTrackKey: ""
   property real audioPeak: 0
   property bool generating: false
   property string generateStatus: ""
@@ -65,11 +73,41 @@ Item {
     if (!root.mediaPlaying) root.audioPeak = 0
     else root.touchActivity()
   }
+  readonly property string mediaTrackKey: {
+    var player = null
+    if (root.media && root.media.activePlayer) player = root.media.activePlayer
+    if (!player) {
+      var list = Mpris.players ? Mpris.players.values : []
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].isPlaying) {
+          player = list[i]
+          break
+        }
+      }
+    }
+    if (!player) return ""
+    var title = String(player.trackTitle || player.title || "")
+    var artist = String(player.trackArtist || player.artists || player.artist || "")
+    if (!title && !artist) return ""
+    return title + "|" + artist
+  }
+  onMediaTrackKeyChanged: {
+    var key = root.mediaTrackKey
+    if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying)
+      root.celebrate()
+    if (key) root.lastTrackKey = key
+  }
   readonly property string mode: Model.resolveMode({
     sick: root.nowMs < root.sickUntil,
+    trip: root.tripActive,
     grumpy: root.nowMs < root.grumpyUntil,
     greet: root.nowMs < root.greetUntil,
+    happy: root.nowMs < root.happyUntil,
+    wash: root.nowMs < root.washUntil,
+    eat: root.nowMs < root.eatUntil,
     sleep: root.lastActiveMs > 0 && (root.nowMs - root.lastActiveMs) >= Model.sleepAfterMs(),
+    sneak: Model.sneakWindow(root.winW, root.winH),
+    night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying,
     audioPeak: root.audioPeak,
     wander: root.wander
@@ -235,6 +273,39 @@ Item {
     root.lastActiveMs = Date.now()
   }
 
+  function celebrate(ms) {
+    root.touchActivity()
+    var dur = Number(ms)
+    if (!isFinite(dur) || dur <= 0) dur = Model.happyDurationMs()
+    root.happyUntil = Date.now() + dur
+  }
+
+  function tickCare() {
+    if (!root.petVisible) return
+    var now = Date.now()
+    if (root.pendingWash && root.nowMs >= root.sickUntil && !root.tripActive) {
+      root.pendingWash = false
+      root.washUntil = now + Model.careDurationMs()
+      root.lastWashMs = now
+      root.touchActivity()
+      return
+    }
+    if (root.nowMs < root.eatUntil || root.nowMs < root.washUntil) return
+    if (root.nowMs < root.greetUntil || root.nowMs < root.grumpyUntil || root.nowMs < root.happyUntil) return
+    if (root.tripActive || root.nowMs < root.sickUntil) return
+    if (root.lastWashMs > 0 && (now - root.lastWashMs) >= Model.washEveryMs()) {
+      root.washUntil = now + Model.careDurationMs()
+      root.lastWashMs = now
+      root.touchActivity()
+      return
+    }
+    if (root.lastEatMs > 0 && (now - root.lastEatMs) >= Model.eatEveryMs()) {
+      root.eatUntil = now + Model.careDurationMs()
+      root.lastEatMs = now
+      root.touchActivity()
+    }
+  }
+
   function onPetClicked() {
     root.touchActivity()
     var next = Model.nextClickState({
@@ -250,9 +321,32 @@ Item {
     return root.nowMs < root.grumpyUntil ? "grumpy" : "greet"
   }
 
-  function onDroppedFromHeight() {
+  function onLanded(dropPx) {
     root.touchActivity()
-    root.sickUntil = Date.now() + 4500
+    var drop = Number(dropPx)
+    if (!isFinite(drop)) drop = 0
+    if (drop >= Model.tripDropPx()) {
+      root.tripActive = true
+      root.sickUntil = 0
+      root.pendingWash = true
+      return "trip"
+    }
+    if (drop >= 8) {
+      root.sickUntil = Date.now() + 4500
+      root.pendingWash = true
+      return "sick"
+    }
+    return root.mode
+  }
+
+  function onDroppedFromHeight() {
+    return root.onLanded(Model.tripDropPx())
+  }
+
+  function onTripFinished() {
+    root.tripActive = false
+    root.sickUntil = Date.now() + 2500
+    root.touchActivity()
     return "sick"
   }
 
@@ -318,6 +412,7 @@ Item {
       root.generateStatus = "Tamagotchi ready"
       root.generatePercent = 100
       root.applyGeneratedSheet(parsed.path, parsed.atlasSpec)
+      root.celebrate(4000)
       return
     }
     var err = parsed.error || ("generate failed (" + code + ")")
@@ -374,6 +469,13 @@ Item {
 
   property string _monRaw: "[]"
   property string _winRaw: "null"
+
+  Timer {
+    interval: 5000
+    running: root.petVisible
+    repeat: true
+    onTriggered: root.tickCare()
+  }
 
   Timer {
     interval: 80
@@ -541,7 +643,10 @@ Item {
   }
 
   Component.onCompleted: {
+    var now = Date.now()
     root.touchActivity()
+    root.lastEatMs = now
+    root.lastWashMs = now
     root.wander = Model.pickWander(Math.random())
     root.loadAtlas()
     root.ensureRuntime()

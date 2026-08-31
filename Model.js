@@ -32,9 +32,15 @@ function generatedModeMap() {
     dance: { row: 4, start: 0, count: 16 },
     flip: { row: 5, start: 0, count: 16 },
     run: { row: 5, start: 0, count: 16 },
+    sneak: { row: 6, start: 0, count: 16 },
     crawl: { row: 7, start: 0, count: 16 },
+    trip: { row: 8, start: 0, count: 16 },
+    happy: { row: 9, start: 0, count: 8 },
     grumpy: { row: 9, start: 8, count: 8 },
-    sick: { row: 10, start: 8, count: 8 }
+    eat: { row: 10, start: 0, count: 8 },
+    sick: { row: 10, start: 8, count: 8 },
+    wash: { row: 11, start: 0, count: 8 },
+    night: { row: 11, start: 8, count: 8 }
   }
 }
 
@@ -59,9 +65,15 @@ function generatedAtlas(file) {
       dance: modes.dance,
       flip: modes.flip,
       run: modes.run,
+      sneak: modes.sneak,
       crawl: modes.crawl,
+      trip: modes.trip,
+      happy: modes.happy,
       grumpy: modes.grumpy,
-      sick: modes.sick
+      eat: modes.eat,
+      sick: modes.sick,
+      wash: modes.wash,
+      night: modes.night
     }
   }
 }
@@ -111,9 +123,15 @@ function normalizeAtlas(raw) {
       dance: cloneMode(modes.dance, fb.dance || bundled.dance),
       flip: cloneMode(modes.flip, fb.flip || bundled.flip),
       run: cloneMode(modes.run, fb.run || fb.flip || bundled.flip),
+      sneak: cloneMode(modes.sneak, fb.sneak || fb.crawl || bundled.walk),
       crawl: cloneMode(modes.crawl, fb.crawl || bundled.walk),
+      trip: cloneMode(modes.trip, fb.trip || fb.sick || bundled.idle),
+      happy: cloneMode(modes.happy, fb.happy || fb.greet || bundled.idle),
       grumpy: cloneMode(modes.grumpy, fb.grumpy || bundled.idle),
-      sick: cloneMode(modes.sick, fb.sick || bundled.idle)
+      eat: cloneMode(modes.eat, fb.eat || fb.idle || bundled.idle),
+      sick: cloneMode(modes.sick, fb.sick || bundled.idle),
+      wash: cloneMode(modes.wash, fb.wash || fb.idle || bundled.idle),
+      night: cloneMode(modes.night, fb.night || fb.idle || bundled.idle)
     }
   }
 }
@@ -135,11 +153,12 @@ function framesForMode(atlas, modeName) {
 }
 
 function isMoveMode(mode) {
-  return mode === "walk" || mode === "crawl" || mode === "run"
+  return mode === "walk" || mode === "crawl" || mode === "run" || mode === "sneak"
 }
 
 function movePace(mode) {
   if (mode === "crawl") return { step: 3, interval: 140 }
+  if (mode === "sneak") return { step: 4, interval: 120 }
   if (mode === "run") return { step: 14, interval: 48 }
   return { step: 8, interval: 90 }
 }
@@ -148,20 +167,66 @@ function sleepAfterMs() {
   return 60000
 }
 
+function tripDropPx() {
+  return 120
+}
+
+function eatEveryMs() {
+  return 25 * 60 * 1000
+}
+
+function washEveryMs() {
+  return 3 * 60 * 60 * 1000
+}
+
+function happyDurationMs() {
+  return 3200
+}
+
+function careDurationMs() {
+  return 4500
+}
+
+function isNightHour(input) {
+  var h
+  if (typeof input === "number" && isFinite(input)) h = Math.floor(input)
+  else if (input && typeof input.getHours === "function") h = input.getHours()
+  else h = new Date().getHours()
+  if (!isFinite(h)) h = 0
+  return h >= 21 || h < 7
+}
+
+function sneakWindow(w, h) {
+  var width = Number(w)
+  var height = Number(h)
+  if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) return false
+  return width < 520 || height < 380 || (width * height) < 280000
+}
+
 function resolveMode(opts) {
   var o = opts || {}
   var playing = !!o.mediaPlaying
   var peak = Number(o.audioPeak)
   if (!isFinite(peak) || peak < 0) peak = 0
   if (o.dragging) return "drag"
-  if (o.falling || o.sick) return "sick"
+  if (o.falling) return "sick"
+  if (o.trip) return "trip"
+  if (o.sick) return "sick"
   if (o.grumpy) return "grumpy"
   if (o.greet) return "greet"
+  if (o.happy) return "happy"
+  if (o.wash) return "wash"
+  if (o.eat) return "eat"
   if (o.sleep && !playing) return "sleep"
   var wander = String(o.wander || "idle")
-  if (isMoveMode(wander) || wander === "look") return wander
+  if (isMoveMode(wander)) {
+    if (o.sneak) return "sneak"
+    return wander
+  }
+  if (wander === "look") return "look"
   if (playing && peak > 0.55) return "flip"
   if (playing) return "dance"
+  if (o.night) return "night"
   return "idle"
 }
 
@@ -589,6 +654,13 @@ if (typeof module !== "undefined") {
     framesForMode: framesForMode,
     resolveMode: resolveMode,
     sleepAfterMs: sleepAfterMs,
+    tripDropPx: tripDropPx,
+    eatEveryMs: eatEveryMs,
+    washEveryMs: washEveryMs,
+    happyDurationMs: happyDurationMs,
+    careDurationMs: careDurationMs,
+    isNightHour: isNightHour,
+    sneakWindow: sneakWindow,
     isMoveMode: isMoveMode,
     movePace: movePace,
     pickWander: pickWander,

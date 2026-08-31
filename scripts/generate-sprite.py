@@ -39,9 +39,15 @@ PET_MODES = {
     "dance": {"row": 4, "start": 0, "count": 16},
     "flip": {"row": 5, "start": 0, "count": 16},
     "run": {"row": 5, "start": 0, "count": 16},
+    "sneak": {"row": 6, "start": 0, "count": 16},
     "crawl": {"row": 7, "start": 0, "count": 16},
+    "trip": {"row": 8, "start": 0, "count": 16},
+    "happy": {"row": 9, "start": 0, "count": 8},
     "grumpy": {"row": 9, "start": 8, "count": 8},
+    "eat": {"row": 10, "start": 0, "count": 8},
     "sick": {"row": 10, "start": 8, "count": 8},
+    "wash": {"row": 11, "start": 0, "count": 8},
+    "night": {"row": 11, "start": 8, "count": 8},
 }
 
 SMOKE_MODES = {
@@ -49,6 +55,12 @@ SMOKE_MODES = {
     "idle": {"row": 0, "start": 0, "count": 16},
     "look": {"row": 0, "start": 0, "count": 16},
     "sleep": {"row": 0, "start": 0, "count": 8},
+    "sneak": {"row": 0, "start": 0, "count": 16},
+    "trip": {"row": 0, "start": 0, "count": 16},
+    "happy": {"row": 0, "start": 0, "count": 8},
+    "eat": {"row": 0, "start": 0, "count": 8},
+    "wash": {"row": 0, "start": 0, "count": 8},
+    "night": {"row": 0, "start": 0, "count": 8},
     "dance": {"row": 0, "start": 0, "count": 16},
     "flip": {"row": 0, "start": 0, "count": 16},
     "run": {"row": 0, "start": 0, "count": 16},
