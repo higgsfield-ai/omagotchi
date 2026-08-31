@@ -484,10 +484,9 @@ function resolveMode(opts) {
   if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
-  // Media preempts wandering. Music means the dance row, full stop — the
-  // flip row is drawn as a sprint and kept reading as "running in place"
-  // whenever loudness routed to it. Speech sits him down with the laptop.
-  if (playing && o.speech) return "watch"
+  // Media preempts wandering: anything playing means the dance row — the
+  // flip row reads as running-in-place and speech detection misfired on
+  // music beds, so both escalations retired.
   if (playing) return "dance"
   var wander = String(o.wander || "idle")
   if (isMoveMode(wander)) {
@@ -564,37 +563,6 @@ function pickWander(rand, stats) {
   x -= w.run
   if (x < w.idle) return "idle"
   return "look"
-}
-
-// Speech vs music from raw peak samples: talk is bursty (syllable and
-// sentence pauses collapse the level constantly), music sustains energy.
-// The gap ratio over a rolling window separates them without any FFT.
-// Hysteresis (enter 0.30 / exit 0.20) keeps him from flip-flopping, and a
-// silent monitor (p90 ~ 0) reads as "unknown" -> music -> dance, which
-// preserves the old behavior when peaks are unavailable.
-function speechLike(samples, wasSpeech) {
-  var arr = []
-  for (var i = 0; i < (samples || []).length; i++) {
-    var v = Number(samples[i])
-    if (isFinite(v) && v >= 0) arr.push(v)
-  }
-  if (arr.length < 20) return !!wasSpeech
-  var sorted = arr.slice().sort(function(a, b) { return a - b })
-  var p90 = sorted[Math.floor(0.9 * (sorted.length - 1))]
-  if (p90 < 0.03) return false
-  var gapThresh = p90 * 0.18
-  var gaps = 0
-  for (var j = 0; j < arr.length; j++) {
-    if (arr[j] < gapThresh) gaps++
-  }
-  var ratio = gaps / arr.length
-  return wasSpeech ? ratio > 0.2 : ratio > 0.3
-}
-
-function podcastMeta(title, album) {
-  var blob = (String(title || "") + " " + String(album || "")).toLowerCase()
-  if (!blob.trim()) return false
-  return /podcast|episode\b|\bep\.? ?\d|interview|audiobook|talk show|lecture/.test(blob)
 }
 
 function isVideoPlayerId(blob) {
@@ -1140,8 +1108,6 @@ if (typeof module !== "undefined") {
     isBrowserPlayerId: isBrowserPlayerId,
     creditsFromBlob: creditsFromBlob,
     costFromBlob: costFromBlob,
-    speechLike: speechLike,
-    podcastMeta: podcastMeta,
     movePace: movePace,
     pickWander: pickWander,
     nextClickState: nextClickState,

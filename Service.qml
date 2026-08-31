@@ -153,33 +153,9 @@ Item {
   readonly property bool mediaIsVideo: Model.isVideoPlayerId(root.playingPlayerId)
   readonly property bool mediaIsBrowser: Model.isBrowserPlayerId(root.playingPlayerId)
 
-  // Speech vs music: metadata keywords decide instantly, the peak texture
-  // decides for everything unlabeled. Samples reset on every track change.
-  property var peakSamples: []
-  property bool mediaSpeech: false
   property real playingStoppedMs: 0
-  readonly property bool metaSaysPodcast: {
-    var pl = root.playingPlayer
-    if (!pl) return false
-    return Model.podcastMeta(String(pl.trackTitle || ""), String(pl.trackAlbum || pl.album || ""))
-  }
-
-  Timer {
-    interval: 300
-    running: root.mediaPlaying
-    repeat: true
-    onTriggered: {
-      var next = root.peakSamples.slice(-39)
-      next.push(Number(root.audioPeak) || 0)
-      root.peakSamples = next
-      root.mediaSpeech = root.metaSaysPodcast || Model.speechLike(next, root.mediaSpeech)
-    }
-  }
-
 
   onMediaTrackKeyChanged: {
-    root.peakSamples = []
-    root.mediaSpeech = root.metaSaysPodcast
     var key = root.mediaTrackKey
     if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying) {
       root.applyCareStats(Model.applyCareAction(root.careSnapshot(), "track", Date.now(), root.careEnv()), true)
@@ -223,7 +199,6 @@ Item {
       || (root.playingStoppedMs > 0 && root.nowMs - root.playingStoppedMs < 2000),
     video: root.mediaIsVideo,
     browserMedia: root.mediaIsBrowser,
-    speech: root.mediaSpeech,
     audioPeak: root.audioPeak,
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),

@@ -90,21 +90,6 @@ test("pickWander mixes walk, run, idle, and look", () => {
   assert.equal(Model.pickWander(1), "look")
 })
 
-test("speech-like audio watches, music dances", () => {
-  const music = Array.from({ length: 40 }, (_, i) => 0.4 + 0.2 * Math.sin(i))
-  const speech = Array.from({ length: 40 }, (_, i) => (i % 5 < 2 ? 0.01 : 0.5))
-  assert.equal(Model.speechLike(music, false), false)
-  assert.equal(Model.speechLike(speech, false), true)
-  assert.equal(Model.speechLike(Array.from({ length: 40 }, () => 0), false), false)
-  assert.equal(Model.speechLike([0.1, 0.2], false), false)
-  assert.equal(Model.speechLike([0.1, 0.2], true), true)
-  assert.equal(Model.podcastMeta("The Daily — Episode 412", ""), true)
-  assert.equal(Model.podcastMeta("Some Interview with X", ""), true)
-  assert.equal(Model.podcastMeta("Bohemian Rhapsody", "A Night at the Opera"), false)
-  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, speech: true, audioPeak: 0.6 }), "watch")
-  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, speech: false, audioPeak: 0.1 }), "dance")
-})
-
 test("activity level bounds the wander pool", () => {
   const base = Model.defaultCareStats(1_000_000)
   for (let i = 0; i <= 20; i++) {
