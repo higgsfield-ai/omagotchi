@@ -71,9 +71,8 @@ PET_MODES = {
     "run": {"row": 5, "start": 0, "count": 16},
     "sneak": {"row": 6, "start": 0, "count": 16},
     "fall": {"row": 7, "start": 0, "count": 16},
-    "trip": {"row": 8, "start": 0, "count": 16},
     "happy": {"row": 9, "start": 0, "count": 8},
-    "grumpy": {"row": 9, "start": 8, "count": 8},
+    "watch": {"row": 9, "start": 8, "count": 8},
     "eat": {"row": 10, "start": 0, "count": 8},
     "sick": {"row": 10, "start": 8, "count": 8},
     "wash": {"row": 11, "start": 0, "count": 8},
@@ -85,7 +84,6 @@ SMOKE_MODES = {
     "look": {"row": 0, "start": 0, "count": 16},
     "sleep": {"row": 0, "start": 0, "count": 8},
     "sneak": {"row": 0, "start": 0, "count": 16},
-    "trip": {"row": 0, "start": 0, "count": 16},
     "happy": {"row": 0, "start": 0, "count": 8},
     "eat": {"row": 0, "start": 0, "count": 8},
     "wash": {"row": 0, "start": 0, "count": 8},
@@ -96,7 +94,7 @@ SMOKE_MODES = {
     "collapse": {"row": 0, "start": 0, "count": 1},
     "drag": {"row": 0, "start": 0, "count": 1},
     "greet": {"row": 0, "start": 0, "count": 8},
-    "grumpy": {"row": 0, "start": 0, "count": 8},
+    "watch": {"row": 0, "start": 0, "count": 8},
     "sick": {"row": 0, "start": 0, "count": 8},
 }
 
@@ -134,15 +132,12 @@ CLIPS = [
     {"row": 7, "name": "fall", "frames": 16, "loop": True,
      "pose": "mid-air falling pose facing camera/3-4, arms and legs spread and flailing, clothes lifted by air, no ground visible, full body",
      "spec": "FALL: falling through the air, arms and legs waving and flailing, comic panic tumble, clothes and hair lifted upward, no ground contact, loopable mid-air cycle"},
-    {"row": 8, "name": "trip", "frames": 16, "loop": False,
-     "pose": "upright facing right just starting to stumble, full body, still standing",
-     "spec": "TRIP/FACEPLANT one-shot: stumble then fall forward then hit ground then briefly flat, clear progression"},
     {"row": 9, "name": "happy", "frames": 8, "loop": True,
      "pose": "big smile, first happy pose, optional tiny pixel hearts, full body",
      "spec": "HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur)"},
-    {"row": 9, "name": "grumpy", "frames": 8, "loop": True,
-     "pose": "frown, crossed arms, first grumpy pose, same character, full body",
-     "spec": "GRUMPY/ANGRY: frown, crossed arms or dismissive gesture, same character"},
+    {"row": 9, "name": "watch", "frames": 8, "loop": True,
+     "pose": "sitting on the ground with a small open laptop on his lap, looking at the laptop screen, relaxed, COMPLETELY ALONE, full body",
+     "spec": "WATCH: sitting on the ground with a small open laptop on the lap, eyes on the screen, tiny reactions — slight head tilt, occasional smile — COMPLETELY ALONE, no other characters, the laptop is the only prop"},
     {"row": 10, "name": "eat", "frames": 8, "loop": True,
      "pose": "holding a small snack or drink, first chew/sip pose, full body",
      "spec": "EAT/SNACK: holding a small snack/drink, chew or sip cycle"},
@@ -756,8 +751,10 @@ def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
         f"{spec}, {STYLE}, {CAMERA_LOCK}, {SCALE_RULE}, "
-        f"flat solid {key} background that never changes, no background elements, "
-        f"no other characters, no props, no text{extra}"
+        f"flat solid {key} background staying EXACTLY {key} in every frame — never "
+        f"darker, never desaturated, no vignette, no gradient — no cast shadow, no "
+        f"ground shadow under the character, no background elements, "
+        f"no other characters, no text{extra}"
     )
 
 
@@ -839,6 +836,23 @@ def extract_video_frame(video: Path, dest: Path, at_end: bool = False) -> bool:
     cmd += ["-i", str(video), "-frames:v", "1", str(dest)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     return proc.returncode == 0 and dest.is_file() and dest.stat().st_size > 200
+
+
+def clip_background_ok(video: Path, key: str) -> bool:
+    """The video model likes to dim or desaturate the key background, which
+    then survives chroma keying and smears onto the frames. Check a mid-clip
+    frame's border against the key color and reroll drifted clips."""
+    tmp = video.parent / f".bg_{video.stem}.png"
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(video),
+           "-vf", "select=gte(n\,24)", "-frames:v", "1", str(tmp)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0 or not tmp.is_file():
+            return True
+        ok, _ = start_frame_ok({}, tmp, key)
+        return ok
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def framing_ok(start_path: Path, video: Path, key: str, one_shot: bool) -> bool:
@@ -1139,8 +1153,8 @@ def main() -> None:
         else:
             raise RuntimeError(f"clip {clip['name']} failed twice: {last}")
         try:
-            if not framing_ok(start, dest, key, not clip["loop"]):
-                append_log(log, f"framing reroll {clip['name']}\n")
+            if not framing_ok(start, dest, key, not clip["loop"]) or not clip_background_ok(dest, key):
+                append_log(log, f"quality reroll {clip['name']}\n")
                 job_id = start_job(hf, "seedance_2_0_mini", clip_video_args(clip, key, start), log)
                 job = wait_job(hf, job_id, log)
                 download(job["url"], dest)

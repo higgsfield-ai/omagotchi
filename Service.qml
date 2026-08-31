@@ -44,7 +44,7 @@ Item {
   property real careBornMs: 0
   property real careUpdatedMs: 0
   property real lastDragCareMs: 0
-  property bool tripActive: false
+  property real stunUntil: 0
   property bool pendingWash: false
   property string lastTrackKey: ""
   property real audioPeak: 0
@@ -118,6 +118,22 @@ Item {
     if (!title && !artist) return ""
     return title + "|" + artist
   }
+  // The app behind the sound decides watching vs dancing: video players
+  // (and browsers) put him on his laptop, music apps keep him dancing.
+  readonly property var playingPlayer: {
+    if (root.media && root.media.activePlayer) return root.media.activePlayer
+    var list = Mpris.players ? Mpris.players.values : []
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].isPlaying) return list[i]
+    }
+    return null
+  }
+  readonly property string playingPlayerId: root.playingPlayer
+    ? String(root.playingPlayer.identity || "") + " " + String(root.playingPlayer.desktopEntry || "")
+    : ""
+  readonly property bool mediaIsVideo: Model.isVideoPlayerId(root.playingPlayerId)
+  readonly property bool mediaIsBrowser: Model.isBrowserPlayerId(root.playingPlayerId)
+
   onMediaTrackKeyChanged: {
     var key = root.mediaTrackKey
     if (key && root.lastTrackKey && key !== root.lastTrackKey && root.mediaPlaying) {
@@ -147,7 +163,7 @@ Item {
     sick: root.nowMs < root.sickUntil,
     filthy: !!root.careFlags.filthy,
     unhealthy: !!root.careFlags.ill,
-    trip: root.tripActive,
+    stunned: root.nowMs < root.stunUntil,
     grumpy: root.nowMs < root.grumpyUntil,
     greet: root.nowMs < root.greetUntil,
     happy: root.nowMs < root.happyUntil,
@@ -162,6 +178,8 @@ Item {
     sneak: Model.sneakWindow(root.winW, root.winH) || !!root.careFlags.focused,
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying,
+    video: root.mediaIsVideo,
+    browserMedia: root.mediaIsBrowser,
     audioPeak: root.audioPeak,
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),
@@ -427,7 +445,7 @@ Item {
     root.applyCareStats(s, false)
     root.petDocked = !!s.docked
     root.sickUntil = 0
-    root.tripActive = false
+    root.stunUntil = 0
     root.pendingWash = false
     root.careDirty = false
   }
@@ -470,7 +488,7 @@ Item {
     if (!root.petVisible) return
     var now = Date.now()
     root.applyCareStats(Model.decayCareStats(root.careSnapshot(), now, root.careEnv()), false)
-    if (root.pendingWash && root.nowMs >= root.sickUntil && !root.tripActive
+    if (root.pendingWash && root.nowMs >= root.sickUntil && root.nowMs >= root.stunUntil
         && root.nowMs >= root.washUntil && root.nowMs >= root.eatUntil) {
       root.pendingWash = false
       root.washUntil = now + Model.careDurationMs()
@@ -518,10 +536,11 @@ Item {
     var drop = Number(dropPx)
     if (!isFinite(drop)) drop = 0
     if (drop >= Model.tripDropPx()) {
-      root.tripActive = true
-      root.sickUntil = 0
+      var hitMs = Date.now()
+      root.stunUntil = hitMs + 2200
+      root.sickUntil = hitMs + 4700
       root.pendingWash = true
-      return "trip"
+      return "collapse"
     }
     if (drop >= 8) {
       root.sickUntil = Date.now() + 4500
@@ -533,13 +552,6 @@ Item {
 
   function onDroppedFromHeight() {
     return root.onLanded(Model.tripDropPx())
-  }
-
-  function onTripFinished() {
-    root.tripActive = false
-    root.sickUntil = Date.now() + 2500
-    root.touchActivity()
-    return "sick"
   }
 
   function recallPet() {

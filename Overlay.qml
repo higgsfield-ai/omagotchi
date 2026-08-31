@@ -307,8 +307,8 @@ Item {
       interval: {
         if (window.mode === "dance" || window.mode === "flip")
           return Math.max(40, Math.round(1000 / Model.danceFps(window.peak, window.careStats)))
-        if (window.mode === "trip") return 90
         if (window.mode === "happy") return 110
+        if (window.mode === "watch") return 200
         if (window.mode === "eat" || window.mode === "wash") return 140
         if (window.mode === "fall") return 90
         if (window.mode === "drag") return 180
@@ -319,19 +319,7 @@ Item {
       }
       running: window.visible && !Model.isMoveMode(window.mode)
       repeat: true
-      onTriggered: {
-        if (window.mode === "trip") {
-          if (window.frame + 1 >= window.frames.frameCount) {
-            window.frame = Math.max(0, window.frames.frameCount - 1)
-            if (root.svc && typeof root.svc.onTripFinished === "function")
-              root.svc.onTripFinished()
-            return
-          }
-          window.frame += 1
-          return
-        }
-        window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
-      }
+      onTriggered: window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
     }
 
     Item {

@@ -34,9 +34,8 @@ function generatedModeMap() {
     run: { row: 5, start: 0, count: 16 },
     sneak: { row: 6, start: 0, count: 16 },
     fall: { row: 7, start: 0, count: 16 },
-    trip: { row: 8, start: 0, count: 16 },
     happy: { row: 9, start: 0, count: 8 },
-    grumpy: { row: 9, start: 8, count: 8 },
+    watch: { row: 9, start: 8, count: 8 },
     eat: { row: 10, start: 0, count: 8 },
     sick: { row: 10, start: 8, count: 8 },
     wash: { row: 11, start: 0, count: 8 }
@@ -66,9 +65,8 @@ function generatedAtlas(file) {
       run: modes.run,
       sneak: modes.sneak,
       fall: modes.fall,
-      trip: modes.trip,
       happy: modes.happy,
-      grumpy: modes.grumpy,
+      watch: modes.watch,
       eat: modes.eat,
       sick: modes.sick,
       wash: modes.wash
@@ -126,6 +124,7 @@ function normalizeAtlas(raw) {
       trip: cloneMode(modes.trip, fb.trip || fb.sick || bundled.idle),
       happy: cloneMode(modes.happy, fb.happy || fb.greet || bundled.idle),
       grumpy: cloneMode(modes.grumpy, fb.grumpy || bundled.idle),
+      watch: cloneMode(modes.watch, fb.watch || fb.look || bundled.idle),
       eat: cloneMode(modes.eat, fb.eat || fb.idle || bundled.idle),
       sick: cloneMode(modes.sick, fb.sick || bundled.idle),
       wash: cloneMode(modes.wash, fb.wash || fb.idle || bundled.idle)
@@ -502,9 +501,9 @@ function flipPeak(stats) {
 }
 
 function dancePeak(stats) {
-  if (!stats) return 0
-  var s = normalizeCareStats(stats)
-  if (s.music < 22 && s.excitement < 40) return 0.12
+  // The stat-gated threshold (0.12 for a neglected pet) plus a silent peak
+  // monitor meant "nothing happens" when music played. Playing media is
+  // reason enough to dance; peaks only decide dance vs flip.
   return 0
 }
 
@@ -535,7 +534,7 @@ function resolveMode(opts) {
   if (!isFinite(danceAt) || danceAt < 0) danceAt = 0
   if (o.dragging) return "drag"
   if (o.falling) return "fall"
-  if (o.trip) return "trip"
+  if (o.stunned) return "collapse"
   if (o.sick) return "sick"
   if (o.grumpy) return "grumpy"
   if (o.greet) return "greet"
@@ -551,7 +550,9 @@ function resolveMode(opts) {
     return wander
   }
   if (wander === "look") return "look"
+  if (playing && o.video) return "watch"
   if (playing && peak > flipAt) return "flip"
+  if (playing && o.browserMedia && peak < 0.28) return "watch"
   if (playing && peak >= danceAt) return "dance"
   if (o.lonely) return "look"
   if (o.focused) return "look"
@@ -619,6 +620,32 @@ function pickWander(rand, stats) {
   x -= w.run
   if (x < w.idle) return "idle"
   return "look"
+}
+
+function isVideoPlayerId(blob) {
+  var low = String(blob || "").toLowerCase()
+  if (!low) return false
+  var tokens = [
+    "mpv", "vlc", "celluloid", "haruna", "totem", "kodi", "jellyfin",
+    "stremio"
+  ]
+  for (var i = 0; i < tokens.length; i++) {
+    if (low.indexOf(tokens[i]) !== -1) return true
+  }
+  return false
+}
+
+function isBrowserPlayerId(blob) {
+  var low = String(blob || "").toLowerCase()
+  if (!low) return false
+  var tokens = [
+    "firefox", "chromium", "chrome", "brave", "vivaldi", "librewolf",
+    "zen", "edge", "epiphany", "opera"
+  ]
+  for (var i = 0; i < tokens.length; i++) {
+    if (low.indexOf(tokens[i]) !== -1) return true
+  }
+  return false
 }
 
 function nextClickState(state, nowMs, stats) {
@@ -1100,6 +1127,8 @@ if (typeof module !== "undefined") {
     isNightHour: isNightHour,
     sneakWindow: sneakWindow,
     isMoveMode: isMoveMode,
+    isVideoPlayerId: isVideoPlayerId,
+    isBrowserPlayerId: isBrowserPlayerId,
     movePace: movePace,
     pickWander: pickWander,
     nextClickState: nextClickState,

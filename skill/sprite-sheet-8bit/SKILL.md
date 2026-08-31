@@ -70,10 +70,10 @@ measurement may be logged, but a miss does not trigger a regeneration), and
 proceed immediately to Step 3. The entire pipeline runs start-to-finish with no
 user questions: the user drops one image and receives all finished animations.
 
-## Step 3 — per-action START FRAMES (17 images)
+## Step 3 — per-action START FRAMES (16 images)
 
-Immediately after the base completes, generate ONE image PER ACTION (17 total: walk, idle,
-look, sleep, collapse, drag, greet, dance, dash, sneak, fall, trip, happy, grumpy,
+Immediately after the base completes, generate ONE image PER ACTION (16 total: walk, idle,
+look, sleep, collapse, drag, greet, dance, dash, sneak, fall, happy, watch,
 eat, sick, wash) — the FIRST pose of that action (walk: mid-stride facing
 right; sleep: lying flat on the side, strictly horizontal; fall: mid-air, arms and legs spread flailing;
 dance: facing camera arms up; etc., derived from the row table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
@@ -84,7 +84,7 @@ SCALE — HARD RULE, include verbatim in EVERY start-frame prompt:
 in the reference image — the same on-screen height, the same margins around him;
 do not zoom in, do not zoom out, do not crop.`
 
-Submit in two batched calls (10 + 7). QC all 17 in ONE batched `image_analyze`
+Submit in two batched calls (10 + 6). QC all 16 in ONE batched `image_analyze`
 pass (identity, pose, scale vs base, clean key background). Additionally verify
 each start frame's BORDER is ≥85% key color, and for the lying rows (sleep,
 collapse) that the subject box is clearly WIDER than tall (both cheap numeric
@@ -100,17 +100,17 @@ Every action is ONE short video clip. The action's own START FRAME image from
 Step 3 is passed as `start_image` — NEVER as a generic reference-only input:
 - LOOP rows: the SAME start-frame image goes in as BOTH `start_image` AND
   `end_image` — first frame = last frame, guaranteed seamless loop.
-- Row 8 TRIP (the only one-shot): `start_image` only, clear progression.
 Frames are then sampled evenly from the clip — so clip length vs frame count sets
 the playback feel. Keep clips SHORT (video is billed per second).
 
 - Full 16-frame row → one clip, 4 s. Split row (8+8) → TWO clips, 4 s each
   (model minimum), one per half-action.
 - Resolution: **720p — FIXED.**
-- Total per run: **17 clips** (6 full rows + 5 split rows x 2 + row 11's single
-  half-row). 17 keeps the whole batch under an 18-job concurrency shed. Do NOT
-  stop to discuss cost or ask anything — the run is zero-touch end-to-end (1 base +
-  17 start-frame images + 17 clips of 4 s at 720p; platform-level generation
+- Total per run: **16 clips** (5 full rows + 5 split rows x 2 + row 11's single
+  half-row; row 8 stays empty). Every row LOOPS — there are no one-shot rows.
+  16 keeps the whole batch well under an 18-job concurrency shed. Do NOT stop
+  to discuss cost or ask anything — the run is zero-touch end-to-end (1 base +
+  16 start-frame images + 16 clips of 4 s at 720p; platform-level generation
   approval is the only gate).
 
 Model: **`seedance_2_0_mini`** — FIXED, for every clip. Never substitute another
@@ -119,16 +119,21 @@ allowed durations/resolutions with `higgsfield_generate_models_explore`
 (action=get, model_id=seedance_2_0_mini) and snap the clip plan to them.
 Loop rule: a looping action must end on the frame it started on — the model takes
 `start_image` AND `end_image`, so for every loop clip pass that action's Step-3
-start frame as BOTH; additionally append `seamless loop` to the prompt. Row 8 is
-the only one-shot: start frame only, clear progression, no loop clause.
+start frame as BOTH; additionally append `seamless loop` to the prompt.
 Every video prompt ALSO carries the SCALE RULE verbatim (same wording as Step 3)
 so the character never drifts in size mid-clip.
 
 Video prompt skeleton (one motion per clip, describe the MOTION, not the end state;
 name direction, moving body parts, speed):
 
-`<ROW SPEC>, <STYLE STRING>, <CAMERA LOCK>, flat solid <KEY HEX> background that
-never changes, no background elements, no text`
+`<ROW SPEC>, <STYLE STRING>, <CAMERA LOCK>, flat solid <KEY HEX> background
+staying EXACTLY <KEY HEX> in every frame — never darker, never desaturated, no
+vignette — no cast shadow, no ground shadow, no background elements, no other
+characters, no text`
+
+After download, check a mid-clip frame's border against the key color the same
+way start frames are checked — a clip whose background drifted (dimmed,
+desaturated, or replaced) rerolls once before assembly.
 
 CAMERA LOCK — HARD RULE, include this block VERBATIM in EVERY clip prompt (the
 model tends to zoom in on featureless backgrounds; this is the counterweight):
@@ -146,10 +151,9 @@ After each batch, VERIFY framing numerically (free): extract frame 1 and the
 last frame of each clip, measure the subject bbox vs the start frame (key-color
 mask); if the subject height grew by more than ~10 percentage points of frame
 height, the clip is a framing failure — reroll it automatically (within the
-2-attempt budget) before assembly. EXEMPT Row 8 TRIP (one-shot): its subject
-height legitimately collapses when the character ends up lying flat.
+2-attempt budget) before assembly.
 
-Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
+Submission: batch all 16 requests in ONE `higgsfield_generate_video` call
 (max 10 per call → two calls), resolution **720p**, duration 4 s, `count: 1`. Poll in batch with `higgsfield_job_status`.
 
 ## Row table (canonical — generate all 12, this exact order)
@@ -164,8 +168,8 @@ Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
 | 5 | 16 | DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak | loop |
 | 6 | 16 | SNEAK: deep crouch walk facing right, torso low, careful steps | loop |
 | 7 | 16 | FALL: falling through the air, arms and legs waving and flailing, comic panic tumble, clothes and hair lifted upward, no ground contact, loopable mid-air cycle | loop |
-| 8 | 16 | TRIP/FACEPLANT one-shot: stumble → fall forward → hit ground → briefly flat, clear progression | ONE-SHOT |
-| 9 | 8+8 | HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur) · GRUMPY/ANGRY: frown, crossed arms or dismissive gesture, same character | loop each |
+| 8 | — | (empty — reserved; hard landings reuse row 2 COLLAPSE instantly) | — |
+| 9 | 8+8 | HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur) · WATCH: sitting on the ground with a small open laptop on the lap, eyes on the screen, tiny reactions, COMPLETELY ALONE, the laptop is the only prop | loop each |
 | 10 | 8+8 | EAT/SNACK: holding a small snack/drink, chew or sip cycle · SICK/DIZZY: light pale/greenish tint on face only, dizzy swirl or hand-to-head, woozy stance, outfit readable | loop each |
 | 11 | 8 | WASH/HYGIENE: soap bubbles or towel wipe, clean and happy (first half-row; the second half of row 11 stays empty) | loop |
 
@@ -214,7 +218,7 @@ into an engine.
   through every clip — expect a reroll on 1-3 clips per run.
 - Background may drift mid-clip (shadows, gradient); keying tolerance handles mild
   drift, heavy drift = reroll.
-- Slight identity drift across 17 clips is possible; base-sprite-as-start-frame
+- Slight identity drift across 16 clips is possible; base-sprite-as-start-frame
   minimizes it.
-- Cost: ~17 short clips + 1-3 images per run; video bills per second — never
+- Cost: ~16 short clips + 1-3 images per run; video bills per second — never
   request longer clips than the plan needs.

@@ -121,6 +121,18 @@ def chroma_key(img, key_rgb, tol):
     return Image.fromarray(rgba, "RGBA")
 
 
+def effective_key(img, key_rgb):
+    """The video model sometimes dims or desaturates the key background.
+    When the measured border color is recognizably the drifted key, key on
+    the measurement instead of the nominal hex."""
+    arr = np.asarray(img.convert("RGB"))
+    border = np.concatenate([arr[0], arr[-1], arr[:, 0], arr[:, -1]])
+    med = np.median(border, axis=0)
+    if np.abs(med - np.array(key_rgb)).sum() <= 300:
+        return tuple(int(v) for v in med)
+    return key_rgb
+
+
 def union_box(frames):
     """One bbox covering the subject in EVERY frame of the clip."""
     x0 = y0 = 10 ** 9
@@ -331,7 +343,7 @@ def main():
                         im = Image.open(pth)
                         im = im.resize((max(1, im.width // 4),
                                         max(1, im.height // 4)))
-                        proxies.append(chroma_key(im, key, tol))
+                        proxies.append(chroma_key(im, effective_key(im, key), tol))
                     b = union_box(proxies)
                     if b is not None:
                         box = tuple(v * 4 for v in b)
@@ -353,8 +365,10 @@ def main():
             aname = clip.get("name") or r["name"]
             n = item["n"]
             uniform = item["uniform"]
-            keyed = [chroma_key(Image.open(pth), key, tol)
-                     for pth in item["paths"]]
+            keyed = []
+            for pth in item["paths"]:
+                im = Image.open(pth)
+                keyed.append(chroma_key(im, effective_key(im, key), tol))
             if fs:  # opt-in pixel-grid mode
                 if item["box"] is None or global_side <= 0:
                     print(f"[warn] {aname}: empty after keying, skipped")
@@ -410,7 +424,8 @@ def main():
     # optional combined master sheet (uniform cell = the largest frame)
     cell = max((f.width for _, fr in sheet_rows for f in fr), default=0)
     if cell:
-        sheet = Image.new("RGBA", (COLS * cell, len(sheet_rows) * cell),
+        max_row = max(row_idx for row_idx, _ in sheet_rows)
+        sheet = Image.new("RGBA", (COLS * cell, (max_row + 1) * cell),
                           (0, 0, 0, 0))
         for ri, (row_idx, fr) in enumerate(sheet_rows):
             for i, f in enumerate(fr[:COLS]):

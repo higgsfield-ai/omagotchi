@@ -23,10 +23,13 @@ test("idle and collapse use dedicated rows", () => {
   assert.equal(collapse.frameX, 6 * 80)
 })
 
-test("resolveMode prefers drag, then fall/trip/sick, moods, care, sleep, and sneak", () => {
+test("resolveMode prefers drag, then fall/stun/sick, moods, care, media, and sneak", () => {
   assert.equal(Model.resolveMode({ dragging: true, wander: "walk" }), "drag")
   assert.equal(Model.resolveMode({ falling: true, wander: "walk" }), "fall")
-  assert.equal(Model.resolveMode({ trip: true, wander: "walk" }), "trip")
+  assert.equal(Model.resolveMode({ stunned: true, wander: "walk" }), "collapse")
+  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, video: true, audioPeak: 1 }), "watch")
+  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, browserMedia: true }), "watch")
+  assert.equal(Model.resolveMode({ wander: "idle", mediaPlaying: true, browserMedia: true, audioPeak: 0.4 }), "dance")
   assert.equal(Model.resolveMode({ sick: true, wander: "walk" }), "sick")
   assert.equal(Model.resolveMode({ grumpy: true, greet: true, wander: "walk" }), "grumpy")
   assert.equal(Model.resolveMode({ greet: true, wander: "walk" }), "greet")
@@ -59,13 +62,18 @@ test("generated atlas maps unused rows onto named modes", () => {
   const atlas = Model.generatedAtlas("/tmp/sheet.png")
   assert.equal(Model.framesForMode(atlas, "sleep").frameY, 160)
   assert.equal(Model.framesForMode(atlas, "sneak").frameY, 480)
-  assert.equal(Model.framesForMode(atlas, "trip").frameY, 640)
   assert.equal(Model.framesForMode(atlas, "happy").frameX, 0)
   assert.equal(Model.framesForMode(atlas, "happy").frameY, 720)
   assert.equal(Model.framesForMode(atlas, "eat").frameY, 800)
   assert.equal(Model.framesForMode(atlas, "wash").frameY, 880)
   assert.equal(Model.framesForMode(atlas, "fall").frameX, 0)
   assert.equal(Model.framesForMode(atlas, "fall").frameY, 560)
+  assert.equal(Model.framesForMode(atlas, "watch").frameX, 640)
+  assert.equal(Model.framesForMode(atlas, "watch").frameY, 720)
+  assert.equal(Model.isVideoPlayerId("mpv Media Player"), true)
+  assert.equal(Model.isVideoPlayerId("Mozilla Firefox"), false)
+  assert.equal(Model.isBrowserPlayerId("Mozilla Firefox firefox"), true)
+  assert.equal(Model.isBrowserPlayerId("Spotify"), false)
 })
 
 test("pickWander mixes walk, run, idle, and look", () => {
@@ -218,8 +226,12 @@ test("generated 16x12 atlas maps pet modes onto skill rows", () => {
   assert.equal(greet.frameY, 240)
   assert.equal(greet.frameX, 640)
   const grumpy = Model.framesForMode(spec, "grumpy")
-  assert.equal(grumpy.frameY, 720)
-  assert.equal(grumpy.frameX, 640)
+  // Row 9's second half is watch now; grumpy has no generated row and
+  // falls back to the bundled idle strip on new sheets.
+  assert.equal(grumpy.frameY, 80)
+  const watch = Model.framesForMode(spec, "watch")
+  assert.equal(watch.frameY, 720)
+  assert.equal(watch.frameX, 640)
   const sick = Model.framesForMode(spec, "sick")
   assert.equal(sick.frameY, 800)
   assert.equal(sick.frameX, 640)
