@@ -50,9 +50,6 @@ Panel {
   readonly property real attention: root.svc ? Number(root.svc.careAttention) : 0
   readonly property real bond: root.svc ? Number(root.svc.careBond) : 0
   readonly property real weight: root.svc ? Number(root.svc.careWeight) : 50
-  readonly property string ageText: root.svc
-    ? Model.ageLabel(root.svc.careBornMs, root.svc.nowMs || Date.now())
-    : "newborn"
   readonly property bool petDocked: root.svc ? !!root.svc.petDocked : false
   readonly property bool petRecalling: root.svc ? !!root.svc.petRecalling : false
   readonly property bool petReleasing: root.svc ? !!root.svc.petReleasing : false
@@ -567,14 +564,6 @@ Panel {
               CareStatRow { width: statGrid.cellWidth; label: "Weight"; value: root.weight }
             }
 
-            Text {
-              width: parent.width
-              text: "Age  " + root.ageText
-              color: root.barForeground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
-              opacity: 0.75
-            }
 
           }
 

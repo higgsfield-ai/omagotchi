@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Tamagotchi",
-  "version": "0.51.1",
+  "version": "0.51.2",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "Desktop Tamagotchi. Bar chip builds an 8-bit sprite sheet from one photo via Higgsfield CLI.",
