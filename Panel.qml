@@ -19,6 +19,8 @@ Panel {
     : null
   readonly property bool generating: root.svc ? !!root.svc.generating : false
   readonly property bool picking: root.svc ? !!root.svc.picking : false
+  readonly property bool capturing: root.svc ? !!root.svc.capturing : false
+  readonly property int photoRev: root.svc ? Number(root.svc.photoRev || 0) : 0
   readonly property bool loggedIn: root.svc ? !!root.svc.loggedIn : false
   readonly property bool loggingIn: root.svc ? !!root.svc.loggingIn : false
   readonly property bool runtimeReady: root.svc ? !!root.svc.runtimeReady : false
@@ -114,8 +116,13 @@ Panel {
     if (dlg && typeof dlg.open === "function") dlg.open()
   }
 
-  function onDialogPicked(path) {
-    if (root.svc && typeof root.svc.setPhoto === "function") root.svc.setPhoto(path)
+  function takePhoto() {
+    if (!root.loggedIn) {
+      if (root.svc) root.svc.login()
+      return
+    }
+    if (root.svc && typeof root.svc.captureWebcam === "function")
+      root.svc.captureWebcam()
   }
 
   Loader {
@@ -469,8 +476,8 @@ Panel {
             width: parent.width
             visible: root.showGenerate
             text: root.loggedIn
-              ? "Upload a photo, then generate. The new pet replaces the one on your desktop."
-              : "Log in to Higgsfield to unlock photo upload and Generate my avatar."
+              ? "Take a webcam photo or upload one, then generate. The new pet replaces the one on your desktop."
+              : "Log in to Higgsfield to unlock photo capture and Generate my avatar."
             color: root.barForeground
             font.family: root.fontFamily
             font.pixelSize: Style.font.subtitle
@@ -493,7 +500,7 @@ Panel {
               anchors.fill: parent
               anchors.margins: Style.space(6)
               visible: root.loggedIn && root.hasPhoto
-              source: root.hasPhoto ? ("file://" + root.photoPath) : ""
+              source: root.hasPhoto ? ("file://" + root.photoPath + "?r=" + root.photoRev) : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               cache: false
@@ -522,12 +529,14 @@ Panel {
 
             Text {
               anchors.centerIn: parent
-              visible: !root.hasPhoto || !root.loggedIn
+              visible: !root.hasPhoto || !root.loggedIn || root.capturing
               width: parent.width - Style.space(16)
               horizontalAlignment: Text.AlignHCenter
               text: !root.loggedIn
-                ? "Photo upload unlocks after login"
-                : (root.picking ? "Opening picker…" : "Click to choose a photo")
+                ? "Photo capture unlocks after login"
+                : (root.capturing
+                  ? "Smile…"
+                  : (root.picking ? "Opening picker…" : "Click to choose a photo, or Take photo"))
               color: root.barForeground
               opacity: 0.55
               wrapMode: Text.WordWrap
@@ -539,7 +548,7 @@ Panel {
               anchors.fill: parent
               z: 2
               cursorShape: root.loggedIn ? Qt.PointingHandCursor : Qt.ArrowCursor
-              enabled: root.loggedIn && !root.generating
+              enabled: root.loggedIn && !root.generating && !root.capturing
               onClicked: root.choosePhoto()
             }
           }
@@ -553,6 +562,17 @@ Panel {
             font.pixelSize: Style.font.subtitle
             elide: Text.ElideMiddle
             opacity: 0.7
+          }
+
+          WidgetButton {
+            bar: root.bar
+            visible: root.showGenerate && root.loggedIn && !root.generating && !root.loggingIn
+            text: root.capturing ? "Capturing…" : "Take photo"
+            tooltipText: "Capture a still from the webcam"
+            onPressed: function(buttonCode) {
+              if (buttonCode !== Qt.LeftButton) return
+              root.takePhoto()
+            }
           }
 
           WidgetButton {

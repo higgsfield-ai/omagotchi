@@ -60,6 +60,8 @@ Item {
   property var atlasSpec: null
   property string photoPath: ""
   property bool picking: false
+  property bool capturing: false
+  property int photoRev: 0
   property int generateStep: 0
   property int generateSteps: 0
   property int generatePercent: 0
@@ -292,6 +294,7 @@ Item {
     var p = Model.fileUrlToPath(Model.trimPrompt(path))
     if (!p) return "empty"
     root.photoPath = p
+    root.photoRev += 1
     root.lastError = ""
     root.generateStatus = ""
     return "ok"
@@ -299,13 +302,34 @@ Item {
 
   function pickPhoto() {
     if (!root.loggedIn) return "login"
-    if (root.picking || root.generating) return "busy"
+    if (root.picking || root.generating || root.capturing) return "busy"
     root.picking = true
     root.lastError = ""
     pickProc.command = ["bash", root.filePath("scripts/pick-image.sh")]
     pickProc.running = false
     pickProc.running = true
     return "started"
+  }
+
+  function captureWebcam() {
+    if (!root.loggedIn) return "login"
+    if (root.picking || root.generating || root.capturing) return "busy"
+    root.capturing = true
+    root.lastError = ""
+    root.generateStatus = "Smile…"
+    captureProc.command = [
+      "python3", "-u", root.filePath("scripts/capture-webcam.py"),
+      "--out", root.dataDir() + "/webcam.jpg"
+    ]
+    captureProc.running = false
+    captureProc.running = true
+    return "started"
+  }
+
+  function onCapturedPhoto(code, stdout, stderr) {
+    root.capturing = false
+    root.generateStatus = ""
+    root.onPickedPhoto(code, stdout, stderr)
   }
 
   function onPickedPhoto(code, stdout, stderr) {
@@ -808,6 +832,19 @@ Item {
   }
 
   Process {
+    id: captureProc
+    stdout: StdioCollector {
+      id: captureOut
+    }
+    stderr: StdioCollector {
+      id: captureErr
+    }
+    onExited: function(exitCode) {
+      root.onCapturedPhoto(exitCode, captureOut.text, captureErr.text)
+    }
+  }
+
+  Process {
     id: atlasReadProc
     stdout: StdioCollector {
       id: atlasReadOut
@@ -886,6 +923,7 @@ Item {
     function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
     function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
     function pickPhoto(): string { return root.pickPhoto() }
+    function captureWebcam(): string { return root.captureWebcam() }
     function setPhoto(path: string): string { return root.setPhoto(path) }
     function login(): string { return root.login() }
     function retry(): string { return root.retryGenerate() }
