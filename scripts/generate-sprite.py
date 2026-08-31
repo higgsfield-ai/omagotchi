@@ -110,12 +110,12 @@ CLIPS = [
     {"row": 1, "name": "look", "frames": 8, "loop": True,
      "pose": "first pose of a look-around, standing, head turned slightly right, full body",
      "spec": "LOOK-AROUND: gentle head/torso turns (right, camera, left, back to right) while standing"},
-    {"row": 2, "name": "sleep", "frames": 8, "loop": True,
-     "pose": "lying on side or curled, eyes closed, sleeping, full body visible",
-     "spec": "SLEEP: lying on side or curled, eyes closed, tiny breathing"},
-    {"row": 2, "name": "collapse", "frames": 8, "loop": True,
-     "pose": "flat on stomach or back minimized pose, awake, readable silhouette, full body",
-     "spec": "COLLAPSE/LIE: flat on stomach/back minimized pose, awake or half-awake, readable silhouette"},
+    {"row": 2, "name": "sleep", "frames": 8, "loop": True, "lying": True,
+     "pose": "lying flat on his side, body strictly HORIZONTAL across the frame, head and feet at the same height, eyes closed, sleeping, full body visible — NEVER upright, NEVER diagonal, NEVER floating curled",
+     "spec": "SLEEP: lying flat on the side, body strictly HORIZONTAL, head and feet at the same height, eyes closed, tiny breathing — never upright, never diagonal"},
+    {"row": 2, "name": "collapse", "frames": 8, "loop": True, "lying": True,
+     "pose": "flat on stomach or back, body strictly HORIZONTAL across the frame, awake, readable silhouette, full body — NEVER upright, NEVER diagonal",
+     "spec": "COLLAPSE/LIE: flat on stomach/back, body strictly HORIZONTAL, minimized pose, awake or half-awake, readable silhouette"},
     {"row": 3, "name": "drag", "frames": 8, "loop": True,
      "pose": "one arm stretched straight up overhead, body and legs dangling relaxed below it as if hanging by that hand, COMPLETELY ALONE in the frame — no rope, no hand holding him, no other characters, full body",
      "spec": "DRAG/HANG: one arm fixed straight overhead, body hanging below it, legs dangling with a light pendulum sway, the raised arm never moves; COMPLETELY ALONE — no rope, no hand holding him, no other characters, no props"},
@@ -727,21 +727,29 @@ def pick_key_color(path: Path) -> str:
     return "#FF00FF"
 
 
-def start_background_ok(path: Path, key: str) -> bool:
+def start_frame_ok(clip: dict, path: Path, key: str) -> tuple[bool, str]:
     try:
         from PIL import Image
         import numpy as np
     except ImportError:
-        return True
+        return True, ""
     try:
         im = Image.open(path).convert("RGB").resize((64, 64))
     except Exception:
-        return True
+        return True, ""
     arr = np.asarray(im).astype(int)
     kr, kg, kb = int(key[1:3], 16), int(key[3:5], 16), int(key[5:7], 16)
-    border = np.concatenate([arr[0], arr[-1], arr[:, 0], arr[:, -1]])
-    dist = np.abs(border - np.array([kr, kg, kb])).sum(axis=1)
-    return float((dist < 180).mean()) >= 0.85
+    dist = np.abs(arr - np.array([kr, kg, kb])).sum(axis=2)
+    border = np.concatenate([dist[0], dist[-1], dist[:, 0], dist[:, -1]])
+    if float((border < 180).mean()) < 0.85:
+        return False, "start frame background is not the key color"
+    # Lying rows (sleep, collapse) must actually lie down: the subject box
+    # has to be clearly wider than tall, or the pose came out upright/curled.
+    if clip.get("lying"):
+        ys, xs = np.nonzero(dist >= 180)
+        if len(xs) and (xs.max() - xs.min()) < 1.2 * (ys.max() - ys.min()):
+            return False, "lying pose came out upright instead of horizontal"
+    return True, ""
 
 
 def video_prompt(spec: str, key: str, loop: bool) -> str:
@@ -996,8 +1004,9 @@ def main() -> None:
         clip, job_id, dest = item
         job = wait_job(hf, job_id, log)
         download(job["url"], dest)
-        if not start_background_ok(dest, key):
-            raise RuntimeError("start frame background is not the key color")
+        ok, why = start_frame_ok(clip, dest, key)
+        if not ok:
+            raise RuntimeError(why)
         return clip, dest
 
     start_wait_pool = ThreadPoolExecutor(max_workers=min(WAIT_WORKERS, len(start_submitted)))
@@ -1038,8 +1047,9 @@ def main() -> None:
             job = wait_job(hf, job_id, log)
             dest = starts_dir / f"{clip['name']}.png"
             download(job["url"], dest)
-            if not start_background_ok(dest, key):
-                raise RuntimeError("start frame background is not the key color")
+            ok, why = start_frame_ok(clip, dest, key)
+            if not ok:
+                raise RuntimeError(why)
             start_paths[clip["name"]] = dest
         except Exception as exc:
             start_wait_errors.append(f"pose {clip['name']} failed twice: {exc}")

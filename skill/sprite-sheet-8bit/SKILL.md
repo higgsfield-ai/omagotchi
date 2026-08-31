@@ -75,7 +75,7 @@ user questions: the user drops one image and receives all finished animations.
 Immediately after the base completes, generate ONE image PER ACTION (17 total: walk, idle,
 look, sleep, collapse, drag, greet, dance, dash, sneak, fall, trip, happy, grumpy,
 eat, sick, wash) — the FIRST pose of that action (walk: mid-stride facing
-right; sleep: lying on side curled; fall: mid-air, arms and legs spread flailing;
+right; sleep: lying flat on the side, strictly horizontal; fall: mid-air, arms and legs spread flailing;
 dance: facing camera arms up; etc., derived from the row table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
 media in every request, style string verbatim, same key-color background.
 
@@ -86,8 +86,10 @@ do not zoom in, do not zoom out, do not crop.`
 
 Submit in two batched calls (10 + 7). QC all 17 in ONE batched `image_analyze`
 pass (identity, pose, scale vs base, clean key background). Additionally verify
-each start frame's BORDER is ≥85% key color (a cheap numeric check) — a frame
-that invented scenery or another character fails it and gets rerolled. Regen
+each start frame's BORDER is ≥85% key color, and for the lying rows (sleep,
+collapse) that the subject box is clearly WIDER than tall (both cheap numeric
+checks) — a frame with invented scenery or an upright sleeper fails and gets
+rerolled. Regen
 budget: 2 per start frame. Never describe an off-screen agent in a pose prompt
 ("held by a hand from above") — the model will draw it; describe only the
 character's own body and state "completely alone in the frame".
@@ -156,7 +158,7 @@ Submission: batch all 17 requests in ONE `higgsfield_generate_video` call
 |---|---|---|---|
 | 0 | 16 | WALK: side-view walk/run cycle facing right, full gait, arms and legs clear, upright then slight forward lean as speed builds | loop |
 | 1 | 8+8 | IDLE: subtle idle bob/breath facing 3/4 right · LOOK-AROUND: gentle head/torso turns (right, camera, left, back to right) while standing | loop each |
-| 2 | 8+8 | SLEEP: lying on side or curled, eyes closed, tiny breathing · COLLAPSE/LIE: flat on stomach/back "minimized" pose, awake or half-awake, readable silhouette | loop each |
+| 2 | 8+8 | SLEEP: lying flat on the side, body strictly HORIZONTAL, head and feet at the same height, eyes closed, tiny breathing — never upright, never diagonal · COLLAPSE/LIE: flat on stomach/back, body strictly HORIZONTAL, minimized pose, awake or half-awake, readable silhouette | loop each |
 | 3 | 8+8 | DRAG/HANG: one arm fixed straight overhead, body hanging below it, legs dangling with a light pendulum sway, the raised arm never moves; COMPLETELY ALONE — no rope, no hand holding him, no other characters, no props · GREET/WAVE: facing camera/3-4, friendly wave or both-hands hello | loop each |
 | 4 | 16 | DANCE/CHEER: music celebration facing camera/3-4, arms up, stepping in place, joyful cycle | loop |
 | 5 | 16 | DASH/FLIP ENERGY: aggressive sprint facing right, long strides, strong lean, high energy, hype peak | loop |
