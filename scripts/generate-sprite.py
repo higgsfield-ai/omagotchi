@@ -23,11 +23,10 @@ LOG_LOCK = threading.Lock()
 PROGRESS_LOCK = threading.Lock()
 
 STYLE = (
-    "8-bit pixel art built from small, even pixels (fine pixel granularity, "
-    "never giant chunky blocks — this describes pixel SIZE only, never zoom, "
-    "never crop, never framing), limited NES-era palette (max ~24 colors), "
-    "hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, "
-    "1px dark outline, clean readable silhouette"
+    "8-bit pixel art with small, even pixels (pixel size only — never zoom, "
+    "never crop), limited NES-era palette (max ~24 colors), hard pixel edges, "
+    "no anti-aliasing, no gradients, flat colors, 1px dark outline, clean "
+    "readable silhouette"
 )
 
 FRAMING_LOCK = (
@@ -38,12 +37,15 @@ FRAMING_LOCK = (
     "margins left and right, full body visible, nothing cropped at the edges."
 )
 
-SCALE_RULE = (
-    "SCALE RULE: keep the character at EXACTLY the same size, scale and proportions as "
-    "in the reference image — the same on-screen height, the same margins around him; "
-    "do not zoom in, do not zoom out, do not crop. The HEAD stays exactly the same "
-    "size as in the reference: crouching, sitting or lying changes the posture only, "
-    "NEVER the head size or body thickness — never draw the character smaller overall."
+# One compact lock instead of stacked overlapping rule blocks: past a point,
+# more prompt rules dilute each other and the model starts dropping details
+# (shoe colors) or shrinking the character.
+CHARACTER_LOCK = (
+    "CHARACTER LOCK: exactly the same character as the reference — same face, "
+    "hair, skin tone, the same outfit in the same colors down to the shoes; "
+    "nothing added, removed or recolored. Same size and proportions as the "
+    "reference: same head size, same body thickness, same on-screen height — "
+    "never smaller, never zoomed, never cropped; full body, head to feet."
 )
 
 CAMERA_LOCK = (
@@ -55,16 +57,6 @@ CAMERA_LOCK = (
     "character, NEVER push the character toward the frame edges, NEVER recompose or "
     "recrop. The wide empty margins stay visible in EVERY frame; any zoom-in or "
     "tighter framing is a failure."
-)
-
-OUTFIT_LOCK = (
-    "IDENTITY LOCK — ABSOLUTE RULE: EXACTLY the same character as the "
-    "reference image: same face, same hair, same glasses if any, same shirt, "
-    "same pants in the SAME COLORS, same shoes. NEVER change, recolor, remove "
-    "or add any clothing item, NEVER change hairstyle or skin tone. The ONLY "
-    "difference from the reference is the pose. FULL BODY head to feet in "
-    "every frame — legs and shoes always visible, never a bust, never a "
-    "waist-up crop."
 )
 
 FRAME_MS = 156
@@ -126,7 +118,7 @@ CLIPS = [
     {"row": 2, "name": "collapse", "frames": 8, "loop": True, "lying": True,
      "pose": "flat on stomach or back, body strictly HORIZONTAL across the frame, awake, readable silhouette, full body — NEVER upright, NEVER diagonal",
      "spec": "COLLAPSE/LIE: flat on stomach/back, body strictly HORIZONTAL, minimized pose, awake or half-awake, readable silhouette"},
-    {"row": 3, "name": "drag", "frames": 8, "loop": True,
+    {"row": 3, "name": "drag", "frames": 8, "loop": True, "minH": 0.8,
      "pose": "one arm stretched straight up overhead, body and legs dangling relaxed below it as if hanging by that hand, COMPLETELY ALONE in the frame — no rope, no hand holding him, no other characters, full body",
      "spec": "DRAG/HANG: one arm fixed straight overhead, body hanging below it, legs dangling with a light pendulum sway, the raised arm never moves; COMPLETELY ALONE — no rope, no hand holding him, no other characters, no props"},
     {"row": 3, "name": "greet", "frames": 8, "loop": True,
@@ -818,7 +810,7 @@ def start_frame_ok(clip: dict, path: Path, key: str, base_frac: float = 0.0) -> 
 def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
-        f"{spec}, {STYLE}, {OUTFIT_LOCK}, {CAMERA_LOCK}, {SCALE_RULE}, "
+        f"{spec}, {STYLE}, {CHARACTER_LOCK}, {CAMERA_LOCK}, "
         f"flat solid {key} background staying EXACTLY {key} in every frame — never "
         f"darker, never desaturated, no vignette, no gradient — no cast shadow, no "
         f"ground shadow under the character, no background elements, "
@@ -840,7 +832,7 @@ def start_prompt(clip: dict, key: str, notes: str) -> str:
     extra = (" " + notes.strip()) if notes.strip() else ""
     pose = clip.get("pose") or clip["spec"]
     return (
-        f"{STYLE}. {pose}. {OUTFIT_LOCK} {FRAMING_LOCK} {SCALE_RULE} "
+        f"{STYLE}. {pose}. {CHARACTER_LOCK} {FRAMING_LOCK} "
         f"Flat solid {key} background filling the ENTIRE frame, no ground plane, "
         f"no cast shadow, no scenery, no props, no other characters — the character "
         f"is completely alone. "

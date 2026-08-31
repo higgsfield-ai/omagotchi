@@ -30,7 +30,7 @@ exist only inside their row's frames; no standalone prop assets.
 The character is ALWAYS 8-bit pixel art. Fixed style string — verbatim in EVERY
 image AND video prompt of this skill:
 
-`8-bit pixel art built from small, even pixels (fine pixel granularity, never giant chunky blocks — this describes pixel SIZE only, never zoom, never crop, never framing), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
+`8-bit pixel art with small, even pixels (pixel size only — never zoom, never crop), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, flat colors, 1px dark outline, clean readable silhouette`
 
 ## Prerequisites
 
@@ -79,20 +79,16 @@ right; sleep: lying flat on the side, strictly horizontal; fall: mid-air, arms a
 dance: facing camera arms up; etc., derived from the row table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
 media in every request, style string verbatim, same key-color background.
 
-IDENTITY LOCK — HARD RULE, include verbatim in EVERY start-frame AND clip prompt:
-`IDENTITY LOCK — ABSOLUTE RULE: EXACTLY the same character as the reference
-image: same face, same hair, same glasses if any, same shirt, same pants in the
-SAME COLORS, same shoes. NEVER change, recolor, remove or add any clothing
-item, NEVER change hairstyle or skin tone. The ONLY difference from the
-reference is the pose. FULL BODY head to feet in every frame — legs and shoes
-always visible, never a bust, never a waist-up crop.`
+CHARACTER LOCK — HARD RULE, include verbatim in EVERY start-frame AND clip
+prompt (ONE compact block; stacking more overlapping rule blocks dilutes them
+all and the model starts dropping details or shrinking the character):
+`CHARACTER LOCK: exactly the same character as the reference — same face,
+hair, skin tone, the same outfit in the same colors down to the shoes; nothing
+added, removed or recolored. Same size and proportions as the reference: same
+head size, same body thickness, same on-screen height — never smaller, never
+zoomed, never cropped; full body, head to feet.`
 Pose specs must never invite a wardrobe change (wash means dabbing with a
 small towel in the normal outfit, never a towel wrap or robe).
-
-SCALE — HARD RULE, include verbatim in EVERY start-frame prompt:
-`SCALE RULE: keep the character at EXACTLY the same size, scale and proportions as
-in the reference image — the same on-screen height, the same margins around him;
-do not zoom in, do not zoom out, do not crop.`
 
 Submit in two batched calls (10 + 6). QC all 16 in ONE batched `image_analyze`
 pass (identity, pose, scale vs base, clean key background). Additionally verify
@@ -131,8 +127,8 @@ allowed durations/resolutions with `higgsfield_generate_models_explore`
 Loop rule: a looping action must end on the frame it started on — the model takes
 `start_image` AND `end_image`, so for every loop clip pass that action's Step-3
 start frame as BOTH; additionally append `seamless loop` to the prompt.
-Every video prompt ALSO carries the SCALE RULE verbatim (same wording as Step 3)
-so the character never drifts in size mid-clip.
+Every video prompt ALSO carries the CHARACTER LOCK verbatim (same wording as
+Step 3) so identity and size never drift mid-clip.
 
 Video prompt skeleton (one motion per clip, describe the MOTION, not the end state;
 name direction, moving body parts, speed):
