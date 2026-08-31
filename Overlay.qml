@@ -300,16 +300,6 @@ Item {
       onTriggered: window.stepMove()
     }
 
-    // Beat-synced dancing: each detected beat advances a frame, so the
-    // moves land on the music instead of a metronome.
-    Connections {
-      target: root.svc
-      enabled: window.visible
-      function onBeatPulseChanged() {
-        if (window.mode === "dance" || window.mode === "flip")
-          window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
-      }
-    }
 
     Timer {
       interval: {
@@ -327,14 +317,7 @@ Item {
       }
       running: window.visible && !Model.isMoveMode(window.mode)
       repeat: true
-      onTriggered: {
-        // While beats are flowing, they own the dance frames; the timer
-        // only carries quiet stretches and every other mode.
-        if ((window.mode === "dance" || window.mode === "flip") && root.svc
-            && Date.now() - Number(root.svc.lastBeatMs || 0) < 1200)
-          return
-        window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
-      }
+      onTriggered: window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
     }
 
     Item {

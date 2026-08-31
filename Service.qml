@@ -157,11 +157,6 @@ Item {
   // decides for everything unlabeled. Samples reset on every track change.
   property var peakSamples: []
   property bool mediaSpeech: false
-  // Beat pulses for beat-synced dancing: overlay advances a dance frame per
-  // pulse; lastBeatMs lets it fall back to timed frames in quiet stretches.
-  property var beatState: ({})
-  property int beatPulse: 0
-  property real lastBeatMs: 0
   property real playingStoppedMs: 0
   readonly property bool metaSaysPodcast: {
     var pl = root.playingPlayer
@@ -229,7 +224,7 @@ Item {
     video: root.mediaIsVideo,
     browserMedia: root.mediaIsBrowser,
     speech: root.mediaSpeech,
-    audioPeak: Number(root.beatState.slow || 0),
+    audioPeak: root.audioPeak,
     flipPeak: Model.flipPeak(root.careLive),
     dancePeak: Model.dancePeak(root.careLive),
     wander: root.wander
@@ -978,16 +973,7 @@ Item {
     id: peakMon
     node: Pipewire.defaultAudioSink
     enabled: root.mediaPlaying && root.petOnDesktop
-    onPeakChanged: {
-      root.audioPeak = peakMon.peak
-      if (!root.mediaPlaying || root.mediaSpeech) return
-      var r = Model.beatStep(root.beatState, peakMon.peak, Date.now())
-      root.beatState = { fast: r.fast, slow: r.slow, lastBeatMs: r.lastBeatMs }
-      if (r.beat) {
-        root.lastBeatMs = r.lastBeatMs
-        root.beatPulse += 1
-      }
-    }
+    onPeakChanged: root.audioPeak = peakMon.peak
   }
 
   Process {

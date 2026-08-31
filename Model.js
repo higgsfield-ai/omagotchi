@@ -566,29 +566,6 @@ function pickWander(rand, stats) {
   return "look"
 }
 
-// Beat detection with a double envelope: a fast attack tracks the kick, a
-// slow baseline tracks the song's loudness, and a beat is the attack
-// clearing the baseline by ratio AND margin — which still sees kicks riding
-// on sustained-loud music, where a single average never fires. The 280ms
-// refractory caps at ~210bpm so hi-hat noise cannot machine-gun the frames.
-function beatStep(state, peak, nowMs) {
-  var st = state || {}
-  var fast = isFinite(Number(st.fast)) ? Number(st.fast) : 0
-  var slow = isFinite(Number(st.slow)) ? Number(st.slow) : 0
-  var last = isFinite(Number(st.lastBeatMs)) ? Number(st.lastBeatMs) : 0
-  var now = Number(nowMs) || 0
-  var p = Number(peak)
-  if (!isFinite(p) || p < 0) p = 0
-  fast = fast * 0.5 + p * 0.5
-  var beat = false
-  if (fast > 0.06 && fast > slow * 1.15 && fast - slow > 0.05 && now - last > 280) {
-    beat = true
-    last = now
-  }
-  slow = slow * 0.94 + p * 0.06
-  return { fast: fast, slow: slow, lastBeatMs: last, beat: beat }
-}
-
 // Speech vs music from raw peak samples: talk is bursty (syllable and
 // sentence pauses collapse the level constantly), music sustains energy.
 // The gap ratio over a rolling window separates them without any FFT.
@@ -1164,7 +1141,6 @@ if (typeof module !== "undefined") {
     creditsFromBlob: creditsFromBlob,
     costFromBlob: costFromBlob,
     speechLike: speechLike,
-    beatStep: beatStep,
     podcastMeta: podcastMeta,
     movePace: movePace,
     pickWander: pickWander,
