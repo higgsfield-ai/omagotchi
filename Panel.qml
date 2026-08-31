@@ -35,6 +35,7 @@ Panel {
   readonly property var generateError: Model.classifyGenerateError(root.lastError)
   readonly property string generateLog: root.svc ? String(root.svc.generateLog || "") : ""
   readonly property bool canGenerate: root.loggedIn && root.hasPhoto && !root.generating && !root.loggingIn
+  readonly property bool hasPetSheet: root.svc ? !!root.svc.hasPetSheet : true
   readonly property bool hasGeneratedPet: {
     if (!root.svc) return false
     if (root.svc.hasGeneratedPet) return true
@@ -213,7 +214,7 @@ Panel {
 
           Column {
             width: parent.width
-            visible: root.hasGeneratedPet
+            visible: root.hasPetSheet
             spacing: Style.space(8)
             height: visible ? implicitHeight : 0
 
@@ -571,7 +572,7 @@ Panel {
 
           Text {
             width: parent.width
-            visible: root.showGenerate && !root.hasGeneratedPet
+            visible: root.showGenerate && !root.hasPetSheet
             text: root.loggedIn
               ? "Take a webcam photo or upload one, then generate. The new pet replaces the one on your desktop."
               : "Log in to Higgsfield to unlock photo capture and Generate my avatar."
@@ -585,7 +586,7 @@ Panel {
           Rectangle {
             width: parent.width
             height: Style.space(132)
-            visible: root.showGenerate && !root.hasGeneratedPet
+            visible: root.showGenerate && !root.hasPetSheet
             radius: Math.min(8, Style.cornerRadius)
             opacity: root.loggedIn ? 1 : 0.45
             color: Qt.rgba(0, 0, 0, 0.18)
@@ -652,7 +653,7 @@ Panel {
 
           Text {
             width: parent.width
-            visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && root.hasPhoto
+            visible: root.showGenerate && !root.hasPetSheet && root.loggedIn && root.hasPhoto
             text: root.photoName
             color: root.barForeground
             font.family: root.fontFamily
@@ -662,7 +663,7 @@ Panel {
           }
 
           ChipButton {
-            visible: root.showGenerate && !root.hasGeneratedPet && root.loggedIn && !root.generating && !root.loggingIn
+            visible: root.showGenerate && !root.hasPetSheet && root.loggedIn && !root.generating && !root.loggingIn
             outlined: false
             text: root.capturing ? "Capturing…" : "Take photo"
             tooltipText: "Capture a still from the webcam"
@@ -673,7 +674,7 @@ Panel {
           }
 
           ChipButton {
-            visible: root.showGenerate && !root.hasGeneratedPet
+            visible: root.showGenerate && !root.hasPetSheet
             fill: root.limeColor
             textColor: root.darkText
             text: {
@@ -701,7 +702,7 @@ Panel {
 
           WidgetButton {
             bar: root.bar
-            visible: root.generating && !root.hasGeneratedPet
+            visible: root.generating && !root.hasPetSheet
             text: "Cancel"
             tooltipText: "Stop this generation"
             onPressed: function(buttonCode) {
@@ -713,7 +714,7 @@ Panel {
 
           Column {
             width: parent.width
-            visible: root.lastError !== "" && !root.generating && !root.hasGeneratedPet
+            visible: root.lastError !== "" && !root.generating && !root.hasPetSheet
             spacing: Style.space(8)
             height: visible ? implicitHeight : 0
 

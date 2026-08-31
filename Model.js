@@ -1,22 +1,17 @@
 // Tamagotchi helpers. Qt-free so it can be tested under node.
 
 function defaultAtlas() {
+  // The bundled default pet: a full generated sheet shipped with the plugin,
+  // so users who never generate their own avatar still get a living pet.
   return {
-    file: "atlas.png",
+    file: "default-sheet.png",
     cellWidth: 80,
-    cellHeight: 98,
-    columns: 13,
-    rows: 6,
-    fps: 10,
+    cellHeight: 80,
+    columns: 16,
+    rows: 12,
+    fps: 6,
     scale: 1,
-    modes: {
-      walk: { row: 0, start: 0, count: 13 },
-      idle: { row: 1, start: 7, count: 4 },
-      dance: { row: 2, start: 8, count: 3 },
-      flip: { row: 4, start: 0, count: 6 },
-      collapse: { row: 1, start: 6, count: 1 },
-      drag: { row: 2, start: 1, count: 1 }
-    }
+    modes: generatedModeMap()
   }
 }
 

@@ -77,9 +77,12 @@ Item {
   readonly property string photoName: Model.fileBaseName(root.photoPath)
   readonly property string generateLog: root.dataDir() + "/generate.log"
 
-  readonly property bool petVisible: root.hasGeneratedPet
+  // The plugin ships a default sheet, so there is always a pet to show;
+  // hasGeneratedPet still tracks whether the user made their own.
+  readonly property bool hasPetSheet: true
+  readonly property bool petVisible: root.hasPetSheet
   readonly property bool petOnDesktop: Model.desktopPetVisible({
-    hasGeneratedPet: root.hasGeneratedPet,
+    hasGeneratedPet: root.hasPetSheet,
     docked: root.petDocked,
     recalling: root.petRecalling,
     releasing: root.petReleasing

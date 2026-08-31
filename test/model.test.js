@@ -2,25 +2,21 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const Model = require("../Model.js")
 
-test("atlas walk cycle is the full top row", () => {
+test("bundled default atlas is a full generated sheet", () => {
   const frames = Model.framesForMode(null, "walk")
   assert.equal(frames.frameX, 0)
   assert.equal(frames.frameY, 0)
-  assert.equal(frames.frameCount, 13)
+  assert.equal(frames.frameCount, 16)
   assert.equal(frames.frameWidth, 80)
-  assert.equal(frames.frameHeight, 98)
-  assert.equal(frames.displayWidth, 80)
-  assert.equal(frames.displayHeight, 98)
-})
-
-test("idle and collapse use dedicated rows", () => {
+  assert.equal(frames.frameHeight, 80)
   const idle = Model.framesForMode(null, "idle")
-  assert.equal(idle.frameY, 98)
-  assert.equal(idle.frameX, 7 * 80)
-  assert.equal(idle.frameCount, 4)
+  assert.equal(idle.frameY, 80)
+  assert.equal(idle.frameX, 0)
+  assert.equal(idle.frameCount, 8)
   const collapse = Model.framesForMode(null, "collapse")
-  assert.equal(collapse.frameY, 98)
-  assert.equal(collapse.frameX, 6 * 80)
+  assert.equal(collapse.frameY, 160)
+  assert.equal(collapse.frameX, 8 * 80)
+  assert.equal(Model.normalizeAtlas(null).file, "default-sheet.png")
 })
 
 test("resolveMode prefers drag, then fall/stun/sick, moods, care, media, and sneak", () => {

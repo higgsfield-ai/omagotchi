@@ -4,7 +4,13 @@ A desktop Tamagotchi for Omarchy. He stays on the **bottom of the focused window
 
 Drag him inside the window — drop him from a height and he takes a tumble, then wants a wash. Click to pet him; double-click to collapse (lie down) or expand. He turns at the window edges and never leaves that window’s bounds.
 
-The **HF** chip is the whole product: log in once, upload a photo, **Generate my avatar**. The new sheet replaces the pet on your desktop. Progress shows in the panel and on the chip.
+A default pet appears the moment the plugin is enabled — no account needed. The **HF** chip turns him into you: log in once, upload a photo, **Generate my avatar**. The new sheet replaces the default pet on your desktop. Progress shows in the panel and on the chip.
+
+The bundled default lives in `default-sheet.png`; refresh it by copying any generated sheet over it:
+
+```sh
+scp $OMARCHY_HOST:~/.local/share/higgsfield.signals/spritesheet_16x12.png default-sheet.png
+```
 
 ## Install
 
