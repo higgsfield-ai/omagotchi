@@ -441,20 +441,27 @@ Panel {
               }
 
               ChipButton {
-                visible: root.lastError === "" || root.generating || root.loggingIn
                 fill: root.limeColor
                 textColor: root.darkText
                 text: {
                   if (root.loggingIn) return "Waiting for browser…"
                   if (root.generating) return "Generating…"
+                  if (root.lastError !== "") return "Retry"
                   return "Generate my avatar"
                 }
-                tooltipText: !root.loggedIn
-                  ? "Opens the Higgsfield login browser"
-                  : (root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first")
+                tooltipText: {
+                  if (root.lastError !== "") return "Run the whole flow again from the base sprite"
+                  if (!root.loggedIn) return "Opens the Higgsfield login browser"
+                  return root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first"
+                }
                 onChipPressed: function(buttonCode) {
                   if (buttonCode !== Qt.LeftButton) return
                   if (root.generating) return
+                  if (root.lastError !== "") {
+                    if (root.svc && typeof root.svc.retryGenerate === "function") root.svc.retryGenerate()
+                    else root.submitAvatar()
+                    return
+                  }
                   root.submitAvatar()
                 }
               }
@@ -473,19 +480,7 @@ Panel {
 
             Row {
               spacing: Style.space(8)
-              visible: root.lastError !== "" && !root.generating
-
-              ChipButton {
-                text: "Retry"
-                tooltipText: root.hasPhoto ? "Run the whole flow again from the base sprite" : "Choose a photo, then retry"
-                onChipPressed: function(buttonCode) {
-                  if (buttonCode !== Qt.LeftButton) return
-                  if (root.svc && typeof root.svc.retryGenerate === "function")
-                    root.svc.retryGenerate()
-                  else
-                    root.submitAvatar()
-                }
-              }
+              visible: root.lastError !== "" && !root.generating && !!root.generateError.showUpgrade
 
               ChipButton {
                 visible: !!root.generateError.showUpgrade
@@ -678,20 +673,28 @@ Panel {
           }
 
           ChipButton {
-            visible: root.showGenerate && !root.hasGeneratedPet && (root.lastError === "" || root.generating || root.loggingIn)
+            visible: root.showGenerate && !root.hasGeneratedPet
             fill: root.limeColor
             textColor: root.darkText
             text: {
               if (root.loggingIn) return "Waiting for browser…"
               if (root.generating) return "Generating…"
+              if (root.lastError !== "") return "Retry"
               return "Generate my avatar"
             }
-            tooltipText: !root.loggedIn
-              ? "Opens the Higgsfield login browser"
-              : (root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first")
+            tooltipText: {
+              if (root.lastError !== "") return "Run the whole flow again from the base sprite"
+              if (!root.loggedIn) return "Opens the Higgsfield login browser"
+              return root.hasPhoto ? "Build the sheet and replace the desktop pet" : "Choose a photo first"
+            }
             onChipPressed: function(buttonCode) {
               if (buttonCode !== Qt.LeftButton) return
               if (root.generating) return
+              if (root.lastError !== "") {
+                if (root.svc && typeof root.svc.retryGenerate === "function") root.svc.retryGenerate()
+                else root.submitAvatar()
+                return
+              }
               root.submitAvatar()
             }
           }
@@ -725,25 +728,11 @@ Panel {
               opacity: 0.9
             }
 
-            WidgetButton {
-              bar: root.bar
-              text: "Retry"
-              tooltipText: root.hasPhoto ? "Run generate again with the same photo" : "Choose a photo, then retry"
-              onPressed: function(buttonCode) {
-                if (buttonCode !== Qt.LeftButton) return
-                if (root.svc && typeof root.svc.retryGenerate === "function")
-                  root.svc.retryGenerate()
-                else
-                  root.submitAvatar()
-              }
-            }
-
-            WidgetButton {
-              bar: root.bar
+            ChipButton {
               visible: !!root.generateError.showUpgrade
               text: "Upgrade plan"
               tooltipText: "Open Higgsfield pricing"
-              onPressed: function(buttonCode) {
+              onChipPressed: function(buttonCode) {
                 if (buttonCode !== Qt.LeftButton) return
                 Qt.openUrlExternally(root.generateError.pricingUrl)
               }
