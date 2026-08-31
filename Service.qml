@@ -906,6 +906,34 @@ Item {
     onTriggered: root.ensureBarChip()
   }
 
+  // Keyboard presses are the pet's pulse: they hold off sleep, mark the
+  // desktop as active for care decay, and send him walking while you type.
+  // watch-keys.py needs the user in the `input` group; without it the
+  // script just idles and the pet lives by media and panel clicks alone.
+  function onKeyActivity() {
+    var now = Date.now()
+    if (now - root.lastActiveMs < 400) return
+    root.lastActiveMs = now
+    if (!Model.isMoveMode(root.wander)) root.wander = "walk"
+  }
+
+  Process {
+    id: keysProc
+    command: ["python3", "-u", root.filePath("watch-keys.py")]
+    stdout: SplitParser {
+      onRead: function() { root.onKeyActivity() }
+    }
+  }
+
+  // The watcher never exits on its own, so an exit means it died (missing
+  // python3, revoked device access). Nudge it back up, gently.
+  Timer {
+    interval: 15000
+    running: !keysProc.running
+    repeat: true
+    onTriggered: keysProc.running = true
+  }
+
   Component.onCompleted: {
     var now = Date.now()
     root.touchActivity()
@@ -915,6 +943,7 @@ Item {
     root.loadCare()
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
+    keysProc.running = true
   }
 
   IpcHandler {

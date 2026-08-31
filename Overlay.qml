@@ -3,8 +3,10 @@ import Quickshell
 import Quickshell.Wayland
 import "Model.js" as Model
 
-// keepLoaded overlay. The pet is a tiny click-through window — never a
-// fullscreen Top surface, which sat on the Omarchy bar and ate HF clicks.
+// keepLoaded overlay. Desktop Tamagotchi on the focused window. The surface
+// spans the screen but only the sprite itself is clickable (mask below), so
+// the bar and every app stay reachable while the pet takes clicks and drags.
+// IPC stays on the service — a second IpcHandler on this target would go silent.
 Item {
   id: root
 
@@ -34,14 +36,16 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
-    // Empty mask: every pointer event passes through to the bar and windows.
-    mask: Region {}
-    anchors.left: true
-    anchors.top: true
-    margins.left: Math.round(window.stageRect.x + window.petX)
-    margins.top: Math.max(40, Math.round(window.stageRect.y + window.petY - window.bounce))
-    implicitWidth: Math.max(1, window.frames.displayWidth)
-    implicitHeight: Math.max(1, window.frames.displayHeight)
+    // Only the sprite takes pointer input; everywhere else clicks fall
+    // through. A held button keeps the implicit grab, so drags keep
+    // tracking even when the cursor outruns the sprite.
+    mask: Region { item: pet }
+    anchors {
+      top: true
+      bottom: true
+      left: true
+      right: true
+    }
 
     readonly property real screenW: modelData ? Number(modelData.width) : 0
     readonly property real screenH: modelData ? Number(modelData.height) : 0
@@ -58,12 +62,12 @@ Item {
     readonly property bool collapsed: root.svc ? !!root.svc.collapsed : false
     readonly property bool recalling: root.svc ? !!root.svc.petRecalling : false
     readonly property bool releasing: root.svc ? !!root.svc.petReleasing : false
-    readonly property bool airborne: window.falling || window.recalling || window.releasing
+    readonly property bool airborne: window.dragging || window.falling || window.recalling || window.releasing
     readonly property string mode: {
       if (window.recalling) return "drag"
       if (window.releasing && !window.falling) return "drag"
       if (window.collapsed) return "collapse"
-      if (window.falling) return "drag"
+      if (window.dragging || window.falling) return "drag"
       return root.svc ? String(root.svc.mode || "idle") : "idle"
     }
     readonly property var frames: Model.framesForMode(root.atlas, window.mode)
@@ -100,6 +104,7 @@ Item {
     property real fallFromY: 0
     property int facing: 1
     property int frame: 0
+    property bool dragging: false
     property bool falling: false
 
     onModeChanged: window.frame = 0
@@ -113,6 +118,10 @@ Item {
       window.snapInside()
     }
     onFloorYChanged: if (!window.airborne) window.petY = window.floorY
+    onDraggingChanged: {
+      if (window.dragging && root.svc && typeof root.svc.onPetDragged === "function")
+        root.svc.onPetDragged()
+    }
 
     function maxPetX() {
       return Math.max(0, window.stageRect.w - window.frames.displayWidth)
@@ -133,6 +142,7 @@ Item {
     function startFall() {
       if (fallAnim.running) fallAnim.stop()
       window.falling = true
+      window.dragging = false
       window.fallVel = 0
       window.fallFromY = window.petY
       fallAnim.from = window.petY
@@ -145,6 +155,7 @@ Item {
       window.stopFall()
       if (spawnFade.running) spawnFade.stop()
       if (levitateAnim.running) levitateAnim.stop()
+      window.dragging = false
       window.falling = false
       pet.opacity = 1
       levY.from = window.petY
@@ -162,20 +173,27 @@ Item {
       if (levitateAnim.running) levitateAnim.stop()
       if (spawnFade.running) spawnFade.stop()
       window.stopFall()
+      window.dragging = false
       pet.opacity = 0
-      window.petY = window.floorY
+      window.petY = 0
       window.petX = Model.clampPetX(window.petX, window.frames.displayWidth, window.stageRect.w)
       spawnFade.start()
+      window.startFall()
     }
 
     function land() {
       if (!window.falling) return
+      var drop = window.floorY - window.fallFromY
       window.petY = window.floorY
       window.falling = false
       window.fallVel = 0
       pet.opacity = 1
-      if (root.svc && root.svc.petReleasing && typeof root.svc.finishRelease === "function")
+      if (root.svc && root.svc.petReleasing && typeof root.svc.finishRelease === "function") {
         root.svc.finishRelease()
+        return
+      }
+      if (root.svc && typeof root.svc.onLanded === "function")
+        root.svc.onLanded(drop)
     }
 
     function stepMove() {
@@ -284,29 +302,101 @@ Item {
     }
 
     Item {
-      id: pet
-      anchors.fill: parent
+      id: stage
+      x: Math.round(window.stageRect.x)
+      y: Math.round(window.stageRect.y)
+      width: Math.round(window.stageRect.w)
+      height: Math.round(window.stageRect.h)
+      clip: true
+      visible: width > 8 && height > 8
 
-      Image {
-        anchors.fill: parent
-        source: {
-          var abs = Model.atlasImageSource(root.atlas.file)
-          var src = abs.indexOf("file://") === 0 ? abs : Qt.resolvedUrl(root.atlas.file)
-          var rev = root.svc ? Number(root.svc.atlasRev || 0) : 0
-          return src + "?r=" + rev
+      Item {
+        id: pet
+        width: window.frames.displayWidth
+        height: window.frames.displayHeight
+        x: Math.round(window.petX)
+        y: Math.round(window.petY - window.bounce)
+
+        Image {
+          anchors.fill: parent
+          source: {
+            var abs = Model.atlasImageSource(root.atlas.file)
+            var src = abs.indexOf("file://") === 0 ? abs : Qt.resolvedUrl(root.atlas.file)
+            var rev = root.svc ? Number(root.svc.atlasRev || 0) : 0
+            return src + "?r=" + rev
+          }
+          sourceClipRect: Qt.rect(
+            window.frames.frameX + window.frame * window.frames.frameWidth,
+            window.frames.frameY,
+            window.frames.frameWidth,
+            window.frames.frameHeight
+          )
+          fillMode: Image.Stretch
+          mirror: window.facing < 0
+          smooth: false
+          mipmap: false
+          asynchronous: false
+          cache: false
         }
-        sourceClipRect: Qt.rect(
-          window.frames.frameX + window.frame * window.frames.frameWidth,
-          window.frames.frameY,
-          window.frames.frameWidth,
-          window.frames.frameHeight
-        )
-        fillMode: Image.Stretch
-        mirror: window.facing < 0
-        smooth: false
-        mipmap: false
-        asynchronous: false
-        cache: false
+
+        MouseArea {
+          anchors.fill: parent
+          enabled: !window.recalling && !window.releasing
+          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          property real grabX: 0
+          property real grabY: 0
+          property bool didMove: false
+          property bool didCollapse: false
+
+          onPressed: function(mouse) {
+            grabX = mouse.x
+            grabY = mouse.y
+            didMove = false
+            if (window.falling) {
+              window.stopFall()
+              window.dragging = true
+              didMove = true
+            }
+          }
+          onDoubleClicked: {
+            didCollapse = true
+            if (root.svc && typeof root.svc.toggleCollapsed === "function")
+              root.svc.toggleCollapsed()
+          }
+          onPositionChanged: function(mouse) {
+            var g = mapToItem(stage, mouse.x, mouse.y)
+            var nx = g.x - grabX
+            var ny = g.y - grabY
+            if (!didMove && Math.abs(nx - window.petX) < 5 && Math.abs(ny - window.petY) < 5)
+              return
+            didMove = true
+            window.stopFall()
+            window.dragging = true
+            if (root.svc && typeof root.svc.touchActivity === "function")
+              root.svc.touchActivity()
+            window.petX = Model.clampPetX(nx, pet.width, stage.width)
+            window.petY = Model.clamp(ny, 0, Math.max(0, stage.height - pet.height))
+          }
+          onReleased: function() {
+            if (!didMove) {
+              window.dragging = false
+              if (didCollapse) {
+                didCollapse = false
+                return
+              }
+              if (root.svc && root.svc.onPetClicked)
+                root.svc.onPetClicked()
+              return
+            }
+            didCollapse = false
+            if (Model.shouldFall(window.petY, window.floorY, 8)) {
+              window.startFall()
+              return
+            }
+            window.dragging = false
+            window.petY = window.floorY
+          }
+        }
       }
     }
   }
