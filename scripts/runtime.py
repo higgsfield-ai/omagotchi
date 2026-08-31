@@ -184,7 +184,11 @@ def workspace_id_of(node) -> str:
     if isinstance(node, str):
         return node.strip()
     if isinstance(node, dict):
-        for key in ("id", "workspace_id", "workspaceId", "slug"):
+        # workspace_id first: an object that carries one (a folder, a project,
+        # a job) is content INSIDE a workspace, and its own `id` is the wrong
+        # thing to select. CLI 1.1.24 started answering workspace probes with
+        # folder objects, which made `id` pick a folder and fail every run.
+        for key in ("workspace_id", "workspaceId", "id", "slug"):
             val = node.get(key)
             if val:
                 return str(val).strip()
@@ -208,7 +212,7 @@ def iter_workspaces(data) -> list:
     if isinstance(data, list):
         return [item for item in data if item is not None]
     if isinstance(data, dict):
-        for key in ("workspaces", "items", "data", "results"):
+        for key in ("workspaces", "items", "data", "results", "folders", "projects"):
             val = data.get(key)
             if isinstance(val, list):
                 return [item for item in val if item is not None]
@@ -301,25 +305,35 @@ def ensure_workspace(hf: str) -> dict:
         }
 
     chosen = pick_workspace(listed)
-    workspace_id = workspace_id_of(chosen)
-    if not workspace_id:
+    candidates = [chosen] + [item for item in listed if item is not chosen]
+    tried = []
+    for cand in candidates:
+        workspace_id = workspace_id_of(cand)
+        if not workspace_id or workspace_id in tried:
+            continue
+        tried.append(workspace_id)
+        if set_workspace(hf, workspace_id):
+            return {
+                "ok": True,
+                "workspace_id": workspace_id,
+                "workspace_name": workspace_name_of(cand),
+            }
+        name = workspace_name_of(cand)
+        if name and name != workspace_id and name not in tried:
+            tried.append(name)
+            if set_workspace(hf, name):
+                return {
+                    "ok": True,
+                    "workspace_id": name,
+                    "workspace_name": name,
+                }
+
+    if not tried:
         err = last_blob[-400:] if last_blob else "no workspace selected"
         if "not authenticated" in err.lower() or "please login" in err.lower():
             return {"ok": False, "error": "Log in to Higgsfield first"}
         return {"ok": False, "error": "No Higgsfield workspace on this account"}
-
-    if not set_workspace(hf, workspace_id):
-        name = workspace_name_of(chosen)
-        if name and name != workspace_id and set_workspace(hf, name):
-            workspace_id = name
-        else:
-            return {"ok": False, "error": f"Could not select workspace {workspace_id}"}
-
-    return {
-        "ok": True,
-        "workspace_id": workspace_id,
-        "workspace_name": workspace_name_of(chosen),
-    }
+    return {"ok": False, "error": f"Could not select workspace {tried[0]}"}
 
 
 def logged_in(hf: str) -> bool:
