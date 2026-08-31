@@ -192,8 +192,7 @@ Panel {
 
             HfLogo {
               anchors.verticalCenter: parent.verticalCenter
-              cell: 3
-              color: root.barForeground
+              cell: 2
             }
 
             Text {

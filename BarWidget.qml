@@ -113,8 +113,7 @@ BarWidget {
       id: chipLogo
       anchors.centerIn: parent
       visible: !root.generating
-      cell: 2
-      color: button.foreground
+      cell: 1
     }
     tooltipText: {
       if (panelLoader.status === Loader.Error)

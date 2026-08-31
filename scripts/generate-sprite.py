@@ -23,11 +23,11 @@ LOG_LOCK = threading.Lock()
 PROGRESS_LOCK = threading.Lock()
 
 STYLE = (
-    "8-bit pixel art with a CONSISTENT fine pixel density — the character reads "
-    "as roughly 64 virtual pixels tall (even pixel grid, never giant chunky "
-    "blocks), limited NES-era palette (max ~24 colors), hard pixel edges, "
-    "no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, "
-    "clean readable silhouette"
+    "8-bit pixel art built from small, even pixels (fine pixel granularity, "
+    "never giant chunky blocks — this describes pixel SIZE only, never zoom, "
+    "never crop, never framing), limited NES-era palette (max ~24 colors), "
+    "hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, "
+    "1px dark outline, clean readable silhouette"
 )
 
 FRAMING_LOCK = (
@@ -53,6 +53,16 @@ CAMERA_LOCK = (
     "character, NEVER push the character toward the frame edges, NEVER recompose or "
     "recrop. The wide empty margins stay visible in EVERY frame; any zoom-in or "
     "tighter framing is a failure."
+)
+
+OUTFIT_LOCK = (
+    "IDENTITY LOCK — ABSOLUTE RULE: EXACTLY the same character as the "
+    "reference image: same face, same hair, same glasses if any, same shirt, "
+    "same pants in the SAME COLORS, same shoes. NEVER change, recolor, remove "
+    "or add any clothing item, NEVER change hairstyle or skin tone. The ONLY "
+    "difference from the reference is the pose. FULL BODY head to feet in "
+    "every frame — legs and shoes always visible, never a bust, never a "
+    "waist-up crop."
 )
 
 FRAME_MS = 156
@@ -145,8 +155,8 @@ CLIPS = [
      "pose": "woozy stance, hand-to-head, light pale/greenish face tint, full body",
      "spec": "SICK/DIZZY: light pale/greenish tint on face only, dizzy swirl or hand-to-head, woozy stance, outfit readable"},
     {"row": 11, "name": "wash", "frames": 8, "loop": True,
-     "pose": "soap bubbles or towel wipe, first wash pose, clean and happy, full body",
-     "spec": "WASH/HYGIENE: soap bubbles or towel wipe, clean and happy"},
+     "pose": "standing in his normal full outfit, dabbing his face with a small towel, a few soap bubbles around the head, clean and happy, full body — clothing completely unchanged, NEVER a towel wrap or robe",
+     "spec": "WASH/HYGIENE: standing in his normal outfit dabbing his face with a small towel, a few soap bubbles around, clothing completely unchanged — never undressed, never a towel wrap or robe"},
 ]
 
 
@@ -738,11 +748,18 @@ def start_frame_ok(clip: dict, path: Path, key: str) -> tuple[bool, str]:
     border = np.concatenate([dist[0], dist[-1], dist[:, 0], dist[:, -1]])
     if float((border < 180).mean()) < 0.85:
         return False, "start frame background is not the key color"
+    ys, xs = np.nonzero(dist >= 180)
+    if len(ys):
+        # A full body with the demanded margins never reaches the frame
+        # edge; touching the bottom means a bust/waist-up crop (no legs).
+        if ys.max() >= arr.shape[0] - 2:
+            return False, "character is cropped at the bottom (no legs)"
+        if ys.min() <= 1:
+            return False, "character is cropped at the top"
     # Lying rows (sleep, collapse) must actually lie down: the subject box
     # has to be clearly wider than tall, or the pose came out upright/curled.
-    if clip.get("lying"):
-        ys, xs = np.nonzero(dist >= 180)
-        if len(xs) and (xs.max() - xs.min()) < 1.2 * (ys.max() - ys.min()):
+    if clip.get("lying") and len(xs):
+        if (xs.max() - xs.min()) < 1.2 * (ys.max() - ys.min()):
             return False, "lying pose came out upright instead of horizontal"
     return True, ""
 
@@ -750,7 +767,7 @@ def start_frame_ok(clip: dict, path: Path, key: str) -> tuple[bool, str]:
 def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
-        f"{spec}, {STYLE}, {CAMERA_LOCK}, {SCALE_RULE}, "
+        f"{spec}, {STYLE}, {OUTFIT_LOCK}, {CAMERA_LOCK}, {SCALE_RULE}, "
         f"flat solid {key} background staying EXACTLY {key} in every frame — never "
         f"darker, never desaturated, no vignette, no gradient — no cast shadow, no "
         f"ground shadow under the character, no background elements, "
@@ -772,7 +789,7 @@ def start_prompt(clip: dict, key: str, notes: str) -> str:
     extra = (" " + notes.strip()) if notes.strip() else ""
     pose = clip.get("pose") or clip["spec"]
     return (
-        f"{STYLE}. {pose}. {FRAMING_LOCK} {SCALE_RULE} "
+        f"{STYLE}. {pose}. {OUTFIT_LOCK} {FRAMING_LOCK} {SCALE_RULE} "
         f"Flat solid {key} background filling the ENTIRE frame, no ground plane, "
         f"no cast shadow, no scenery, no props, no other characters — the character "
         f"is completely alone. "

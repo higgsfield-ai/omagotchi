@@ -30,7 +30,7 @@ exist only inside their row's frames; no standalone prop assets.
 The character is ALWAYS 8-bit pixel art. Fixed style string — verbatim in EVERY
 image AND video prompt of this skill:
 
-`8-bit pixel art with a CONSISTENT fine pixel density — the character reads as roughly 64 virtual pixels tall (even pixel grid, never giant chunky blocks), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
+`8-bit pixel art built from small, even pixels (fine pixel granularity, never giant chunky blocks — this describes pixel SIZE only, never zoom, never crop, never framing), limited NES-era palette (max ~24 colors), hard pixel edges, no anti-aliasing, no gradients, no blur, flat colors, 1px dark outline, clean readable silhouette`
 
 ## Prerequisites
 
@@ -79,6 +79,16 @@ right; sleep: lying flat on the side, strictly horizontal; fall: mid-air, arms a
 dance: facing camera arms up; etc., derived from the row table). `nano_banana_2`, 1:1, 1k, the BASE sprite passed as reference
 media in every request, style string verbatim, same key-color background.
 
+IDENTITY LOCK — HARD RULE, include verbatim in EVERY start-frame AND clip prompt:
+`IDENTITY LOCK — ABSOLUTE RULE: EXACTLY the same character as the reference
+image: same face, same hair, same glasses if any, same shirt, same pants in the
+SAME COLORS, same shoes. NEVER change, recolor, remove or add any clothing
+item, NEVER change hairstyle or skin tone. The ONLY difference from the
+reference is the pose. FULL BODY head to feet in every frame — legs and shoes
+always visible, never a bust, never a waist-up crop.`
+Pose specs must never invite a wardrobe change (wash means dabbing with a
+small towel in the normal outfit, never a towel wrap or robe).
+
 SCALE — HARD RULE, include verbatim in EVERY start-frame prompt:
 `SCALE RULE: keep the character at EXACTLY the same size, scale and proportions as
 in the reference image — the same on-screen height, the same margins around him;
@@ -87,9 +97,10 @@ do not zoom in, do not zoom out, do not crop.`
 Submit in two batched calls (10 + 6). QC all 16 in ONE batched `image_analyze`
 pass (identity, pose, scale vs base, clean key background). Additionally verify
 each start frame's BORDER is ≥85% key color, and for the lying rows (sleep,
-collapse) that the subject box is clearly WIDER than tall (both cheap numeric
-checks) — a frame with invented scenery or an upright sleeper fails and gets
-rerolled. Regen
+collapse) that the subject box is clearly WIDER than tall, and for every frame that the
+subject touches neither the top nor bottom frame edge (a touch means a bust or
+waist-up crop — no legs). All cheap numeric checks; a frame with invented
+scenery, an upright sleeper, or a cropped body fails and gets rerolled. Regen
 budget: 2 per start frame. Never describe an off-screen agent in a pose prompt
 ("held by a hand from above") — the model will draw it; describe only the
 character's own body and state "completely alone in the frame".
@@ -171,7 +182,7 @@ Submission: batch all 16 requests in ONE `higgsfield_generate_video` call
 | 8 | — | (empty — reserved; hard landings reuse row 2 COLLAPSE instantly) | — |
 | 9 | 8+8 | HAPPY/LOVE: big smile, optional small pixel hearts above head (clean pixels, no blur) · WATCH: sitting on the ground with a small open laptop on the lap, eyes on the screen, tiny reactions, COMPLETELY ALONE, the laptop is the only prop | loop each |
 | 10 | 8+8 | EAT/SNACK: holding a small snack/drink, chew or sip cycle · SICK/DIZZY: light pale/greenish tint on face only, dizzy swirl or hand-to-head, woozy stance, outfit readable | loop each |
-| 11 | 8 | WASH/HYGIENE: soap bubbles or towel wipe, clean and happy (first half-row; the second half of row 11 stays empty) | loop |
+| 11 | 8 | WASH/HYGIENE: standing in his normal outfit dabbing his face with a small towel, a few soap bubbles around, clothing completely unchanged — never undressed, never a towel wrap or robe (first half-row; the second half of row 11 stays empty) | loop |
 
 ## Step 5 — QC and regen budget
 
