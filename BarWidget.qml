@@ -19,6 +19,10 @@ BarWidget {
     : false
   readonly property bool generating: root.svc ? !!root.svc.generating : false
 
+  // The QML error that killed Panel.qml, surfaced on the chip tooltip so a
+  // broken panel can be diagnosed with a hover instead of a journal dive.
+  property string panelLoadError: ""
+
   function injectPanel() {
     var target = panelLoader.item
     if (!target) return
@@ -74,13 +78,18 @@ BarWidget {
       Qt.callLater(root.injectPanel)
     }
     onStatusChanged: {
+      if (status === Loader.Ready) {
+        root.panelLoadError = ""
+        return
+      }
       if (status !== Loader.Error) return
       var detail = ""
       try {
-        if (panelLoader.errorString) detail = panelLoader.errorString()
+        if (panelLoader.errorString) detail = String(panelLoader.errorString())
         if (!detail && panelLoader.sourceComponent && panelLoader.sourceComponent.errorString)
-          detail = panelLoader.sourceComponent.errorString()
+          detail = String(panelLoader.sourceComponent.errorString())
       } catch (e) {}
+      root.panelLoadError = (detail || "unknown error").substring(0, 300)
       console.warn("higgsfield.signals: Panel.qml failed to load:", detail)
     }
   }
@@ -97,7 +106,7 @@ BarWidget {
     }
     tooltipText: {
       if (panelLoader.status === Loader.Error)
-        return "Tamagotchi panel failed to load — check omarchy-shell logs"
+        return "Panel failed: " + (root.panelLoadError || "unknown error")
       if (root.generating)
         return root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…"
       return "Generate my avatar"
