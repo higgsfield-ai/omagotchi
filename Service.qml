@@ -755,6 +755,13 @@ Item {
     return "ok"
   }
 
+  function openMediaFolder() {
+    openMediaProc.command = ["xdg-open", root.dataDir() + "/media"]
+    openMediaProc.running = false
+    openMediaProc.running = true
+    return "ok"
+  }
+
   function refreshCredits() {
     if (!root.hfPath) return
     creditsProc.command = [root.hfPath, "account", "status", "--json"]
@@ -1089,6 +1096,10 @@ Item {
   }
 
   Process {
+    id: openMediaProc
+  }
+
+  Process {
     id: priceProc
     stdout: StdioCollector {
       id: priceOut
@@ -1185,6 +1196,7 @@ Item {
     function cancel(): string { return root.cancelGenerate() }
     function generateMedia(prompt: string): string { return root.generateMedia(prompt, root.mediaRefPath) }
     function setMediaKind(kind: string): string { return root.setMediaKind(kind) }
+    function openMedia(): string { return root.openMediaFolder() }
     function cancelMedia(): string { return root.cancelMedia() }
   }
 }

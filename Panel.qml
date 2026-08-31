@@ -758,6 +758,19 @@ Panel {
               asynchronous: true
               cache: false
             }
+
+            // The card is a doorway, not a gallery: clicking opens the media
+            // folder in the system's own file browser.
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                if (root.svc && typeof root.svc.openMediaFolder === "function")
+                  root.svc.openMediaFolder()
+                else
+                  root.staleService = true
+              }
+            }
           }
         }
       }
