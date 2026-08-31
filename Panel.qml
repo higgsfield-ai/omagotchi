@@ -49,7 +49,9 @@ Panel {
   readonly property real health: root.svc ? Number(root.svc.careHealth) : 0
   readonly property real attention: root.svc ? Number(root.svc.careAttention) : 0
   readonly property real excitement: root.svc ? Number(root.svc.careExcitement) : 0
-  readonly property real focus: root.svc ? Number(root.svc.careFocus) : 0
+  // Named to dodge Item.focus, a FINAL property QML refuses to override —
+  // shadowing it kills the whole document at load.
+  readonly property real focusStat: root.svc ? Number(root.svc.careFocus) : 0
   readonly property real music: root.svc ? Number(root.svc.careMusic) : 0
   readonly property real bond: root.svc ? Number(root.svc.careBond) : 0
   readonly property real weight: root.svc ? Number(root.svc.careWeight) : 50
@@ -434,7 +436,7 @@ Panel {
             CareStatRow {
               width: parent.width
               label: "Focus"
-              value: root.focus
+              value: root.focusStat
             }
 
             CareStatRow {
