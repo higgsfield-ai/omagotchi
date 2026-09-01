@@ -104,7 +104,11 @@ def main() -> None:
         gs.download(job["url"], dest)
         thumb = dest
         if video:
-            thumb = media_dir / f"media_{stamp}.png"
+            # Panel preview only — QML Image cannot render an mp4 frame.
+            # Hidden subdir keeps the media folder to actual creations.
+            thumb_dir = media_dir / ".thumbs"
+            thumb_dir.mkdir(parents=True, exist_ok=True)
+            thumb = thumb_dir / f"media_{stamp}.png"
             proc = subprocess.run(
                 ["ffmpeg", "-y", "-v", "error", "-i", str(dest),
                  "-frames:v", "1", str(thumb)],
