@@ -296,6 +296,7 @@ Item {
 
   function checkAuth() {
     root.refreshCredits()
+    root.refreshAvatars()
     if (root.mediaPrice < 0) root.refreshMediaPrice()
     authProc.command = ["python3", "-u", root.filePath("scripts/runtime.py"), "auth-status", "--out", root.dataDir()]
     authProc.running = false
@@ -307,7 +308,6 @@ Item {
     if (!root.hfPath) {
       root.pendingLogin = true
       root.ensureRuntime()
-    root.refreshAvatars()
       root.generateStatus = "Installing Higgsfield…"
       return "setup"
     }

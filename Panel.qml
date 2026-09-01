@@ -1682,13 +1682,17 @@ Panel {
     MouseArea { anchors.fill: parent; onClicked: act.tapped() }
   }
 
-  component Peek: Item {
+  component Peek: Rectangle {
     id: peek
     property var entry: null
     signal tapped()
     width: 53
     height: 53
-    opacity: peekHover.hovered ? 0.9 : 0.38
+    radius: 4
+    color: root.cActiveBg
+    border.width: 1
+    border.color: peekHover.hovered ? root.cHoverLine : root.cLine
+    opacity: peekHover.hovered ? 1 : 0.6
     scale: peekHover.hovered ? 1.07 : 1
 
     Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -1696,6 +1700,7 @@ Panel {
 
     Image {
       anchors.fill: parent
+      anchors.margins: 4
       source: peek.entry && peek.entry.thumb ? "file://" + peek.entry.thumb : ""
       fillMode: Image.PreserveAspectFit
       smooth: false
