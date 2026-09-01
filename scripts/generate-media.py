@@ -40,18 +40,21 @@ def fail(message: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", default="")
-    parser.add_argument("--image", default="")
+    parser.add_argument("--image", action="append", default=[])
     parser.add_argument("--kind", default="image", choices=["image", "video"])
+    parser.add_argument("--ratio", default="")
+    parser.add_argument("--duration", default="")
     parser.add_argument("--out", required=True)
     parser.add_argument("--plugin-root", required=True)
     args = parser.parse_args()
 
     prompt = args.prompt.strip()
-    ref = args.image.strip()
-    if not prompt and not ref:
+    refs = [r.strip() for r in args.image if r.strip()]
+    if not prompt and not refs:
         fail("Add a prompt or a reference image")
-    if ref and not Path(ref).is_file():
-        fail(f"reference not found: {ref}")
+    for r in refs:
+        if not Path(r).is_file():
+            fail(f"reference not found: {r}")
 
     out_dir = Path(args.out).expanduser()
     media_dir = out_dir / "media"
@@ -78,14 +81,17 @@ def main() -> None:
 
     video = args.kind == "video"
     model = "seedance_2_0_mini" if video else "nano_banana_2"
-    create_args = ["--prompt", prompt or "a high quality, detailed rendition of the reference"]
+    ratio = args.ratio.strip() or ("16:9" if video else "1:1")
+    create_args = ["--prompt", prompt or "a high quality, detailed rendition of the reference",
+                   "--aspect_ratio", ratio]
     if video:
-        create_args += ["--aspect_ratio", "16:9", "--resolution", "720p",
-                        "--duration", "4", "--generate_audio", "false"]
+        duration = args.duration.strip().rstrip("s") or "4"
+        create_args += ["--resolution", "720p", "--duration", duration,
+                        "--generate_audio", "false"]
     else:
-        create_args += ["--aspect_ratio", "1:1", "--resolution", "1k"]
-    if ref:
-        create_args += ["--image", ref]
+        create_args += ["--resolution", "1k"]
+    for r in refs:
+        create_args += ["--image", r]
 
     status("Submitting…")
     try:

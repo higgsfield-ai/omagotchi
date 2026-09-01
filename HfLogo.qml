@@ -7,7 +7,7 @@ Item {
   id: root
 
   property color color: "#d1fe17"
-  property int cell: 2
+  property real cell: 2
   // Fraction of each cell left as gap, so the dots read as a matrix like
   // the terminal banner instead of fusing into solid strokes.
   property real dotInset: 0.25

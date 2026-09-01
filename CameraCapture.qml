@@ -37,6 +37,6 @@ Item {
   VideoOutput {
     id: viewfinder
     anchors.fill: parent
-    fillMode: VideoOutput.PreserveAspectFit
+    fillMode: VideoOutput.PreserveAspectCrop
   }
 }

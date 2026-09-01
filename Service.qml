@@ -56,6 +56,10 @@ Item {
   property string mediaStatus: ""
   property string mediaError: ""
   property string mediaRefPath: ""
+  property var mediaRefs: []
+  property string mediaRatioImage: "1:1"
+  property string mediaRatioVideo: "16:9"
+  property string mediaDuration: "5s"
   property string lastMediaPath: ""
   property string lastMediaThumb: ""
   property int lastMediaRev: 0
@@ -326,7 +330,6 @@ Item {
   }
 
   function pickPhoto() {
-    if (!root.loggedIn) return "login"
     if (root.picking || root.generating || root.capturing) return "busy"
     root.picking = true
     root.lastError = ""
@@ -337,7 +340,6 @@ Item {
   }
 
   function captureWebcam() {
-    if (!root.loggedIn) return "login"
     if (root.picking || root.generating || root.capturing) return "busy"
     root.capturing = true
     root.lastError = ""
@@ -688,23 +690,56 @@ Item {
     }
     if (root.mediaPrice < 0) root.refreshMediaPrice()
     var p = String(prompt || "").trim()
+    var refs = Array.isArray(root.mediaRefs) ? root.mediaRefs.slice() : []
     var r = String(ref || "").trim()
-    if (!p && !r) {
+    if (r && refs.indexOf(r) < 0) refs.push(r)
+    if (!p && refs.length === 0) {
       root.mediaError = "Add a prompt or a reference image"
       return "empty"
     }
     root.mediaError = ""
     root.mediaBusy = true
-    root.mediaError = ""
     root.mediaStatus = "Submitting…"
+    var ratio = root.mediaKind === "video" ? root.mediaRatioVideo : root.mediaRatioImage
     var cmd = ["python3", "-u", root.filePath("scripts/generate-media.py"),
                "--out", root.dataDir(), "--plugin-root", root.pluginRoot(),
-               "--kind", root.mediaKind, "--prompt", p]
-    if (r) cmd = cmd.concat(["--image", r])
+               "--kind", root.mediaKind, "--prompt", p, "--ratio", ratio]
+    if (root.mediaKind === "video") cmd = cmd.concat(["--duration", root.mediaDuration])
+    for (var i = 0; i < refs.length; i++) cmd = cmd.concat(["--image", refs[i]])
     mediaProc.command = cmd
     mediaProc.running = false
     mediaProc.running = true
     return "started"
+  }
+
+  function setMediaOption(name, value) {
+    var v = String(value || "")
+    if (name === "ratio") {
+      if (root.mediaKind === "video") root.mediaRatioVideo = v
+      else root.mediaRatioImage = v
+    } else if (name === "duration") {
+      root.mediaDuration = v
+    } else {
+      return "unknown"
+    }
+    root.mediaPrice = -1
+    root.refreshMediaPrice()
+    return v
+  }
+
+  function removeMediaRef(index) {
+    var i = Number(index)
+    var next = Array.isArray(root.mediaRefs) ? root.mediaRefs.slice() : []
+    if (!isFinite(i) || i < 0 || i >= next.length) return "bad index"
+    next.splice(i, 1)
+    root.mediaRefs = next
+    return "ok"
+  }
+
+  function clearMediaRefs() {
+    root.mediaRefs = []
+    root.mediaRefPath = ""
+    return "ok"
   }
 
   function cancelMedia() {
@@ -788,11 +823,12 @@ Item {
     var cmd = [root.hfPath, "generate", "cost"]
     if (root.mediaKind === "video")
       cmd = cmd.concat(["seedance_2_0_mini", "--prompt", "estimate",
-                        "--aspect_ratio", "16:9", "--resolution", "720p",
-                        "--duration", "4", "--generate_audio", "false"])
+                        "--aspect_ratio", root.mediaRatioVideo, "--resolution", "720p",
+                        "--duration", String(root.mediaDuration).replace(/s$/, "") || "5",
+                        "--generate_audio", "false"])
     else
       cmd = cmd.concat(["nano_banana_2", "--prompt", "estimate",
-                        "--aspect_ratio", "1:1", "--resolution", "1k"])
+                        "--aspect_ratio", root.mediaRatioImage, "--resolution", "1k"])
     cmd.push("--json")
     priceProc.command = cmd
     priceProc.running = false
@@ -1140,6 +1176,9 @@ Item {
       var path = String(mediaRefOut.text || "").trim().split("\n").pop() || ""
       if (Model.isImagePath(path)) {
         root.mediaRefPath = path
+        var next = Array.isArray(root.mediaRefs) ? root.mediaRefs.slice() : []
+        if (next.indexOf(path) < 0 && next.length < 50) next.push(path)
+        root.mediaRefs = next
         root.mediaError = ""
       }
     }
