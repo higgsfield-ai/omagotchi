@@ -64,6 +64,9 @@ Item {
   property int careSaveTicks: 0
   property bool generating: false
   property int failStreak: 0
+  // Archived avatars the user can switch between (scripts/avatars.py).
+  property var avatarList: []
+  property bool avatarSwitching: false
   property string generateStatus: ""
   property string lastResultPath: ""
   property string lastResultUrl: ""
@@ -290,6 +293,7 @@ Item {
     if (!root.hfPath) {
       root.pendingLogin = true
       root.ensureRuntime()
+    root.refreshAvatars()
       root.generateStatus = "Installing Higgsfield…"
       return "setup"
     }
@@ -647,6 +651,7 @@ Item {
       root.generatePercent = 100
       root.failStreak = 0
       root.applyGeneratedSheet(parsed.path, parsed.atlasSpec)
+      root.refreshAvatars()
       root.celebrate(4000)
       return
     }
@@ -773,6 +778,24 @@ Item {
     priceProc.command = cmd
     priceProc.running = false
     priceProc.running = true
+  }
+
+  function refreshAvatars() {
+    avatarsListProc.command = ["python3", "-u", root.filePath("scripts/avatars.py"),
+                               "list", "--out", root.dataDir()]
+    avatarsListProc.running = false
+    avatarsListProc.running = true
+  }
+
+  function setAvatar(dir) {
+    var d = String(dir || "")
+    if (!d || root.avatarSwitching || root.generating) return "busy"
+    root.avatarSwitching = true
+    avatarActivateProc.command = ["python3", "-u", root.filePath("scripts/avatars.py"),
+                                  "activate", "--out", root.dataDir(), "--dir", d]
+    avatarActivateProc.running = false
+    avatarActivateProc.running = true
+    return "started"
   }
 
   function cancelGenerate() {
@@ -1044,6 +1067,37 @@ Item {
   }
 
   Process {
+    id: avatarsListProc
+    stdout: StdioCollector {
+      id: avatarsListOut
+    }
+    onExited: function() {
+      var parsed = null
+      try { parsed = JSON.parse(String(avatarsListOut.text || "").trim()) } catch (e) { return }
+      if (parsed && parsed.ok && Array.isArray(parsed.avatars))
+        root.avatarList = parsed.avatars
+    }
+  }
+
+  Process {
+    id: avatarActivateProc
+    stdout: StdioCollector {
+      id: avatarActivateOut
+    }
+    onExited: function() {
+      root.avatarSwitching = false
+      var parsed = null
+      try { parsed = JSON.parse(String(avatarActivateOut.text || "").trim()) } catch (e) { return }
+      if (parsed && parsed.ok && parsed.atlas && parsed.atlas.file) {
+        root.atlasSpec = parsed.atlas
+        root.lastResultPath = String(parsed.atlas.file)
+        root.hasCustomAvatar = true
+        root.atlasRev += 1
+      }
+    }
+  }
+
+  Process {
     id: mediaProc
     stdout: SplitParser {
       onRead: function(line) { root.onMediaLine(line) }
@@ -1147,6 +1201,7 @@ Item {
     }
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
+    root.refreshAvatars()
     keysProc.running = true
   }
 
@@ -1173,6 +1228,7 @@ Item {
     function generateMedia(prompt: string): string { return root.generateMedia(prompt, root.mediaRefPath) }
     function setMediaKind(kind: string): string { return root.setMediaKind(kind) }
     function openMedia(): string { return root.openMediaFolder() }
+    function setAvatar(dir: string): string { return root.setAvatar(dir) }
     function cancelMedia(): string { return root.cancelMedia() }
   }
 }

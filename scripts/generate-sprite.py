@@ -1345,12 +1345,35 @@ def main() -> None:
         shutil.copytree(actions_src, actions_dest)
 
     atlas_path, atlas_spec = write_atlas(out_dir, sheet_dest, 1 if args.smoke else 12, args.frame_size, args.smoke)
+
+    # Archive the finished avatar so the panel can switch back to it later.
+    archive_dir = ""
+    if not args.smoke:
+        try:
+            arch = out_dir / "avatars" / time.strftime("%Y%m%d_%H%M%S")
+            arch.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(sheet_dest, arch / "spritesheet_16x12.png")
+            arch_spec = dict(atlas_spec)
+            arch_spec["file"] = str(arch / "spritesheet_16x12.png")
+            (arch / "atlas.json").write_text(json.dumps(arch_spec, indent=2) + "\n")
+            thumb_proc = subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-i", str(arch / "spritesheet_16x12.png"),
+                 "-vf", "crop=80:80:0:80", str(arch / "thumb.png")],
+                capture_output=True, text=True, timeout=60,
+            )
+            if thumb_proc.returncode != 0 and base_path.is_file():
+                shutil.copy2(base_path, arch / "thumb.png")
+            archive_dir = str(arch)
+        except Exception as exc:  # noqa: BLE001 - archiving must never fail the run
+            append_log(log, f"avatar archive failed: {exc}\n")
+
     progress("Tamagotchi ready", phase="done", step=total, steps=total)
     print(json.dumps({
         "ok": True,
         "path": str(sheet_dest),
         "atlas": str(atlas_path),
         "atlas_spec": atlas_spec,
+        "archive": archive_dir,
         "base": str(base_path),
         "smoke": bool(args.smoke),
         "model": "seedance_2_0_mini",

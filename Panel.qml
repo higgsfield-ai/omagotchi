@@ -71,6 +71,8 @@ Panel {
   readonly property string lastMedia: root.svc ? String(root.svc.lastMediaPath || "") : ""
   readonly property int lastMediaRev: root.svc ? Number(root.svc.lastMediaRev || 0) : 0
   readonly property int credits: root.svc ? Number(root.svc.credits) : -1
+  readonly property var avatarList: root.svc && root.svc.avatarList ? root.svc.avatarList : []
+  readonly property string activeSheet: String(root.atlas.file || "")
   readonly property string mediaKind: root.svc && root.svc.mediaKind ? String(root.svc.mediaKind) : "image"
   readonly property int mediaPrice: root.svc && root.svc.mediaPrice !== undefined ? Number(root.svc.mediaPrice) : -1
   readonly property string lastMediaThumb: root.svc ? String(root.svc.lastMediaThumb || root.svc.lastMediaPath || "") : ""
@@ -652,6 +654,57 @@ Panel {
               CareStatRow { width: statGrid.cellWidth; label: "Attention"; value: root.attention }
               CareStatRow { width: statGrid.cellWidth; label: "Bond"; value: root.bond }
               CareStatRow { width: statGrid.cellWidth; label: "Weight"; value: root.weight }
+            }
+
+            Text {
+              width: parent.width
+              visible: root.avatarList.length >= 2
+              text: "Avatars"
+              color: root.barForeground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
+
+            Flow {
+              width: parent.width
+              visible: root.avatarList.length >= 2
+              spacing: Style.space(6)
+
+              Repeater {
+                model: root.avatarList
+
+                Rectangle {
+                  required property var modelData
+                  readonly property bool current: String(modelData.sheet) === root.activeSheet
+                  width: Style.space(48)
+                  height: Style.space(48)
+                  radius: 0
+                  color: current ? Qt.alpha(root.limeColor, 0.14) : Qt.rgba(0, 0, 0, 0.18)
+                  border.width: 1
+                  border.color: current ? root.limeColor : Qt.alpha(root.barForeground, 0.3)
+
+                  Image {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(3)
+                    source: "file://" + modelData.thumb
+                    fillMode: Image.PreserveAspectFit
+                    smooth: false
+                    asynchronous: true
+                    cache: false
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: parent.current ? Qt.ArrowCursor : Qt.PointingHandCursor
+                    enabled: !parent.current && !root.generating
+                    onClicked: {
+                      if (root.svc && typeof root.svc.setAvatar === "function")
+                        root.svc.setAvatar(modelData.dir)
+                    }
+                  }
+                }
+              }
             }
 
 

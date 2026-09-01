@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Tamagotchi",
-  "version": "0.59.1",
+  "version": "0.60.0",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "Desktop Tamagotchi. Ships with a default pet; the bar chip rebuilds him from one photo via Higgsfield CLI.",
