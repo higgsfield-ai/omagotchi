@@ -2,12 +2,16 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Tamagotchi",
-  "version": "0.62.0",
+  "version": "0.62.1",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "Desktop Tamagotchi. Ships with a default pet; the bar chip rebuilds him from one photo via Higgsfield CLI.",
   "keepLoaded": true,
-  "kinds": ["overlay", "service", "bar-widget"],
+  "kinds": [
+    "overlay",
+    "service",
+    "bar-widget"
+  ],
   "entryPoints": {
     "overlay": "Overlay.qml",
     "service": "Service.qml",

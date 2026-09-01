@@ -275,8 +275,10 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
+    padding: 0
+    borderSpec: Border.flat(root.cBorder, 2)
     contentWidth: panel.fittedContentWidth(360)
-    contentHeight: panel.fittedContentHeight(Math.min(content.implicitHeight + 34, 660))
+    contentHeight: panel.fittedContentHeight(Math.min(content.implicitHeight + 30, 660))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -288,14 +290,11 @@ Panel {
       Rectangle {
         anchors.fill: parent
         color: root.cPanel
-        border.width: 2
-        border.color: root.cBorder
-        radius: 6
+        radius: Math.max(0, Style.cornerRadius - 2)
 
         Flickable {
           id: flick
           anchors.fill: parent
-          anchors.margins: 2
           contentWidth: width
           contentHeight: content.implicitHeight + 30
           clip: true
