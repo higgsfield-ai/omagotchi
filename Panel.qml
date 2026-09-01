@@ -37,7 +37,6 @@ Panel {
   readonly property real attention: root.svc ? Number(root.svc.careAttention) : 0
   readonly property real bond: root.svc ? Number(root.svc.careBond) : 0
   readonly property real weight: root.svc ? Number(root.svc.careWeight) : 50
-  readonly property bool petDocked: root.svc ? !!root.svc.petDocked : false
   readonly property bool petRecalling: root.svc ? !!root.svc.petRecalling : false
   readonly property bool petReleasing: root.svc ? !!root.svc.petReleasing : false
   readonly property bool petOnDesktop: root.svc ? !!root.svc.petOnDesktop : false
@@ -53,7 +52,6 @@ Panel {
   readonly property string lastMedia: root.svc ? String(root.svc.lastMediaPath || "") : ""
   readonly property int lastMediaRev: root.svc ? Number(root.svc.lastMediaRev || 0) : 0
   readonly property string lastMediaThumb: root.svc ? String(root.svc.lastMediaThumb || root.svc.lastMediaPath || "") : ""
-  readonly property int credits: root.svc ? Number(root.svc.credits) : -1
   readonly property var avatarList: root.svc && root.svc.avatarList ? root.svc.avatarList : []
   readonly property string activeSheet: String(root.atlas.file || "")
   readonly property string mediaKind: root.svc && root.svc.mediaKind ? String(root.svc.mediaKind) : "image"
@@ -1181,6 +1179,8 @@ Panel {
                   anchors.left: parent.left
                   anchors.topMargin: 9
                   anchors.leftMargin: 11
+                  width: parent.width - 22
+                  wrapMode: Text.WordWrap
                   visible: promptEdit.text === "" && !promptEdit.activeFocus
                   text: "What should we make? A cosy pixel bedroom at sunset…"
                   color: root.cFaint
@@ -1361,7 +1361,7 @@ Panel {
                 onTapped: {
                   if (root.mediaBusy) return
                   if (root.svc && typeof root.svc.generateMedia === "function")
-                    root.svc.generateMedia(promptEdit.text, "")
+                    root.svc.generateMedia(promptEdit.text)
                   else root.staleService = true
                 }
               }

@@ -55,7 +55,6 @@ Item {
   property bool mediaBusy: false
   property string mediaStatus: ""
   property string mediaError: ""
-  property string mediaRefPath: ""
   property var mediaRefs: []
   property string mediaRatioImage: "1:1"
   property string mediaRatioVideo: "16:9"
@@ -109,7 +108,6 @@ Item {
   property bool petRecalling: false
   property bool petReleasing: false
 
-  readonly property string photoName: Model.fileBaseName(root.photoPath)
   readonly property string generateLog: root.dataDir() + "/generate.log"
 
   readonly property bool petOnDesktop: Model.desktopPetVisible({
@@ -681,7 +679,7 @@ Item {
     root.generatePercent = 0
   }
 
-  function generateMedia(prompt, ref) {
+  function generateMedia(prompt) {
     if (root.mediaBusy) return "busy"
     if (!root.loggedIn) {
       root.mediaError = "Log in in the browser window that just opened, then press Generate again."
@@ -691,8 +689,6 @@ Item {
     if (root.mediaPrice < 0) root.refreshMediaPrice()
     var p = String(prompt || "").trim()
     var refs = Array.isArray(root.mediaRefs) ? root.mediaRefs.slice() : []
-    var r = String(ref || "").trim()
-    if (r && refs.indexOf(r) < 0) refs.push(r)
     if (!p && refs.length === 0) {
       root.mediaError = "Add a prompt or a reference image"
       return "empty"
@@ -738,7 +734,6 @@ Item {
 
   function clearMediaRefs() {
     root.mediaRefs = []
-    root.mediaRefPath = ""
     return "ok"
   }
 
@@ -784,11 +779,6 @@ Item {
     mediaRefProc.running = false
     mediaRefProc.running = true
     return "started"
-  }
-
-  function clearMediaRef() {
-    root.mediaRefPath = ""
-    return "ok"
   }
 
   function openMediaFolder() {
@@ -1175,7 +1165,6 @@ Item {
       root.mediaPicking = false
       var path = String(mediaRefOut.text || "").trim().split("\n").pop() || ""
       if (Model.isImagePath(path)) {
-        root.mediaRefPath = path
         var next = Array.isArray(root.mediaRefs) ? root.mediaRefs.slice() : []
         if (next.indexOf(path) < 0 && next.length < 50) next.push(path)
         root.mediaRefs = next
@@ -1283,7 +1272,7 @@ Item {
     function toggleDock(): string { return root.toggleDock() }
     function setActivity(mode: string): string { return root.setActivity(mode) }
     function cancel(): string { return root.cancelGenerate() }
-    function generateMedia(prompt: string): string { return root.generateMedia(prompt, root.mediaRefPath) }
+    function generateMedia(prompt: string): string { return root.generateMedia(prompt) }
     function setMediaKind(kind: string): string { return root.setMediaKind(kind) }
     function openMedia(): string { return root.openMediaFolder() }
     function setAvatar(dir: string): string { return root.setAvatar(dir) }

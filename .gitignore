@@ -3,5 +3,6 @@
 *.jsc
 .env
 .env.*
+!.env.example
 *.key
 *.secret

@@ -432,7 +432,7 @@ Item {
         width: speechLabel.implicitWidth + 12
         height: speechLabel.implicitHeight + 8
         radius: 0
-        color: "#d1fe17"
+        color: "#d4f34a"
         border.width: 1
         border.color: "#1a1a1a"
         x: Math.round(Math.max(2, Math.min(

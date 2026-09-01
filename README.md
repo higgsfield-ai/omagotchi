@@ -25,15 +25,23 @@ No extra packages. The plugin downloads the Higgsfield CLI and Python image libs
 
 ## Use
 
-The bundled pet needs no setup — feed, wash, play, and **Hide** / **Release** work right away.
+The bundled pet needs no setup — feed, wash, play, **Release** / **Hide**,
+and the Stand/Walk/Run activity all work right away from the **Pet** tab.
 
 To make him yours:
 
 1. Click **HF** on the bar.
-2. Click **Change** on the pet island, then **Generate my avatar**. A browser opens for Higgsfield login.
-3. After login, the photo well unlocks. Choose a picture.
-4. Click **Generate my avatar** again. Keep the panel open — percent and step text update as clips finish.
-5. When it says **Tamagotchi ready**, the desktop pet is the new one.
+2. On the **Pet** tab, click **+** next to the avatar — the live camera view
+   opens. **Capture** a frame, or **Upload** a picture instead.
+3. Click **Use photo**. A browser opens for Higgsfield login on first use;
+   after logging in, press **Use photo** again.
+4. Keep the panel open — percent and step text update as clips finish. When
+   it is done, the new avatar is live and the old one stays in the carousel:
+   flick through with the side thumbnails and **›**.
+
+The **Generate** tab makes one-off images and videos from a prompt plus
+optional reference images; the price in credits shows on the button, and the
+result card opens your media folder (`~/.local/share/higgsfield.signals/media`).
 
 A full run is 18 short video clips (several minutes). Logs: `~/.local/share/higgsfield.signals/generate.log`.
 

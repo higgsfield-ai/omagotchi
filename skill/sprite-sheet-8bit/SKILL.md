@@ -101,7 +101,14 @@ collapse) that the subject box is clearly WIDER than tall, and for every frame t
 subject touches neither the top nor bottom frame edge (a touch means a bust or
 waist-up crop — no legs). All cheap numeric checks; a frame with invented
 scenery, an upright sleeper, or a cropped body fails and gets rerolled. Regen
-budget: 2 per start frame. Never describe an off-screen agent in a pose prompt
+budget: 2 per start frame. One failure mode costs no reroll: the model often
+keeps the background FLAT but drops its color (black for lying poses, gray,
+washed-out pink). A uniform wrong background is deterministically repairable —
+flood-recolor it to the key before use, refusing only when the border is
+non-uniform or the character's own colors sit within keying distance of the
+background (black hair on a black background needs the reroll; nothing can
+separate them). Repair the base sprite the same way BEFORE measuring its
+subject height, or a wrong base background blinds every scale guard. Never describe an off-screen agent in a pose prompt
 ("held by a hand from above") — the model will draw it; describe only the
 character's own body and state "completely alone in the frame".
 
