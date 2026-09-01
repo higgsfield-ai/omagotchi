@@ -1682,17 +1682,16 @@ Panel {
     MouseArea { anchors.fill: parent; onClicked: act.tapped() }
   }
 
-  component Peek: Rectangle {
+  // Chrome-less like the mock; dimmed via opacity only. Kept brighter than
+  // the mock's 0.38 so dark transparent-background sprites stay visible
+  // against the near-black stage.
+  component Peek: Item {
     id: peek
     property var entry: null
     signal tapped()
     width: 53
     height: 53
-    radius: 4
-    color: root.cActiveBg
-    border.width: 1
-    border.color: peekHover.hovered ? root.cHoverLine : root.cLine
-    opacity: peekHover.hovered ? 1 : 0.6
+    opacity: peekHover.hovered ? 1 : 0.55
     scale: peekHover.hovered ? 1.07 : 1
 
     Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -1700,7 +1699,6 @@ Panel {
 
     Image {
       anchors.fill: parent
-      anchors.margins: 4
       source: peek.entry && peek.entry.thumb ? "file://" + peek.entry.thumb : ""
       fillMode: Image.PreserveAspectFit
       smooth: false
