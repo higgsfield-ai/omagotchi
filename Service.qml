@@ -305,6 +305,7 @@ Item {
     if (root.loggingIn) return "busy"
     if (!root.hfPath) {
       root.pendingLogin = true
+      root.loggingIn = true
       root.ensureRuntime()
       root.generateStatus = "Installing Higgsfield…"
       return "setup"
@@ -682,7 +683,9 @@ Item {
   function generateMedia(prompt) {
     if (root.mediaBusy) return "busy"
     if (!root.loggedIn) {
-      root.mediaError = "Log in in the browser window that just opened, then press Generate again."
+      root.mediaError = root.hfPath
+        ? "Log in in the browser window that just opened, then press Generate again."
+        : "Setting up the Higgsfield CLI — the login browser opens when it finishes."
       root.login()
       return "login"
     }
@@ -768,7 +771,8 @@ Item {
     if (parsed.ok === false) {
       root.mediaBusy = false
       root.mediaStatus = ""
-      root.mediaError = String(parsed.error || "generate failed")
+      var classified = Model.classifyGenerateError(String(parsed.error || ""))
+      root.mediaError = classified.message || "generate failed"
     }
   }
 
@@ -844,6 +848,13 @@ Item {
   }
 
   function cancelGenerate() {
+    if (root.loggingIn || root.pendingLogin) {
+      root.pendingLogin = false
+      root.loggingIn = false
+      loginProc.running = false
+      root.generateStatus = ""
+      return "canceled"
+    }
     if (!root.generating) return "idle"
     // Flip the flag first so genProc.onExited treats the kill as silence,
     // not as a failed run.
@@ -995,9 +1006,14 @@ Item {
       onRead: function(line) { root.applyRuntime(line) }
     }
     onExited: function() {
-      if (root.pendingLogin && root.hfPath) {
-        root.pendingLogin = false
+      if (!root.pendingLogin) return
+      root.pendingLogin = false
+      root.loggingIn = false
+      if (root.hfPath) {
         root.login()
+      } else {
+        root.generateStatus = ""
+        root.lastError = "Could not install the Higgsfield CLI — check your network and retry."
       }
     }
   }

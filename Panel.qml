@@ -188,8 +188,11 @@ Panel {
   function useCapturedPhoto() {
     if (!root.svc || root.capPhoto === "") return
     if (!root.loggedIn) {
+      var hasCli = String(root.svc.hfPath || "") !== ""
       root.svc.login()
-      root.capNote = "Log in in the browser window that just opened, then press Use photo again."
+      root.capNote = hasCli
+        ? "Log in in the browser window that just opened, then press Use photo again."
+        : "Setting up the Higgsfield CLI — the login browser opens when it finishes."
       return
     }
     root.capNote = ""
@@ -763,7 +766,9 @@ Panel {
                       Text {
                         id: workHeadLabel
                         anchors.left: parent.left
-                        text: root.loggingIn ? "Waiting for browser login…" : "Generating avatar"
+                        text: root.loggingIn
+                          ? (root.statusText !== "" ? root.statusText : "Waiting for browser login…")
+                          : "Generating avatar"
                         color: root.cMuted
                         font.family: root.fontFamily
                         font.pixelSize: 11
