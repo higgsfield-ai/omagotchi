@@ -250,6 +250,31 @@ Panel {
               property string modeKey: root.nestMode
               onModeKeyChanged: nest.nestFrame = 0
 
+              Rectangle {
+                visible: root.svc && Number(root.svc.sayUntil || 0) > Number(root.svc.nowMs || 0)
+                  && String(root.svc.sayText || "") !== "" && root.petDocked
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: Style.space(4)
+                z: 3
+                width: nestSay.implicitWidth + Style.space(10)
+                height: nestSay.implicitHeight + Style.space(6)
+                radius: 0
+                color: root.limeColor
+                border.width: 1
+                border.color: root.darkText
+
+                Text {
+                  id: nestSay
+                  anchors.centerIn: parent
+                  text: root.svc ? String(root.svc.sayText || "") : ""
+                  color: root.darkText
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
+
               WidgetButton {
                 anchors.top: parent.top
                 anchors.right: parent.right

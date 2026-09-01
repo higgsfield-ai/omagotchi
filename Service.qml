@@ -43,6 +43,9 @@ Item {
   property real lastDragCareMs: 0
   property string petActivity: "walking"
   property real stunUntil: 0
+  // Speech bubble over the pet: say() sets the line and its lifetime.
+  property string sayText: ""
+  property real sayUntil: 0
   property bool mediaBusy: false
   property string mediaStatus: ""
   property string mediaError: ""
@@ -187,6 +190,7 @@ Item {
     night: Model.isNightHour(new Date(root.nowMs || Date.now())),
     mediaPlaying: root.mediaPlaying
       || (root.playingStoppedMs > 0 && root.nowMs - root.playingStoppedMs < 2000),
+    working: root.mediaBusy || root.generating,
     wander: root.wander
   })
   readonly property var sinkList: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
@@ -456,6 +460,13 @@ Item {
     root.careLoaded = true
   }
 
+  function say(text, ms) {
+    root.sayText = String(text || "")
+    var dur = Number(ms)
+    if (!isFinite(dur) || dur <= 0) dur = 4000
+    root.sayUntil = Date.now() + dur
+  }
+
   function celebrate(ms) {
     root.touchActivity()
     var dur = Number(ms)
@@ -714,6 +725,8 @@ Item {
       root.lastMediaThumb = String(parsed.thumb || parsed.path)
       root.lastMediaRev += 1
       root.refreshCredits()
+      root.celebrate(4000)
+      root.say("Generation is ready", 4000)
       return
     }
     if (parsed.ok === false) {

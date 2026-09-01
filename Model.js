@@ -458,6 +458,9 @@ function resolveMode(opts) {
   if (o.eat) return "eat"
   if (o.unhealthy || o.filthy) return "sick"
   if (o.neglected || o.lowMood) return "grumpy"
+  // While the plugin generates something, he works on his laptop — that
+  // outranks sleeping and dancing both.
+  if (o.working) return "watch"
   if ((o.sleep || o.exhausted) && !playing) return "sleep"
   // Media preempts wandering: anything playing means the dance row — the
   // flip row reads as running-in-place and speech detection misfired on

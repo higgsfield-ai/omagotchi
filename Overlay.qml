@@ -421,6 +421,37 @@ Item {
         }
       }
 
+      // Speech bubble: say() in the service floats a short line over his
+      // head until sayUntil passes ("Generation is ready").
+      Rectangle {
+        id: speech
+        readonly property bool showing: root.svc
+          && Number(root.svc.sayUntil || 0) > Number(root.svc.nowMs || 0)
+          && String(root.svc.sayText || "") !== ""
+          && pet.opacity > 0.5
+        visible: speech.showing
+        width: speechLabel.implicitWidth + 12
+        height: speechLabel.implicitHeight + 8
+        radius: 0
+        color: "#d1fe17"
+        border.width: 1
+        border.color: "#1a1a1a"
+        x: Math.round(Math.max(2, Math.min(
+          window.petX + (window.frames.displayWidth - width) / 2,
+          stage.width - width - 2)))
+        y: Math.round(Math.max(2, window.petY - window.bounce - height - 6))
+
+        Text {
+          id: speechLabel
+          anchors.centerIn: parent
+          text: root.svc ? String(root.svc.sayText || "") : ""
+          color: "#1a1a1a"
+          font.family: "monospace"
+          font.pixelSize: 11
+          font.bold: true
+        }
+      }
+
       // z Z z drifting up over the sleeper. Drawn by the shell, not baked
       // into the sheet, so it works with every atlas and stays keyable.
       Item {
