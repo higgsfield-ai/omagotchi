@@ -276,7 +276,6 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     padding: 0
-    borderSpec: Border.flat(root.cBorder, 2)
     contentWidth: panel.fittedContentWidth(360)
     contentHeight: panel.fittedContentHeight(Math.min(content.implicitHeight + 30, 660))
 

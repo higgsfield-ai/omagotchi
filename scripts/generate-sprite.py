@@ -813,6 +813,70 @@ def start_frame_ok(clip: dict, path: Path, key: str, base_frac: float = 0.0) -> 
     return True, ""
 
 
+BG_REASON = "start frame background is not the key color"
+
+
+def normalize_background(path: Path, key: str) -> tuple[bool, str]:
+    """The model reliably delivers a FLAT background but sometimes drops the
+    color (black for lying poses, washed-out pink, gray). A uniform wrong
+    background is deterministically repairable — flood-recolor it to the key
+    instead of burning a reroll on it. Refuses anything non-uniform
+    (scenery, gradients), which still needs the reroll path."""
+    try:
+        from PIL import Image, ImageDraw
+        import numpy as np
+    except ImportError:
+        return False, "no PIL"
+    try:
+        im = Image.open(path).convert("RGB")
+    except Exception as exc:
+        return False, str(exc)
+    arr = np.asarray(im).astype(int)
+    border = np.concatenate([arr[0], arr[-1], arr[:, 0], arr[:, -1]])
+    med = np.median(border, axis=0).astype(int)
+    if float((np.abs(border - med).sum(axis=1) < 60).mean()) < 0.9:
+        return False, "background is not a uniform color"
+    kr, kg, kb = hex_to_rgb(key)
+    if int(np.abs(med - np.array([kr, kg, kb])).sum()) < 60:
+        return False, "background is already the key color"
+    # If subject colors sit close to the background color (black hair on a
+    # black background), the flood cannot tell them apart and would merge
+    # them — and neither could the chroma key. Those frames genuinely need
+    # the reroll, which may land on a distinguishable background.
+    dist = np.abs(arr - med).sum(axis=2)
+    if float(((dist >= 25) & (dist < 60)).mean()) > 0.003:
+        return False, "subject colors are too close to the background color"
+    before = float((dist >= 60).mean())
+    w, h = im.size
+    seeds = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
+             (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
+    for seed in seeds:
+        px = im.getpixel(seed)
+        if sum(abs(int(px[i]) - int(med[i])) for i in range(3)) < 60:
+            ImageDraw.floodfill(im, seed, (kr, kg, kb), thresh=45)
+    out = np.asarray(im).astype(int)
+    after = float((np.abs(out - np.array([kr, kg, kb])).sum(axis=2) >= 60).mean())
+    if after < max(0.01, before * 0.9) or after > 0.6:
+        return False, "recolor would damage the subject"
+    im.save(path)
+    return True, "recolored #%02x%02x%02x -> %s" % (int(med[0]), int(med[1]), int(med[2]), key)
+
+
+def checked_start_frame(clip: dict, dest: Path, key: str, base_frac: float,
+                        log: Path | None = None) -> tuple[bool, str]:
+    """start_frame_ok, with one free repair attempt for wrong-color flat
+    backgrounds before the caller spends a reroll."""
+    ok, why = start_frame_ok(clip, dest, key, base_frac)
+    if ok or why != BG_REASON:
+        return ok, why
+    fixed, note = normalize_background(dest, key)
+    if not fixed:
+        return False, f"{why} ({note})"
+    if log is not None:
+        append_log(log, f"pose {clip.get('name', '?')}: background {note}\n")
+    return start_frame_ok(clip, dest, key, base_frac)
+
+
 def video_prompt(spec: str, key: str, loop: bool) -> str:
     extra = ", seamless loop" if loop else ""
     return (
@@ -915,8 +979,20 @@ def clip_background_ok(video: Path, key: str) -> bool:
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0 or not tmp.is_file():
             return True
-        ok, _ = start_frame_ok({}, tmp, key)
-        return ok
+        try:
+            from PIL import Image
+            import numpy as np
+        except ImportError:
+            return True
+        arr = np.asarray(Image.open(tmp).convert("RGB").resize((64, 64))).astype(int)
+        border = np.concatenate([arr[0], arr[-1], arr[:, 0], arr[:, -1]])
+        med = np.median(border, axis=0)
+        if float((np.abs(border - med).sum(axis=1) < 90).mean()) < 0.85:
+            return False
+        # postprocess keys on the measured border when it is within 300 of
+        # the nominal key (effective_key), so only drift beyond that — or a
+        # non-uniform background — actually needs a reroll.
+        return int(np.abs(med - np.array(hex_to_rgb(key))).sum()) <= 300
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -1028,6 +1104,9 @@ def main() -> None:
         fail(str(exc), {"reason": str(exc), "job_id": extract_uuid(str(exc)), "log": str(log)})
     base_path = work_dir / "base.png"
     download(base_job["url"], base_path)
+    fixed, note = normalize_background(base_path, key)
+    if fixed:
+        append_log(log, f"base sprite: background {note}\n")
     base_frac = subject_height_frac(base_path, key)
     progress("Base sprite ready", phase="base", step=1, steps=total)
 
@@ -1085,7 +1164,7 @@ def main() -> None:
         clip, job_id, dest = item
         job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
         download(job["url"], dest)
-        ok, why = start_frame_ok(clip, dest, key, base_frac)
+        ok, why = checked_start_frame(clip, dest, key, base_frac, log)
         if not ok:
             raise RuntimeError(why)
         return clip, dest
@@ -1130,7 +1209,7 @@ def main() -> None:
                 job = wait_job(hf, job_id, log, timeout_s=IMAGE_WAIT_S)
                 dest = starts_dir / f"{clip['name']}.png"
                 download(job["url"], dest)
-                ok, why = start_frame_ok(clip, dest, key, base_frac)
+                ok, why = checked_start_frame(clip, dest, key, base_frac, log)
                 if not ok:
                     raise RuntimeError(why)
                 start_paths[clip["name"]] = dest
