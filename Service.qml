@@ -43,9 +43,15 @@ Item {
   property real lastDragCareMs: 0
   property string petActivity: "walking"
   property real stunUntil: 0
-  // Speech bubble over the pet: say() sets the line and its lifetime.
+  // Speech bubble over the pet: say() sets a timed line; while the plugin
+  // is generating, the bubble narrates that instead.
   property string sayText: ""
   property real sayUntil: 0
+  readonly property string bubbleText: {
+    if (root.nowMs < root.sayUntil && root.sayText !== "") return root.sayText
+    if (root.mediaBusy || root.generating) return "Generating…"
+    return ""
+  }
   property bool mediaBusy: false
   property string mediaStatus: ""
   property string mediaError: ""

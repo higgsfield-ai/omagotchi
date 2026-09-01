@@ -426,8 +426,7 @@ Item {
       Rectangle {
         id: speech
         readonly property bool showing: root.svc
-          && Number(root.svc.sayUntil || 0) > Number(root.svc.nowMs || 0)
-          && String(root.svc.sayText || "") !== ""
+          && String(root.svc.bubbleText || "") !== ""
           && pet.opacity > 0.5
         visible: speech.showing
         width: speechLabel.implicitWidth + 12
@@ -444,7 +443,7 @@ Item {
         Text {
           id: speechLabel
           anchors.centerIn: parent
-          text: root.svc ? String(root.svc.sayText || "") : ""
+          text: root.svc ? String(root.svc.bubbleText || "") : ""
           color: "#1a1a1a"
           font.family: "monospace"
           font.pixelSize: 11

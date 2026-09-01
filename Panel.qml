@@ -251,8 +251,7 @@ Panel {
               onModeKeyChanged: nest.nestFrame = 0
 
               Rectangle {
-                visible: root.svc && Number(root.svc.sayUntil || 0) > Number(root.svc.nowMs || 0)
-                  && String(root.svc.sayText || "") !== "" && root.petDocked
+                visible: root.svc && String(root.svc.bubbleText || "") !== "" && root.petDocked
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: Style.space(4)
@@ -267,7 +266,7 @@ Panel {
                 Text {
                   id: nestSay
                   anchors.centerIn: parent
-                  text: root.svc ? String(root.svc.sayText || "") : ""
+                  text: root.svc ? String(root.svc.bubbleText || "") : ""
                   color: root.darkText
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
