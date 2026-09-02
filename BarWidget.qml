@@ -131,8 +131,8 @@ BarWidget {
       if (panelLoader.status === Loader.Error)
         return "Panel failed: " + (root.panelLoadError || "unknown error")
       if (root.generating)
-        return root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating Tamagotchi…"
-      return "Generate my avatar"
+        return root.svc && root.svc.generateStatus ? String(root.svc.generateStatus) : "Generating avatar…"
+      return "Higgsfield Omagotchi"
     }
 
     onPressed: function(buttonCode) {

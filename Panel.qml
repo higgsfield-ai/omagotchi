@@ -323,7 +323,7 @@ Panel {
 
                 Repeater {
                   model: [
-                    { label: "Pet", key: "pet" },
+                    { label: "Avatar", key: "pet" },
                     { label: "Generate", key: "generate" }
                   ]
 

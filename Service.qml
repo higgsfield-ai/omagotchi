@@ -663,7 +663,7 @@ Item {
     if (parsed.ok && parsed.path) {
       root.lastResultPath = parsed.path
       root.lastError = ""
-      root.generateStatus = "Tamagotchi ready"
+      root.generateStatus = "Avatar ready"
       root.generatePercent = 100
       root.failStreak = 0
       root.applyGeneratedSheet(parsed.path, parsed.atlasSpec)
@@ -1100,7 +1100,7 @@ Item {
         root.applyGeneratedSheet(sheet)
         if (root.generating) {
           root.generating = false
-          root.generateStatus = "Tamagotchi ready"
+          root.generateStatus = "Avatar ready"
           root.generatePercent = 100
           root.lastError = ""
         }

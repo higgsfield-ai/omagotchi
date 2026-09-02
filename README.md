@@ -8,7 +8,7 @@ him, wash him, drag him around — drop him from too high and he takes a
 tumble, dusts himself off, and sulks until you clean him up. Click to pet,
 double-click to flop.
 
-The plugin ships with a default pet, so he's on your desktop the moment you
+The plugin ships with a default avatar, so he's on your desktop the moment you
 install — no account, no setup. When you're ready, one photo turns him into
 *you*: Higgsfield draws a full 8-bit sprite sheet of your likeness — walking,
 sleeping, dancing, collapsing — and every avatar you generate stays in a
@@ -17,7 +17,7 @@ carousel you can switch between anytime.
 ## Install
 
 ```sh
-omarchy plugin add git@github.com:higgsfield-ai/omarchy-pet.git --enable
+omarchy plugin add git@github.com:higgsfield-ai/omagotchi.git --enable
 omarchy-restart-shell
 ```
 
@@ -27,18 +27,18 @@ Update later with:
 omarchy plugin update higgsfield.signals --yes
 ```
 
-The **HF** chip appears on the right of the bar. No extra packages: on first
+The Higgsfield logo appears as a chip on the right of the bar. No extra packages: on first
 use the plugin fetches the Higgsfield CLI (sha256-verified) and its Python
 image libraries into `~/.local/share/higgsfield.signals`. Omarchy already
 has `ffmpeg`.
 
 ## Living with him
 
-Click **HF** to open the panel. The **Pet** tab is home: care actions
+Click the Higgsfield logo to open the panel. The **Avatar** tab is home: care actions
 (**Feed / Wash / Play**), an activity dial (**Stand / Walk / Run**), his
 vitals — hunger, hygiene, mood, energy and friends, each with its own bar —
 and **Release / Hide** to let him roam the desktop or tuck him away in the
-panel. Neglect shows: stats drift down over time, and a scruffy, hungry pet
+panel. Neglect shows: stats drift down over time, and a scruffy, hungry avatar
 acts like one.
 
 He also has a life of his own. He walks when you type, sleeps when the
@@ -47,7 +47,7 @@ your generations run, and announces the results in a speech bubble.
 
 ## Making him you
 
-1. On the **Pet** tab, press **+** next to the avatar. The camera opens.
+1. On the **Avatar** tab, press **+** next to the avatar. The camera opens.
 2. **Capture** a frame — or **Upload** a photo instead.
 3. Press **Use photo**. The first time, a browser opens to log in to
    Higgsfield; log in and press **Use photo** again.
@@ -55,7 +55,7 @@ your generations run, and announces the results in a speech bubble.
    along). A full run renders 18 short video clips and takes a few minutes.
 
 When it's done, the new avatar takes over and the old one — including the
-original default pet — waits in the carousel. Flick through with the side
+original default avatar — waits in the carousel. Flick through with the side
 thumbnails and **›**.
 
 If a run fails, the panel says why in plain words (out of credits, plan
@@ -68,7 +68,7 @@ A pocket-sized Higgsfield studio: pick **Image** or **Video**, a ratio, a
 duration, type a prompt, optionally pin reference images (up to 50), and
 generate. The price in credits sits right on the button. The result lands in
 `~/.local/share/higgsfield.signals/media`, and clicking the preview opens
-that folder. Your pet works the laptop while the job runs.
+that folder. Your avatar works the laptop while the job runs.
 
 ## If walking ignores your typing
 
@@ -91,7 +91,7 @@ Omarchy plugins run unsandboxed, so here is exactly what this one touches:
 - **Webcam** — only while the panel's camera view is open; the viewfinder
   unloads the moment the panel closes.
 - **Keyboard** — `scripts/watch-keys.py` emits a single contentless `k` per
-  keypress so the pet knows you're around. Which key is never read, stored,
+  keypress so your avatar knows you're around. Which key is never read, stored,
   or transmitted.
 - **Storage** — everything lives in `~/.local/share/higgsfield.signals/`
   (CLI, venv, care state, photos, sheets, media). Delete it and the plugin
