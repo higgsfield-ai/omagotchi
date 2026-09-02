@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Higgsfield Omagotchi",
-  "version": "0.64.4",
+  "version": "0.65.0",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "Desktop pet for Omarchy. Ships with a default pet; the HF chip rebuilds him as 8-bit sprites from one photo via Higgsfield.",
@@ -22,6 +22,12 @@
     "category": "Fun",
     "allowMultiple": false,
     "defaultSection": "right",
-    "description": "Care for the pet and generate a new avatar from one photo"
+    "description": "Care for the pet and generate a new avatar from one photo",
+    "aliases": [
+      "pet",
+      "tamagotchi",
+      "omagotchi",
+      "higgsfield"
+    ]
   }
 }

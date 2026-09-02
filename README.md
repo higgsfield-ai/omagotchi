@@ -96,5 +96,6 @@ exactly what this one touches:
 ## Remove
 
 ```sh
+./scripts/uninstall.sh   # deletes ~/.local/share/higgsfield.signals (asks first)
 omarchy plugin remove higgsfield.signals
 ```

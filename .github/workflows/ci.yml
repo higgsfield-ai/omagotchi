@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Model tests
+        run: node --test test/model.test.js
+      - name: Python compiles
+        run: python3 -m py_compile scripts/*.py skill/sprite-sheet-8bit/scripts/postprocess.py
+      - name: Script tests
+        run: |
+          pip install --quiet pillow numpy
+          python3 test/test_scripts.py
+      - name: Shell syntax
+        run: for f in scripts/*.sh dev/*.sh; do sh -n "$f"; done
+      - name: Manifest is valid JSON with required fields
+        run: |
+          python3 - <<'EOF'
+          import json
+          m = json.load(open("manifest.json"))
+          for k in ("schemaVersion", "id", "name", "version", "author", "description", "kinds", "entryPoints"):
+              assert k in m, f"manifest missing {k}"
+          print("manifest ok", m["version"])
+          EOF
