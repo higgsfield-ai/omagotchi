@@ -251,7 +251,6 @@ test("parseGenLine splits progress JSON from the final result", () => {
   assert.match(prog.label, /walk/)
   const done = Model.parseGenLine('{"ok":true,"path":"/tmp/sheet.png"}')
   assert.equal(done.kind, "result")
-  assert.equal(Model.fileBaseName("/home/x/Pictures/cat.png"), "cat.png")
   assert.equal(Model.fileUrlToPath("file:///home/x/Pictures/cat.png"), "/home/x/Pictures/cat.png")
 })
 
@@ -353,8 +352,6 @@ test("energy, health, attention, and desktop stats decay with the environment", 
   assert.equal(flags.criticalTired, true)
   assert.equal(flags.ill, true)
   assert.equal(flags.neglected, true)
-  assert.equal(Model.ageLabel(t0, t0 + 3 * 3600000), "3h")
-  assert.equal(Model.ageLabel(t0, t0 + 26 * 3600000), "1d 2h")
   assert.ok(Model.happyDurationMs({ bond: 80 }) > Model.happyDurationMs())
   assert.ok(Model.movePace("run", { weight: 90, energy: 10 }).step < Model.movePace("run").step)
   const tired = Object.assign({}, start, { energy: 8, weight: 85, health: 20, attention: 10 })

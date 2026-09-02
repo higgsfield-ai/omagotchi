@@ -81,7 +81,6 @@ Item {
   property bool avatarSwitching: false
   property string generateStatus: ""
   property string lastResultPath: ""
-  property string lastResultUrl: ""
   property string lastError: ""
   property var atlasSpec: null
   property string photoPath: ""
@@ -663,7 +662,6 @@ Item {
     root.generating = false
     if (parsed.ok && parsed.path) {
       root.lastResultPath = parsed.path
-      root.lastResultUrl = parsed.url
       root.lastError = ""
       root.generateStatus = "Tamagotchi ready"
       root.generatePercent = 100

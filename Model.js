@@ -411,22 +411,6 @@ function sleepAfterMsFor(stats) {
   return sleepAfterMs()
 }
 
-function ageLabel(bornMs, nowMs) {
-  var born = Number(bornMs)
-  var now = Number(nowMs)
-  if (!isFinite(born) || born <= 0) return "newborn"
-  if (!isFinite(now) || now <= 0) now = Date.now()
-  var ms = now - born
-  if (ms < 0) ms = 0
-  var hours = Math.floor(ms / 3600000)
-  if (hours < 1) {
-    var mins = Math.max(0, Math.floor(ms / 60000))
-    return mins < 3 ? "newborn" : mins + "m"
-  }
-  if (hours < 24) return hours + "h"
-  var days = Math.floor(hours / 24)
-  return days + "d " + (hours % 24) + "h"
-}
 
 function isNightHour(input) {
   var h
@@ -965,11 +949,6 @@ function fileUrlToPath(url) {
   return decodeURIComponent(s)
 }
 
-function fileBaseName(path) {
-  var p = String(path || "").replace(/\\/g, "/")
-  var i = p.lastIndexOf("/")
-  return i >= 0 ? p.slice(i + 1) : p
-}
 
 function parseGenLine(raw) {
   var s = String(raw || "")
@@ -1019,7 +998,6 @@ if (typeof module !== "undefined") {
     applyCareAction: applyCareAction,
     careFlags: careFlags,
     sleepAfterMsFor: sleepAfterMsFor,
-    ageLabel: ageLabel,
     isNightHour: isNightHour,
     sneakWindow: sneakWindow,
     isMoveMode: isMoveMode,
@@ -1044,7 +1022,6 @@ if (typeof module !== "undefined") {
     generatedAtlas: generatedAtlas,
     isImagePath: isImagePath,
     atlasImageSource: atlasImageSource,
-    fileBaseName: fileBaseName,
     fileUrlToPath: fileUrlToPath,
     parseGenLine: parseGenLine
   }

@@ -10,7 +10,6 @@ Panel {
 
   property var anchorItem: null
   property var hostWidget: null
-  property bool openedFromHotkey: false
 
   readonly property var barIdentity: hostWidget || root
   readonly property var svc: root.bar && root.bar.shell && root.bar.shell.serviceFor
@@ -129,13 +128,11 @@ Panel {
   }
 
   function open() {
-    root.openedFromHotkey = false
     root.controller.show()
     if (root.svc && typeof root.svc.checkAuth === "function") root.svc.checkAuth()
   }
 
   function openFromHotkey() {
-    root.openedFromHotkey = true
     root.controller.show()
     Qt.callLater(function() {
       if (root.opened && root.bar && "centerHoverRevealSuppressed" in root.bar)
@@ -177,12 +174,7 @@ Panel {
   }
 
   function choosePhoto() {
-    if (root.svc && typeof root.svc.pickPhoto === "function") {
-      root.svc.pickPhoto()
-      return
-    }
-    var dlg = photoDialogLoader.item
-    if (dlg && typeof dlg.open === "function") dlg.open()
+    if (root.svc && typeof root.svc.pickPhoto === "function") root.svc.pickPhoto()
   }
 
   function useCapturedPhoto() {
@@ -205,22 +197,6 @@ Panel {
       root.svc.setMediaOption(name, value)
     else
       root.staleService = true
-  }
-
-  Loader {
-    id: photoDialogLoader
-    source: Qt.resolvedUrl("PhotoDialog.qml")
-    onStatusChanged: {
-      if (status === Loader.Error && String(source).indexOf("PhotoDialogNative.qml") === -1)
-        source = Qt.resolvedUrl("PhotoDialogNative.qml")
-    }
-  }
-
-  Connections {
-    target: photoDialogLoader.item
-    function onPicked(path) {
-      if (root.svc && typeof root.svc.setPhoto === "function") root.svc.setPhoto(path)
-    }
   }
 
   Connections {
