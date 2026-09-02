@@ -566,13 +566,81 @@ function shouldFall(petY, floorY, minDrop) {
   return floor - y > min
 }
 
-function fallDurationMs(drop) {
-  var d = Number(drop)
-  if (!isFinite(d) || d < 0) d = 0
-  var ms = Math.round(240 + Math.sqrt(d) * 38)
-  if (ms < 280) ms = 280
-  if (ms > 1100) ms = 1100
-  return ms
+var THROW = {
+  gravity: 3800,          // px/s^2 — snappy cartoon gravity, not Earth's
+  restitution: 0.42,      // ground bounce keeps this much of the impact
+  wallRestitution: 0.55,
+  ceilingRestitution: 0.3,
+  groundFriction: 0.82,   // horizontal speed kept through a ground bounce
+  bounceStopVy: 520,      // impacts slower than this settle instead of bouncing
+  maxV: 2400,             // px/s cap on the sampled fling velocity
+  minThrowVx: 260         // slower horizontal release is a drop, not a throw
+}
+
+// Fling velocity from the last drag samples ([{t,x,y}] in ms/px). A pause
+// before release means the hand stopped: stale samples throw nothing.
+function throwVelocity(samples, nowMs) {
+  if (!samples || samples.length < 2) return { vx: 0, vy: 0 }
+  var last = samples[samples.length - 1]
+  var now = Number(nowMs)
+  if (isFinite(now) && now - last.t > 120) return { vx: 0, vy: 0 }
+  var base = samples[samples.length - 2]
+  for (var i = samples.length - 2; i >= 0; i--) {
+    base = samples[i]
+    if (last.t - samples[i].t >= 60) break
+  }
+  var dt = last.t - base.t
+  if (!(dt >= 16)) return { vx: 0, vy: 0 }
+  var vx = (last.x - base.x) / dt * 1000
+  var vy = (last.y - base.y) / dt * 1000
+  return {
+    vx: Math.max(-THROW.maxV, Math.min(THROW.maxV, vx)),
+    vy: Math.max(-THROW.maxV, Math.min(THROW.maxV, vy))
+  }
+}
+
+// One physics tick. s: {x,y,vx,vy}; b: {w,petW,floorY}; dt in seconds.
+// Returns the next state plus landed/bounced flags for the caller.
+function stepThrow(s, b, dt) {
+  var step = Number(dt)
+  if (!isFinite(step) || step <= 0) step = 0.016
+  if (step > 0.05) step = 0.05
+  var vy = s.vy + THROW.gravity * step
+  var vx = s.vx
+  var x = s.x + vx * step
+  var y = s.y + vy * step
+  var maxX = Math.max(0, b.w - b.petW)
+  if (x < 0) {
+    x = 0
+    vx = -vx * THROW.wallRestitution
+  } else if (x > maxX) {
+    x = maxX
+    vx = -vx * THROW.wallRestitution
+  }
+  if (y < 0) {
+    y = 0
+    vy = Math.abs(vy) * THROW.ceilingRestitution
+  }
+  var landed = false
+  var bounced = false
+  if (y >= b.floorY) {
+    y = b.floorY
+    if (vy > THROW.bounceStopVy) {
+      vy = -vy * THROW.restitution
+      vx = vx * THROW.groundFriction
+      bounced = true
+    } else {
+      vy = 0
+      vx = 0
+      landed = true
+    }
+  }
+  return { x: x, y: y, vx: vx, vy: vy, landed: landed, bounced: bounced }
+}
+
+function isThrown(vx) {
+  var v = Number(vx)
+  return isFinite(v) && Math.abs(v) > THROW.minThrowVx
 }
 
 function levitateDurationMs(rise) {
@@ -1007,7 +1075,9 @@ if (typeof module !== "undefined") {
     pickWander: pickWander,
     nextClickState: nextClickState,
     shouldFall: shouldFall,
-    fallDurationMs: fallDurationMs,
+    throwVelocity: throwVelocity,
+    stepThrow: stepThrow,
+    isThrown: isThrown,
     levitateDurationMs: levitateDurationMs,
     nestMode: nestMode,
     desktopPetVisible: desktopPetVisible,

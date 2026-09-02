@@ -99,8 +99,10 @@ Item {
 
     property real petX: 12
     property real petY: 0
-    property real fallVel: 0
-    property real fallFromY: 0
+    property real fallVx: 0
+    property real fallVy: 0
+    property real peakY: 0
+    property real lastTickMs: 0
     property int facing: 1
     property int frame: 0
     property bool dragging: false
@@ -139,12 +141,14 @@ Item {
         window.petY = window.floorY
     }
 
-    // End a drag however it ended: fall if he is high enough, otherwise
-    // settle straight onto the floor. Used by release, cancel, and the
-    // stuck-drag watchdog.
-    function settleFromDrag() {
-      if (Model.shouldFall(window.petY, window.floorY, 8)) {
-        window.startFall()
+    // End a drag however it ended: airborne or flung he goes ballistic,
+    // otherwise he settles straight onto the floor. Used by release,
+    // cancel, and the stuck-drag watchdog.
+    function settleFromDrag(vx, vy) {
+      var tvx = Number(vx) || 0
+      var tvy = Number(vy) || 0
+      if (Model.shouldFall(window.petY, window.floorY, 8) || Model.isThrown(tvx)) {
+        window.startFall(tvx, tvy)
         return
       }
       window.dragging = false
@@ -152,21 +156,37 @@ Item {
     }
 
     function stopFall() {
-      if (fallAnim.running) fallAnim.stop()
       window.falling = false
-      window.fallVel = 0
+      window.fallVx = 0
+      window.fallVy = 0
     }
 
-    function startFall() {
-      if (fallAnim.running) fallAnim.stop()
-      window.falling = true
+    function startFall(vx, vy) {
       window.dragging = false
-      window.fallVel = 0
-      window.fallFromY = window.petY
-      fallAnim.from = window.petY
-      fallAnim.to = window.floorY
-      fallAnim.duration = Model.fallDurationMs(window.floorY - window.petY)
-      fallAnim.start()
+      window.fallVx = Number(vx) || 0
+      window.fallVy = Number(vy) || 0
+      window.peakY = window.petY
+      window.lastTickMs = Date.now()
+      window.falling = true
+    }
+
+    // Ballistic tick: gravity, wall/ceiling bounces, a couple of ground
+    // bounces, then land. Model.stepThrow is pure so the arc is testable.
+    function stepFall() {
+      var now = Date.now()
+      var dt = (now - window.lastTickMs) / 1000
+      window.lastTickMs = now
+      var next = Model.stepThrow(
+        { x: window.petX, y: window.petY, vx: window.fallVx, vy: window.fallVy },
+        { w: window.stageRect.w, petW: window.frames.displayWidth, floorY: window.floorY },
+        dt)
+      window.petX = next.x
+      window.petY = next.y
+      window.fallVx = next.vx
+      window.fallVy = next.vy
+      if (next.y < window.peakY) window.peakY = next.y
+      if (Math.abs(next.vx) > 80) window.facing = next.vx > 0 ? 1 : -1
+      if (next.landed) window.land()
     }
 
     function startLevitate() {
@@ -196,15 +216,14 @@ Item {
       window.petY = 0
       window.petX = Model.clampPetX(window.petX, window.frames.displayWidth, window.stageRect.w)
       spawnFade.start()
-      window.startFall()
+      window.startFall(0, 0)
     }
 
     function land() {
       if (!window.falling) return
-      var drop = window.floorY - window.fallFromY
+      var drop = window.floorY - window.peakY
       window.petY = window.floorY
-      window.falling = false
-      window.fallVel = 0
+      window.stopFall()
       pet.opacity = 1
       if (root.svc && root.svc.petReleasing && typeof root.svc.finishRelease === "function") {
         root.svc.finishRelease()
@@ -229,12 +248,11 @@ Item {
       window.frame = (window.frame + 1) % Math.max(1, window.frames.frameCount)
     }
 
-    NumberAnimation {
-      id: fallAnim
-      target: window
-      property: "petY"
-      easing.type: Easing.InCubic
-      onFinished: window.land()
+    Timer {
+      interval: 16
+      running: window.falling && window.visible
+      repeat: true
+      onTriggered: window.stepFall()
     }
 
     NumberAnimation {
@@ -366,11 +384,13 @@ Item {
           property real grabY: 0
           property bool didMove: false
           property bool didCollapse: false
+          property var moveSamples: []
 
           onPressed: function(mouse) {
             grabX = mouse.x
             grabY = mouse.y
             didMove = false
+            moveSamples = []
             if (window.falling) {
               window.stopFall()
               window.dragging = true
@@ -395,6 +415,10 @@ Item {
               root.svc.touchActivity()
             window.petX = Model.clampPetX(nx, pet.width, stage.width)
             window.petY = Model.clamp(ny, 0, Math.max(0, stage.height - pet.height))
+            var samples = petMouse.moveSamples
+            samples.push({ t: Date.now(), x: window.petX, y: window.petY })
+            if (samples.length > 6) samples.shift()
+            petMouse.moveSamples = samples
           }
           onReleased: function() {
             if (!didMove) {
@@ -408,7 +432,8 @@ Item {
               return
             }
             didCollapse = false
-            window.settleFromDrag()
+            var v = Model.throwVelocity(petMouse.moveSamples, Date.now())
+            window.settleFromDrag(v.vx, v.vy)
           }
           // Wayland cancels a grab instead of releasing it when the surface
           // unmaps mid-drag or the compositor takes the pointer. Without this

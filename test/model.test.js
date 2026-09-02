@@ -124,7 +124,31 @@ test("nextClickState greets once and turns grumpy on a click burst", () => {
 test("falls trigger above the threshold and scale with height", () => {
   assert.equal(Model.shouldFall(40, 200, 12), true)
   assert.equal(Model.shouldFall(195, 200, 12), false)
-  assert.ok(Model.fallDurationMs(400) > Model.fallDurationMs(40))
+  const fling = Model.throwVelocity(
+    [{ t: 0, x: 0, y: 100 }, { t: 100, x: 240, y: 60 }], 110)
+  assert.ok(fling.vx > 2000 && fling.vx <= 2400, "fast fling clamps at cap")
+  assert.ok(fling.vy < 0, "upward drag throws upward")
+  assert.deepEqual(Model.throwVelocity([{ t: 0, x: 0, y: 0 }], 10), { vx: 0, vy: 0 })
+  assert.deepEqual(Model.throwVelocity(
+    [{ t: 0, x: 0, y: 0 }, { t: 50, x: 200, y: 0 }], 400), { vx: 0, vy: 0 },
+    "a pause before release throws nothing")
+  assert.ok(Model.isThrown(500) && !Model.isThrown(100))
+
+  const bounds = { w: 800, petW: 80, floorY: 500 }
+  let s = { x: 100, y: 100, vx: 900, vy: 0 }
+  let bounces = 0, walls = 0, steps = 0
+  let prevVx = s.vx
+  while (steps++ < 2000) {
+    const n = Model.stepThrow(s, bounds, 0.016)
+    if (n.bounced) bounces++
+    if ((n.x === 0 || n.x === 720) && Math.sign(n.vx) !== Math.sign(prevVx) && n.vx !== 0) walls++
+    prevVx = n.vx || prevVx
+    s = n
+    if (n.landed) break
+  }
+  assert.ok(s.landed, "a throw always lands")
+  assert.equal(s.y, 500)
+  assert.ok(bounces >= 1, "a hard throw bounces at least once")
   assert.equal(Model.movePace("sneak").step, 4)
   assert.equal(Model.movePace("run").step, 14)
   assert.equal(Model.isMoveMode("crawl"), false)

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "higgsfield.signals",
   "name": "Higgsfield Omagotchi",
-  "version": "0.65.2",
+  "version": "0.66.0",
   "author": "Higgsfield",
   "license": "MIT",
   "description": "Desktop avatar for Omarchy. Ships with a default; the Higgsfield chip redraws it as 8-bit sprites from one photo.",
