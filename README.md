@@ -59,6 +59,10 @@ qmllint -I "$OMARCHY_PATH/shell" Service.qml Overlay.qml BarWidget.qml Panel.qml
 node --test test/model.test.js
 ```
 
+To rehearse the first-run experience on a machine that already has the
+Higgsfield CLI, `touch ~/.local/share/higgsfield.signals/ignore-system-cli` —
+the plugin then ignores system-wide CLIs and installs its own bundled copy.
+
 Recipe: `skill/sprite-sheet-8bit/SKILL.md`. Runtime: `scripts/runtime.py` (CLI + deps) → `scripts/generate-sprite.py` → `skill/sprite-sheet-8bit/scripts/postprocess.py`.
 
 ## Iterate from a Mac
