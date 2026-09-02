@@ -31,12 +31,17 @@ def read_json(path: Path):
 
 def make_thumb(sheet: Path, dest: Path) -> None:
     """Crop the first idle frame (row 1) — transparent, tile-friendly."""
-    proc = subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-i", str(sheet),
-         "-vf", "crop=80:80:0:80", str(dest)],
-        capture_output=True, text=True, timeout=60,
-    )
-    if proc.returncode != 0 or not dest.is_file():
+    try:
+        proc = subprocess.run(
+            ["ffmpeg", "-y", "-v", "error", "-i", str(sheet),
+             "-vf", "crop=80:80:0:80", str(dest)],
+            capture_output=True, text=True, timeout=60,
+        )
+        ok = proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        # No ffmpeg on this system: the full sheet is an acceptable thumb.
+        ok = False
+    if not ok or not dest.is_file():
         shutil.copy2(sheet, dest)
 
 
