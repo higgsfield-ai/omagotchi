@@ -407,6 +407,9 @@ def find_hf(out_dir: Path | None = None) -> str:
         bundled = Path(out_dir) / "bin" / "higgsfield"
         if bundled.is_file() and os.access(bundled, os.X_OK):
             return str(bundled)
+        # Testing hook, mirrored from runtime.py: hide system-wide CLIs.
+        if (Path(out_dir) / "ignore-system-cli").exists():
+            return ""
     for name in ("higgsfield", "hf"):
         found = shutil.which(name)
         if found:
