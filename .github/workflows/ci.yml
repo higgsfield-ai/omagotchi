@@ -28,7 +28,7 @@ jobs:
           pip install --quiet pillow numpy
           python3 test/test_scripts.py
       - name: Shell syntax
-        run: for f in scripts/*.sh dev/*.sh; do sh -n "$f"; done
+        run: for f in scripts/*.sh dev/*.sh; do bash -n "$f"; done
       - name: Manifest is valid JSON with required fields
         run: |
           python3 - <<'EOF'
