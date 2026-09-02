@@ -91,7 +91,7 @@ Panel {
   property string capState: "idle"
   property string capPhoto: ""
   property string capNote: ""
-  readonly property string stagePane: (root.generating || root.loggingIn)
+  readonly property string stagePane: root.generating
     ? "work" : (root.creatorOpen ? "creator" : "view")
 
   readonly property int avatarIndex: {
@@ -739,6 +739,18 @@ Panel {
                       }
                     }
 
+                    Item { width: 1; height: root.loggingIn ? 8 : 0 }
+
+                    Text {
+                      width: parent.width
+                      visible: root.loggingIn
+                      horizontalAlignment: Text.AlignHCenter
+                      text: root.statusText !== "" ? root.statusText : "Waiting for browser login…"
+                      color: root.cMuted
+                      font.family: root.fontFamily
+                      font.pixelSize: 11
+                    }
+
                     Connections {
                       target: cameraLoader.item
                       function onCaptured(path) {
@@ -766,9 +778,7 @@ Panel {
                       Text {
                         id: workHeadLabel
                         anchors.left: parent.left
-                        text: root.loggingIn
-                          ? (root.statusText !== "" ? root.statusText : "Waiting for browser login…")
-                          : "Generating avatar"
+                        text: "Generating avatar"
                         color: root.cMuted
                         font.family: root.fontFamily
                         font.pixelSize: 11
@@ -800,7 +810,7 @@ Panel {
                         anchors.centerIn: parent
                         width: 104
                         height: 104
-                        visible: Model.isImagePath(root.photoPath)
+                        visible: Model.isImagePath(root.photoPath) && root.generating
                         source: Model.isImagePath(root.photoPath)
                           ? ("file://" + root.photoPath + "?r=" + root.photoRev) : ""
                         fillMode: Image.PreserveAspectCrop
