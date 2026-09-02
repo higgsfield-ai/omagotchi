@@ -6,7 +6,10 @@ import argparse
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
+
+os.umask(0o077)
 
 
 def fail(msg: str, code: int = 1) -> None:

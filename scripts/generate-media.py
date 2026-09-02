@@ -13,7 +13,10 @@ import json
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
+
+os.umask(0o077)
 
 
 def load_sibling(filename: str):
@@ -120,14 +123,15 @@ def main() -> None:
         fail(str(exc))
         return
 
+    # The result URL is signed and short-lived: the file on disk is the
+    # deliverable, so the URL is persisted nowhere.
     (media_dir / "last.json").write_text(json.dumps({
         "path": str(dest),
         "thumb": str(thumb),
         "kind": args.kind,
-        "url": str(job.get("url") or ""),
     }, indent=2) + "\n")
     print(json.dumps({"ok": True, "path": str(dest), "thumb": str(thumb),
-                      "kind": args.kind, "url": str(job.get("url") or "")}), flush=True)
+                      "kind": args.kind}), flush=True)
 
 
 if __name__ == "__main__":

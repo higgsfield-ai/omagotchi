@@ -15,7 +15,10 @@ import shutil
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
+
+os.umask(0o077)
 
 
 def out(obj) -> None:

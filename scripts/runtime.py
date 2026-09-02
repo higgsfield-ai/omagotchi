@@ -17,6 +17,42 @@ from pathlib import Path
 REPO = "higgsfield-ai/cli"
 UA = "higgsfield-omagotchi-omarchy/0.15"
 
+# Exact CLI release this plugin installs, with digests embedded HERE — in the
+# reviewed tree — so verification does not trust the same channel the archive
+# comes from. Bump tag + digests together (dev/relock-deps.py prints them).
+CLI_TAG = "v1.1.24"
+CLI_SHA256 = {
+    "linux_amd64": "626ce7fbfec2df737ec1e5a8643431479fa0d2d2376d6a52b7d7467051754862",
+    "linux_arm64": "7f54234362688b460122a6ae7d42152b16d62781f8366bf8f8d078ab566a5604",
+    "darwin_arm64": "cf23707ea8f437c93102d891125c10318c5812233f60b4c3bfda2d1d5334fe4b",
+}
+DOWNLOAD_HOSTS = {"github.com", "api.github.com", "objects.githubusercontent.com",
+                  "release-assets.githubusercontent.com", "codeload.github.com"}
+MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
+
+# Everything this plugin writes is owner-only: photos, generated likenesses,
+# CLI auth state and logs all live under the data dir.
+os.umask(0o077)
+
+
+def check_download_url(url: str) -> None:
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise RuntimeError(f"refusing non-https download: {url}")
+    host = (parsed.hostname or "").lower()
+    if host not in DOWNLOAD_HOSTS:
+        raise RuntimeError(f"refusing download from unexpected host: {host}")
+
+
+def secure_dir(path: Path) -> Path:
+    """Create the data dir owner-only and refuse to operate through links."""
+    if path.is_symlink():
+        raise RuntimeError(f"data dir is a symlink, refusing: {path}")
+    path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
+    return path
+
 
 def out(obj) -> None:
     print(json.dumps(obj), flush=True)
@@ -39,65 +75,52 @@ def find_ffmpeg() -> str:
 
 
 def find_hf(out_dir: Path) -> str:
+    """Only the binary this plugin installed and digest-verified. A
+    higgsfield/hf found on PATH is somebody else's executable — never run it."""
     bundled = out_dir / "bin" / "higgsfield"
-    if bundled.is_file() and os.access(bundled, os.X_OK):
+    if bundled.is_file() and not bundled.is_symlink() and os.access(bundled, os.X_OK):
         return str(bundled)
-    # Testing hook: `touch <data>/ignore-system-cli` simulates a machine
-    # with no Higgsfield CLI even when a system-wide one is installed.
-    if (out_dir / "ignore-system-cli").exists():
-        return ""
-    for name in ("higgsfield", "hf"):
-        found = shutil.which(name)
-        if found:
-            return found
-    home = Path.home()
-    for path in (
-        home / ".local/bin/higgsfield",
-        Path("/usr/local/bin/higgsfield"),
-        Path("/opt/homebrew/bin/higgsfield"),
-    ):
-        if path.is_file() and os.access(path, os.X_OK):
-            return str(path)
     return ""
 
 
-def http_json(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
 
 def http_download(url: str, dest: Path) -> None:
+    """https-only, allowlisted hosts (including after redirects), byte-capped,
+    written to a private temp file and published atomically."""
+    check_download_url(url)
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=180) as resp, open(dest, "wb") as fh:
-        while True:
-            chunk = resp.read(1024 * 256)
-            if not chunk:
-                break
-            fh.write(chunk)
+    tmp = dest.parent / (dest.name + ".part")
+    total = 0
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as fh:
+            check_download_url(resp.geturl())
+            while True:
+                chunk = resp.read(1024 * 256)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_DOWNLOAD_BYTES:
+                    raise RuntimeError("download exceeds the size cap")
+                fh.write(chunk)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
-def verify_checksum(tag: str, tarball: str, archive: Path) -> None:
-    """Refuse a CLI tarball whose sha256 does not match the release's
-    checksums.txt. A tampered or truncated download must never become the
-    binary this plugin trusts with the user's account."""
-    checks = Path(archive).parent / "checksums.txt"
-    http_download(f"https://github.com/{REPO}/releases/download/{tag}/checksums.txt", checks)
-    expected = ""
-    for line in checks.read_text(encoding="utf-8", errors="replace").splitlines():
-        parts = line.split()
-        if len(parts) >= 2 and parts[-1].strip("*") == tarball:
-            expected = parts[0].lower()
-            break
+def verify_pinned_digest(platform_key: str, archive: Path) -> None:
+    """The expected sha256 ships in this reviewed file, not in the release
+    channel the archive comes from — replacing the release cannot also
+    replace the digest it must match."""
+    expected = CLI_SHA256.get(platform_key, "")
     if not expected:
-        raise RuntimeError(f"no checksum published for {tarball}")
+        raise RuntimeError(f"no pinned digest for {platform_key}")
     digest = hashlib.sha256()
     with open(archive, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             digest.update(chunk)
     if digest.hexdigest().lower() != expected:
-        raise RuntimeError(f"checksum mismatch for {tarball} — download discarded")
+        raise RuntimeError("CLI digest does not match the pinned release — download discarded")
 
 
 def install_cli(out_dir: Path) -> str:
@@ -119,24 +142,25 @@ def install_cli(out_dir: Path) -> str:
     else:
         raise RuntimeError(f"unsupported arch: {arch}")
 
-    rel = http_json(f"https://api.github.com/repos/{REPO}/releases/latest")
-    tag = rel.get("tag_name") or ""
-    if not tag:
-        raise RuntimeError("could not resolve Higgsfield CLI release")
+    tag = CLI_TAG
     ver = tag[1:] if tag.startswith("v") else tag
-    tarball = f"hf_{ver}_{os_key}_{arch}.tar.gz"
+    platform_key = f"{os_key}_{arch}"
+    tarball = f"hf_{ver}_{platform_key}.tar.gz"
     url = f"https://github.com/{REPO}/releases/download/{tag}/{tarball}"
     bin_dir = out_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / tarball
         http_download(url, archive)
-        verify_checksum(tag, tarball, archive)
+        verify_pinned_digest(platform_key, archive)
         with tarfile.open(archive) as tar:
+            # The 'data' filter rejects absolute paths, traversal, links and
+            # device nodes. A Python too old to have it does not get a
+            # fallback to unfiltered extraction.
             try:
                 tar.extractall(tmp, filter="data")
-            except TypeError:
-                tar.extractall(tmp)
+            except TypeError as exc:
+                raise RuntimeError("Python 3.12+ required for safe extraction") from exc
         src = Path(tmp) / "hf"
         if not src.is_file():
             matches = list(Path(tmp).rglob("hf"))
@@ -164,8 +188,10 @@ def install_venv(out_dir: Path) -> str:
     if not py.is_file():
         subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
     if not venv_has_deps(py):
+        lock = Path(__file__).resolve().parent / "requirements.lock"
         subprocess.run(
-            [str(py), "-m", "pip", "install", "--quiet", "pillow", "numpy"],
+            [str(py), "-m", "pip", "install", "--quiet", "--require-hashes",
+             "--only-binary", ":all:", "-r", str(lock)],
             check=True,
         )
     return str(py)
@@ -262,31 +288,6 @@ def selected_workspace(data) -> dict | None:
     return None
 
 
-def pick_workspace(items: list) -> dict | None:
-    selected = selected_workspace(items)
-    if selected:
-        return selected
-    ranked = []
-    for item in items:
-        if isinstance(item, str) and item.strip():
-            ranked.append((0, {"id": item.strip()}))
-            continue
-        if not isinstance(item, dict):
-            continue
-        blob = json.dumps(item).lower()
-        score = 0
-        if item.get("default") or item.get("is_default"):
-            score += 3
-        if "personal" in blob:
-            score += 2
-        if "owner" in blob:
-            score += 1
-        ranked.append((score, item))
-    if not ranked:
-        return None
-    ranked.sort(key=lambda row: row[0], reverse=True)
-    return ranked[0][1]
-
 
 def set_workspace(hf: str, workspace_id: str) -> bool:
     if not workspace_id:
@@ -328,56 +329,48 @@ def ensure_workspace(hf: str) -> dict:
             "workspace_name": workspace_name_of(current),
         }
 
-    chosen = pick_workspace(listed)
-    candidates = [chosen] + [item for item in listed if item is not chosen]
-    tried = []
-    for cand in candidates:
-        workspace_id = workspace_id_of(cand)
-        if not workspace_id or workspace_id in tried:
-            continue
-        tried.append(workspace_id)
-        if set_workspace(hf, workspace_id):
+    # Selecting a workspace changes account state, so it is never guessed:
+    # with exactly one workspace there is nothing to choose and it is set;
+    # with several, the user picks once via `higgsfield workspace select`.
+    if len(listed) == 1:
+        workspace_id = workspace_id_of(listed[0])
+        if workspace_id and set_workspace(hf, workspace_id):
             return {
                 "ok": True,
                 "workspace_id": workspace_id,
-                "workspace_name": workspace_name_of(cand),
+                "workspace_name": workspace_name_of(listed[0]),
             }
-        name = workspace_name_of(cand)
-        if name and name != workspace_id and name not in tried:
-            tried.append(name)
-            if set_workspace(hf, name):
-                return {
-                    "ok": True,
-                    "workspace_id": name,
-                    "workspace_name": name,
-                }
-
-    if not tried:
-        err = last_blob[-400:] if last_blob else "no workspace selected"
-        if "not authenticated" in err.lower() or "please login" in err.lower():
-            return {"ok": False, "error": "Log in to Higgsfield first"}
-        return {"ok": False, "error": "No Higgsfield workspace on this account"}
-    return {"ok": False, "error": f"Could not select workspace {tried[0]}"}
+    if listed:
+        return {"ok": False, "error":
+                "Several Higgsfield workspaces on this account — run "
+                "`higgsfield workspace select <name>` once, then retry"}
+    err = last_blob[-400:] if last_blob else "no workspace selected"
+    if "not authenticated" in err.lower() or "please login" in err.lower():
+        return {"ok": False, "error": "Log in to Higgsfield first"}
+    return {"ok": False, "error": "No Higgsfield workspace on this account"}
 
 
 def logged_in(hf: str) -> bool:
-    """`auth token` is the only probe that answers the question directly: it
-    prints the stored token, or says there is none. The bare parent commands
-    print their help text and exit 0 when handed no subcommand, and reading
-    that as success reported a logged-out machine as signed in — so the panel
-    offered to generate instead of offering to log in."""
+    """A non-secret status probe: the token itself must never enter this
+    process. Help text exits 0 too, so success requires actual account JSON —
+    parseable and carrying an account-shaped field — not just a zero exit."""
     if not hf:
         return False
-    proc = subprocess.run([hf, "auth", "token"], capture_output=True, text=True)
+    proc = subprocess.run([hf, "account", "status", "--json"],
+                          capture_output=True, text=True)
     text = ((proc.stdout or "") + "\n" + (proc.stderr or "")).lower()
     if "not authenticated" in text or "session expired" in text or "please login" in text:
         return False
-    # The token itself is the success signal, and it never leaves this function.
-    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+    if proc.returncode != 0:
+        return False
+    data = last_json(proc.stdout or "")
+    if not isinstance(data, dict):
+        return False
+    return any(k in data for k in ("user", "email", "credits", "account", "plan", "workspace"))
 
 
 def cmd_ensure(out_dir: Path) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    secure_dir(out_dir)
     hf = install_cli(out_dir)
     py = install_venv(out_dir)
     ff = find_ffmpeg()

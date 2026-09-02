@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 LOG_LOCK = threading.Lock()
+os.umask(0o077)
 PROGRESS_LOCK = threading.Lock()
 
 # The concrete density anchor ("~64 pixels head to feet") is what separates
@@ -403,13 +404,13 @@ def bootstrap(plugin_root: Path, out_dir: Path) -> dict:
 
 
 def find_hf(out_dir: Path | None = None) -> str:
+    """Only the digest-verified binary this plugin installed (see runtime.py);
+    a higgsfield/hf on PATH is somebody else's executable."""
     if out_dir:
         bundled = Path(out_dir) / "bin" / "higgsfield"
-        if bundled.is_file() and os.access(bundled, os.X_OK):
+        if bundled.is_file() and not bundled.is_symlink() and os.access(bundled, os.X_OK):
             return str(bundled)
-        # Testing hook, mirrored from runtime.py: hide system-wide CLIs.
-        if (Path(out_dir) / "ignore-system-cli").exists():
-            return ""
+    return ""
     for name in ("higgsfield", "hf"):
         found = shutil.which(name)
         if found:
@@ -542,22 +543,59 @@ def parse_job(raw: str):
     return None
 
 
+MAX_MEDIA_BYTES = 300 * 1024 * 1024
+MEDIA_MAGIC = (b"\x89PNG", b"\xff\xd8\xff", b"RIFF", b"GIF8")  # png/jpeg/webp/gif
+MP4_BRANDS = (b"ftyp",)  # at offset 4
+
+
+def looks_like_media(head: bytes) -> bool:
+    if any(head.startswith(m) for m in MEDIA_MAGIC):
+        return True
+    return len(head) >= 8 and head[4:8] in MP4_BRANDS
+
+
 def download(url: str, dest: Path) -> None:
+    """Result downloads: https only, byte-capped, content sniffed against the
+    media types this pipeline produces, staged privately, published atomically."""
+    if not str(url).lower().startswith("https://"):
+        raise RuntimeError("refusing non-https result URL")
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "higgsfield-omagotchi-omarchy/0.13"})
-    with urllib.request.urlopen(req, timeout=180) as resp, open(dest, "wb") as fh:
-        while True:
-            chunk = resp.read(1024 * 256)
-            if not chunk:
-                break
-            fh.write(chunk)
+    tmp = dest.parent / (dest.name + ".part")
+    total = 0
+    head = b""
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as fh:
+            if not str(resp.geturl()).lower().startswith("https://"):
+                raise RuntimeError("refusing non-https redirect")
+            while True:
+                chunk = resp.read(1024 * 256)
+                if not chunk:
+                    break
+                if len(head) < 16:
+                    head += chunk[: 16 - len(head)]
+                total += len(chunk)
+                if total > MAX_MEDIA_BYTES:
+                    raise RuntimeError("result download exceeds the size cap")
+                fh.write(chunk)
+        if not looks_like_media(head):
+            raise RuntimeError("result is not an image or video — discarded")
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+SIGNED_QUERY = re.compile(r"(https?://[^\s\"']+?)\?[^\s\"']*")
 
 
 def append_log(log: Path, text: str) -> None:
+    # Result URLs carry short-lived signatures in their query strings; the
+    # log keeps the location, never the credential.
+    clean = SIGNED_QUERY.sub(r"\1?…", text or "")
     with LOG_LOCK:
         with log.open("a") as fh:
-            fh.write(text or "")
-            if text and not text.endswith("\n"):
+            fh.write(clean)
+            if clean and not clean.endswith("\n"):
                 fh.write("\n")
 
 

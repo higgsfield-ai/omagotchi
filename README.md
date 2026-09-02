@@ -3,7 +3,8 @@
 A tiny 8-bit you, living on your desktop.
 
 He walks along the bottom of whatever window you're working in, perks up
-when you type, naps when you don't, and dances when your music plays. Feed
+while you work, naps when the desktop goes quiet, and dances when your
+music plays. Feed
 him, wash him, drag him around — drop him from too high and he takes a
 tumble, dusts himself off, and sulks until you clean him up. Click to pet,
 double-click to flop.
@@ -27,10 +28,15 @@ Update later with:
 omarchy plugin update higgsfield-omagotchi --yes
 ```
 
-The Higgsfield logo appears as a chip on the right of the bar. No extra packages: on first
-use the plugin fetches the Higgsfield CLI (sha256-verified) and its Python
-image libraries into `~/.local/share/higgsfield-omagotchi`. Omarchy already
-has `ffmpeg`.
+The Higgsfield logo appears as a chip on the right of the bar; if it does
+not, add **Higgsfield Omagotchi** from Omarchy's bar settings — the plugin
+never edits the shell configuration itself.
+
+Nothing is downloaded at install or load time. The first time you press
+**Use photo** or **Generate**, the plugin fetches one pinned Higgsfield CLI
+release (its sha256 ships in this repository) and hash-locked Python image
+libraries into `~/.local/share/higgsfield-omagotchi`. Omarchy already has
+`ffmpeg`.
 
 ## Living with him
 
@@ -41,9 +47,9 @@ and **Release / Hide** to let him roam the desktop or tuck him away in the
 panel. Neglect shows: stats drift down over time, and a scruffy, hungry avatar
 acts like one.
 
-He also has a life of his own. He walks when you type, sleeps when the
-machine goes quiet, dances when media plays, watches a tiny laptop while
-your generations run, and announces the results in a speech bubble.
+He also has a life of his own. He walks as windows come and go, sleeps
+when the desktop goes quiet, dances when media plays, watches a tiny laptop
+while your generations run, and announces the results in a speech bubble.
 
 ## Making him you
 
@@ -70,34 +76,31 @@ generate. The price in credits sits right on the button. The result lands in
 `~/.local/share/higgsfield-omagotchi/media`, and clicking the preview opens
 that folder. Your avatar works the laptop while the job runs.
 
-## If walking ignores your typing
-
-The key-watcher needs read access to input devices:
-
-```sh
-sudo usermod -aG input "$USER"
-```
-
-then log out and back in. (It only ever learns *that* a key was pressed —
-see below.)
-
 ## Privacy & security
 
 Omarchy plugins run unsandboxed, so here is exactly what this one touches:
 
-- **Network** — GitHub releases (the CLI download, sha256-verified against
-  the release's `checksums.txt`) and the Higgsfield API through that CLI.
-  Nothing else.
+- **Nothing runs or installs on load** — the CLI and Python libraries are
+  fetched only after you explicitly start a generation.
+- **Network** — GitHub releases (one pinned CLI version, verified against a
+  sha256 that ships in this repository, https-only with capped, atomically
+  published downloads) and the Higgsfield API through that CLI. Python
+  packages install with `--require-hashes`. Nothing else.
 - **Webcam** — only while the panel's camera view is open; the viewfinder
   unloads the moment the panel closes.
-- **Keyboard** — `scripts/watch-keys.py` emits a single contentless `k` per
-  keypress so your avatar knows you're around. Which key is never read, stored,
-  or transmitted.
-- **Storage** — everything lives in `~/.local/share/higgsfield-omagotchi/`
-  (CLI, venv, care state, photos, sheets, media). Delete it and the plugin
-  leaves no trace.
+- **Input devices** — never touched. Desktop activity is inferred from
+  focused-window changes the shell already reports; no group membership, no
+  raw input access, no keys read.
+- **Storage** — everything lives in `~/.local/share/higgsfield-omagotchi/`,
+  created owner-only (0700), files 0600. Signed result URLs are never
+  persisted; log lines have URL query strings stripped. Delete the directory
+  and the plugin leaves no trace.
 - **Auth** — login happens in your browser via the official CLI; the plugin
-  never sees or stores credentials.
+  never reads, stores, or asks for the token (the login probe accepts only
+  non-secret account-status JSON).
+- **IPC** — the shell-visible surface is care actions and toggles only;
+  camera, file paths, login, and paid generation are reachable exclusively
+  from the panel UI.
 
 ## Develop
 
@@ -108,9 +111,9 @@ node --test test/model.test.js
 python3 test/test_scripts.py
 ```
 
-To rehearse the first-run experience on a machine that already has the
-Higgsfield CLI: `touch ~/.local/share/higgsfield-omagotchi/ignore-system-cli`
-and the plugin ignores system-wide CLIs, installing its own bundled copy.
+To rehearse the first-run experience, move `~/.local/share/higgsfield-omagotchi`
+aside and restart the shell — the plugin only ever runs its own bundled,
+digest-verified CLI, never one found on `PATH`.
 
 The pipeline: `scripts/runtime.py` (CLI + deps) → `scripts/generate-sprite.py`
 (base sprite → 16 poses → 16 clips) → `skill/sprite-sheet-8bit/scripts/postprocess.py`

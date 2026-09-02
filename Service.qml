@@ -917,6 +917,9 @@ Item {
 
   function applyFocus(monitorsRaw, windowRaw) {
     var focus = Model.focusWindow(monitorsRaw, windowRaw)
+    var focusKey = focus.monitor + "|" + focus.x + "|" + focus.y + "|" + focus.w + "|" + focus.h
+    if (root.lastFocusKey !== "" && focusKey !== root.lastFocusKey) root.onDesktopActivity()
+    root.lastFocusKey = focusKey
     root.focusedMonitor = focus.monitor
     root.winX = focus.x
     root.winY = focus.y
@@ -1141,21 +1144,6 @@ Item {
     }
   }
 
-  function ensureBarChip() {
-    if (root.pluginRegistry && typeof root.pluginRegistry.inBar === "function") {
-      try {
-        if (root.pluginRegistry.inBar("higgsfield-omagotchi")) return
-      } catch (e) {}
-    }
-    barChipProc.command = ["python3", "-u", root.filePath("scripts/ensure-bar-chip.py")]
-    barChipProc.running = false
-    barChipProc.running = true
-  }
-
-  Process {
-    id: barChipProc
-  }
-
   Process {
     id: avatarsListProc
     stdout: StdioCollector {
@@ -1252,39 +1240,15 @@ Item {
     }
   }
 
-  Timer {
-    interval: 400
-    running: true
-    repeat: false
-    onTriggered: root.ensureBarChip()
-  }
-
-  // Keyboard presses are the pet's pulse: they hold off sleep, mark the
-  // desktop as active for care decay, and send him walking while you type.
-  // watch-keys.py needs the user in the `input` group; without it the
-  // script just idles and the pet lives by media and panel clicks alone.
-  function onKeyActivity() {
+  // The desktop's pulse without touching input devices: the focused window
+  // changing (app switches, new windows, moves) marks the desktop active and
+  // sends him walking. Coarser than keystrokes, but it grants nothing.
+  property string lastFocusKey: ""
+  function onDesktopActivity() {
     var now = Date.now()
     if (now - root.lastActiveMs < 400) return
     root.lastActiveMs = now
     if (!Model.isMoveMode(root.wander)) root.wander = "walk"
-  }
-
-  Process {
-    id: keysProc
-    command: ["python3", "-u", root.filePath("scripts/watch-keys.py")]
-    stdout: SplitParser {
-      onRead: function() { root.onKeyActivity() }
-    }
-  }
-
-  // The watcher never exits on its own, so an exit means it died (missing
-  // python3, revoked device access). Nudge it back up, gently.
-  Timer {
-    interval: 15000
-    running: !keysProc.running
-    repeat: true
-    onTriggered: keysProc.running = true
   }
 
   // Before the omagotchi rename the plugin id was higgsfield.signals, and the
@@ -1323,23 +1287,17 @@ Item {
     root.loadCare()
     root.loadLastMedia()
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
-    root.ensureRuntime()
     root.refreshAvatars()
-    keysProc.running = true
   }
 
   IpcHandler {
     target: "higgsfield-omagotchi"
 
+    // Deliberately small surface: any local process can call IPC, so
+    // everything that touches the camera, reads a caller-chosen path, spends
+    // credits, or changes account state is panel-only (foreground UI).
     function ping(): string { return "ok" }
     function collapse(): string { return root.toggleCollapsed() }
-    function generateSprite(imagePath: string): string { return root.generateSprite(imagePath, "", false) }
-    function generateSpriteSmoke(imagePath: string): string { return root.generateSprite(imagePath, "", true) }
-    function pickPhoto(): string { return root.pickPhoto() }
-    function captureWebcam(): string { return root.captureWebcam() }
-    function setPhoto(path: string): string { return root.setPhoto(path) }
-    function login(): string { return root.login() }
-    function retry(): string { return root.retryGenerate() }
     function feed(): string { return root.feedPet() }
     function wash(): string { return root.washPet() }
     function play(): string { return root.playPet() }
@@ -1348,10 +1306,6 @@ Item {
     function toggleDock(): string { return root.toggleDock() }
     function setActivity(mode: string): string { return root.setActivity(mode) }
     function cancel(): string { return root.cancelGenerate() }
-    function generateMedia(prompt: string): string { return root.generateMedia(prompt) }
-    function setMediaKind(kind: string): string { return root.setMediaKind(kind) }
-    function openMedia(): string { return root.openMediaFolder() }
-    function setAvatar(dir: string): string { return root.setAvatar(dir) }
     function cancelMedia(): string { return root.cancelMedia() }
   }
 }

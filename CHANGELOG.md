@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.67.0 — security hardening (marketplace review)
+
+- Nothing installs at load time: the pinned CLI release (sha256 embedded in
+  the repo) and hash-locked Python deps download only after an explicit
+  generation action, https-only, size-capped, atomically published, with
+  strict tar filtering and no PATH fallback — only the verified bundled
+  binary ever runs.
+- No input-device access: the evdev key-watcher and its `input`-group
+  requirement are gone; activity comes from focused-window changes.
+- No shell-config edits: the bar-chip self-registration is removed; the
+  widget is added from Omarchy's own bar settings.
+- Login probe reads non-secret account-status JSON; the token never enters
+  the plugin process. Workspace selection is never guessed across multiple
+  workspaces.
+- IPC surface reduced to care actions and toggles; camera, file paths,
+  login, and paid generation are panel-only.
+- Data at rest: 0700 data dir, 0600 files, symlink refusal, no persisted
+  signed URLs, query strings stripped from logs.
+
 ## 0.66.x
 
 - Throw physics: fling the avatar and he flies with your hand's velocity,

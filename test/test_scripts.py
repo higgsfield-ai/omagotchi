@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -175,6 +176,93 @@ class AvatarArchive(unittest.TestCase):
         code, data = self.run_avatars("activate", "--out", str(self.out), "--dir", "/etc")
         self.assertNotEqual(code, 0)
         self.assertFalse(data["ok"])
+
+
+class RuntimeHardening(unittest.TestCase):
+    """runtime.py: pinned digests, constrained downloads, secret-free probe."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.rt = load("runtime")
+        cls.tmp = Path(tempfile.mkdtemp())
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def stub_cli(self, script: str) -> str:
+        path = self.tmp / f"stub_{abs(hash(script))}.sh"
+        path.write_text("#!/bin/sh\n" + script + "\n")
+        path.chmod(0o755)
+        return str(path)
+
+    def test_download_url_guard(self):
+        self.rt.check_download_url("https://github.com/x/y/releases/download/v1/a.tar.gz")
+        with self.assertRaises(RuntimeError):
+            self.rt.check_download_url("http://github.com/x")  # not https
+        with self.assertRaises(RuntimeError):
+            self.rt.check_download_url("https://evil.example.com/a.tar.gz")
+
+    def test_pinned_digest(self):
+        import hashlib
+        blob = self.tmp / "cli.tar.gz"
+        blob.write_bytes(b"pretend tarball")
+        good = hashlib.sha256(b"pretend tarball").hexdigest()
+        self.rt.CLI_SHA256["test_plat"] = good
+        self.rt.verify_pinned_digest("test_plat", blob)  # matches: no raise
+        blob.write_bytes(b"tampered tarball")
+        with self.assertRaises(RuntimeError):
+            self.rt.verify_pinned_digest("test_plat", blob)
+        with self.assertRaises(RuntimeError):
+            self.rt.verify_pinned_digest("unknown_plat", blob)
+
+    def test_logged_in_needs_account_json(self):
+        help_text = self.stub_cli("echo 'Usage: hf account <command>'; exit 0")
+        self.assertFalse(self.rt.logged_in(help_text), "help text is not a session")
+        signed_in = self.stub_cli(
+            "echo '{\"user\":{\"email\":\"t@t\"},\"credits\":5}'; exit 0")
+        self.assertTrue(self.rt.logged_in(signed_in))
+        logged_out = self.stub_cli("echo 'Error: Not authenticated' >&2; exit 1")
+        self.assertFalse(self.rt.logged_in(logged_out))
+        self.assertFalse(self.rt.logged_in(""))
+
+    def test_find_hf_never_uses_path(self):
+        fake = self.tmp / "fake_path" ; fake.mkdir(exist_ok=True)
+        (fake / "hf").write_text("#!/bin/sh\necho hi\n")
+        (fake / "hf").chmod(0o755)
+        env_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{fake}:{env_path}"
+        try:
+            self.assertEqual(self.rt.find_hf(self.tmp / "empty_out"), "")
+        finally:
+            os.environ["PATH"] = env_path
+
+
+class SpriteDownloadGuards(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.gs = load("generate-sprite")
+        cls.tmp = Path(tempfile.mkdtemp())
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_rejects_non_https_result(self):
+        with self.assertRaises(RuntimeError):
+            self.gs.download("http://example.com/a.png", self.tmp / "a.png")
+
+    def test_media_magic(self):
+        self.assertTrue(self.gs.looks_like_media(b"\x89PNG\r\n\x1a\n"))
+        self.assertTrue(self.gs.looks_like_media(b"\x00\x00\x00 ftypisom"))
+        self.assertFalse(self.gs.looks_like_media(b"<!DOCTYPE html>"))
+
+    def test_log_scrubs_signed_urls(self):
+        log = self.tmp / "g.log"
+        self.gs.append_log(log, "got https://cdn.example.com/a.png?X-Amz-Signature=SECRET&x=1 done")
+        text = log.read_text()
+        self.assertNotIn("SECRET", text)
+        self.assertIn("https://cdn.example.com/a.png?…", text)
 
 
 if __name__ == "__main__":
