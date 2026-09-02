@@ -1,6 +1,6 @@
-# Tamagotchi
+# Higgsfield Omagotchi
 
-A desktop Tamagotchi for Omarchy. He stays on the **bottom of the focused window**, walks on keypresses, idles with a short loop, and dances when media is playing.
+A desktop pet for Omarchy. He stays on the **bottom of the focused window**, walks on keypresses, idles with a short loop, and dances when media is playing.
 
 Drag him inside the window — drop him from a height and he takes a tumble, then wants a wash. Click to pet him; double-click to collapse (lie down) or expand. He turns at the window edges and never leaves that window’s bounds.
 

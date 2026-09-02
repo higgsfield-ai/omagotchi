@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "higgsfield.signals",
-  "name": "Tamagotchi",
-  "version": "0.64.0",
+  "name": "Higgsfield Omagotchi",
+  "version": "0.64.1",
   "author": "Higgsfield",
   "license": "MIT",
-  "description": "Desktop Tamagotchi. Ships with a default pet; the bar chip rebuilds him from one photo via Higgsfield CLI.",
+  "description": "Desktop pet for Omarchy. Ships with a default pet; the HF chip rebuilds him as 8-bit sprites from one photo via Higgsfield.",
   "keepLoaded": true,
   "kinds": [
     "overlay",
