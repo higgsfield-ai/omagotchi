@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.66.x
+
+- Throw physics: fling the avatar and he flies with your hand's velocity,
+  bounces off walls and floor, and lands facing his travel.
+- Plugin id renamed to `higgsfield-omagotchi`; the data directory migrates
+  itself on first start and stale stored paths heal on every launch.
+- The avatar archive repoints atlases at the sheet beside them, so moving
+  the data directory can never blank the carousel again.
+
 ## 0.65.0
 
 - Script test suite (`test/test_scripts.py`): background-repair guards and

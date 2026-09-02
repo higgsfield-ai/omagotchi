@@ -1060,7 +1060,6 @@ if (typeof module !== "undefined") {
     clampStat: clampStat,
     defaultCareStats: defaultCareStats,
     normalizeCareStats: normalizeCareStats,
-    careDecayRates: careDecayRates,
     decayCareStats: decayCareStats,
     reviveCareStats: reviveCareStats,
     applyCareAction: applyCareAction,

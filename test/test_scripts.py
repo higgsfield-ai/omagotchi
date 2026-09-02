@@ -152,10 +152,14 @@ class AvatarArchive(unittest.TestCase):
                                       "--dir", str(arch))
         self.assertEqual(code, 0)
         self.assertTrue(data["ok"])
-        sheet = str(arch / "spritesheet_16x12.png")
-        self.assertEqual(data["atlas"]["file"], sheet)
-        self.assertEqual(json.loads((arch / "atlas.json").read_text())["file"], sheet)
-        self.assertEqual(json.loads((self.out / "atlas.json").read_text())["file"], sheet)
+        # macOS tempdirs live behind a /var -> /private/var symlink and the
+        # healer resolves paths, so compare resolved to resolved.
+        sheet = str((arch / "spritesheet_16x12.png").resolve())
+        self.assertEqual(str(Path(data["atlas"]["file"]).resolve()), sheet)
+        self.assertEqual(
+            str(Path(json.loads((arch / "atlas.json").read_text())["file"]).resolve()), sheet)
+        self.assertEqual(
+            str(Path(json.loads((self.out / "atlas.json").read_text())["file"]).resolve()), sheet)
 
     def test_list_repoints_a_moved_active_atlas(self):
         (self.out / "atlas.json").write_text(json.dumps(
@@ -164,8 +168,8 @@ class AvatarArchive(unittest.TestCase):
             "list", "--out", str(self.out), "--plugin-root", str(ROOT))
         self.assertEqual(code, 0)
         self.assertEqual(
-            json.loads((self.out / "atlas.json").read_text())["file"],
-            str(self.out / "avatars" / "20260901_1200" / "spritesheet_16x12.png"))
+            str(Path(json.loads((self.out / "atlas.json").read_text())["file"]).resolve()),
+            str((self.out / "avatars" / "20260901_1200" / "spritesheet_16x12.png").resolve()))
 
     def test_activate_refuses_escape(self):
         code, data = self.run_avatars("activate", "--out", str(self.out), "--dir", "/etc")
