@@ -24,12 +24,12 @@ omarchy-restart-shell
 Update later with:
 
 ```sh
-omarchy plugin update higgsfield.signals --yes
+omarchy plugin update higgsfield-omagotchi --yes
 ```
 
 The Higgsfield logo appears as a chip on the right of the bar. No extra packages: on first
 use the plugin fetches the Higgsfield CLI (sha256-verified) and its Python
-image libraries into `~/.local/share/higgsfield.signals`. Omarchy already
+image libraries into `~/.local/share/higgsfield-omagotchi`. Omarchy already
 has `ffmpeg`.
 
 ## Living with him
@@ -60,14 +60,14 @@ thumbnails and **›**.
 
 If a run fails, the panel says why in plain words (out of credits, plan
 limits, a bad frame streak) and **Retry** restarts the whole flow. Logs live
-at `~/.local/share/higgsfield.signals/generate.log`.
+at `~/.local/share/higgsfield-omagotchi/generate.log`.
 
 ## The Generate tab
 
 A pocket-sized Higgsfield studio: pick **Image** or **Video**, a ratio, a
 duration, type a prompt, optionally pin reference images (up to 50), and
 generate. The price in credits sits right on the button. The result lands in
-`~/.local/share/higgsfield.signals/media`, and clicking the preview opens
+`~/.local/share/higgsfield-omagotchi/media`, and clicking the preview opens
 that folder. Your avatar works the laptop while the job runs.
 
 ## If walking ignores your typing
@@ -93,7 +93,7 @@ Omarchy plugins run unsandboxed, so here is exactly what this one touches:
 - **Keyboard** — `scripts/watch-keys.py` emits a single contentless `k` per
   keypress so your avatar knows you're around. Which key is never read, stored,
   or transmitted.
-- **Storage** — everything lives in `~/.local/share/higgsfield.signals/`
+- **Storage** — everything lives in `~/.local/share/higgsfield-omagotchi/`
   (CLI, venv, care state, photos, sheets, media). Delete it and the plugin
   leaves no trace.
 - **Auth** — login happens in your browser via the official CLI; the plugin
@@ -109,7 +109,7 @@ python3 test/test_scripts.py
 ```
 
 To rehearse the first-run experience on a machine that already has the
-Higgsfield CLI: `touch ~/.local/share/higgsfield.signals/ignore-system-cli`
+Higgsfield CLI: `touch ~/.local/share/higgsfield-omagotchi/ignore-system-cli`
 and the plugin ignores system-wide CLIs, installing its own bundled copy.
 
 The pipeline: `scripts/runtime.py` (CLI + deps) → `scripts/generate-sprite.py`
@@ -129,6 +129,6 @@ cp .env.example .env   # set OMARCHY_HOST
 ## Remove
 
 ```sh
-./scripts/uninstall.sh   # deletes ~/.local/share/higgsfield.signals (asks first)
-omarchy plugin remove higgsfield.signals
+./scripts/uninstall.sh   # deletes ~/.local/share/higgsfield-omagotchi (asks first)
+omarchy plugin remove higgsfield-omagotchi
 ```

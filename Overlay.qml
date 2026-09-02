@@ -14,7 +14,7 @@ Item {
   property var manifest: null
 
   readonly property var svc: root.shell && root.shell.serviceFor
-    ? root.shell.serviceFor("higgsfield.signals")
+    ? root.shell.serviceFor("higgsfield-omagotchi")
     : null
   readonly property var atlas: root.svc && root.svc.atlas
     ? root.svc.atlas
@@ -32,7 +32,7 @@ Item {
     visible: root.svc && root.svc.petOnDesktop && window.stageRect.w > 16 && window.stageRect.h > 16
       && !!root.svc.focusedMonitor && modelData && modelData.name === root.svc.focusedMonitor
     color: "transparent"
-    WlrLayershell.namespace: "higgsfield-signals-pet"
+    WlrLayershell.namespace: "higgsfield-omagotchi-pet"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore

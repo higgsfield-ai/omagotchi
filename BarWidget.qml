@@ -3,13 +3,13 @@ import qs.Commons
 import qs.Ui
 
 // Bar chip that opens the generate panel. IPC stays on Service.qml —
-// a second IpcHandler on higgsfield.signals would go silent.
+// a second IpcHandler on higgsfield-omagotchi would go silent.
 BarWidget {
   id: root
-  moduleName: "higgsfield.signals"
+  moduleName: "higgsfield-omagotchi"
 
   readonly property var svc: root.bar && root.bar.shell && root.bar.shell.serviceFor
-    ? root.bar.shell.serviceFor("higgsfield.signals")
+    ? root.bar.shell.serviceFor("higgsfield-omagotchi")
     : null
 
   readonly property bool opened: panelLoader.item
@@ -55,7 +55,7 @@ BarWidget {
     }
     // A dead chip is the worst failure mode: say why, then try once more so
     // a transient load error does not leave HF mute until a shell restart.
-    console.warn("higgsfield.signals: HF click with no panel; loader status", panelLoader.status)
+    console.warn("higgsfield-omagotchi: HF click with no panel; loader status", panelLoader.status)
     if (panelLoader.status === Loader.Error) {
       panelLoader.active = false
       panelLoader.active = true
@@ -95,7 +95,7 @@ BarWidget {
           detail = String(panelLoader.sourceComponent.errorString())
       } catch (e) {}
       root.panelLoadError = (detail || "unknown error").substring(0, 300)
-      console.warn("higgsfield.signals: Panel.qml failed to load:", detail)
+      console.warn("higgsfield-omagotchi: Panel.qml failed to load:", detail)
     }
   }
 

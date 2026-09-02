@@ -224,7 +224,7 @@ Item {
       home = ""
     }
     if (!home) home = "/tmp"
-    return home + "/.local/share/higgsfield.signals"
+    return home + "/.local/share/higgsfield-omagotchi"
   }
 
   function applyGeneratedSheet(path, spec) {
@@ -1114,7 +1114,7 @@ Item {
   function ensureBarChip() {
     if (root.pluginRegistry && typeof root.pluginRegistry.inBar === "function") {
       try {
-        if (root.pluginRegistry.inBar("higgsfield.signals")) return
+        if (root.pluginRegistry.inBar("higgsfield-omagotchi")) return
       } catch (e) {}
     }
     barChipProc.command = ["python3", "-u", root.filePath("scripts/ensure-bar-chip.py")]
@@ -1257,7 +1257,24 @@ Item {
     onTriggered: keysProc.running = true
   }
 
-  Component.onCompleted: {
+  // Before the omagotchi rename the plugin id was higgsfield.signals, and the
+  // data directory is named after the id: every avatar, clip and care file on
+  // this machine sits under the old name. Move it across once, and hold the
+  // rest of startup until that exits, so loadAtlas() and friends look in the
+  // right place on the very first run after an update.
+  Process {
+    id: migrateProc
+    command: ["sh", "-c",
+      "old=\"$HOME/.local/share/higgsfield.signals\"; "
+      + "new=\"$HOME/.local/share/higgsfield-omagotchi\"; "
+      + "if [ -d \"$old\" ] && [ ! -e \"$new\" ]; then mv \"$old\" \"$new\"; fi; "
+      + "exit 0"]
+    onExited: function() { root.startup() }
+  }
+
+  Component.onCompleted: migrateProc.running = true
+
+  function startup() {
     var now = Date.now()
     root.touchActivity()
     root.lastEatMs = now
@@ -1276,7 +1293,7 @@ Item {
   }
 
   IpcHandler {
-    target: "higgsfield.signals"
+    target: "higgsfield-omagotchi"
 
     function ping(): string { return "ok" }
     function collapse(): string { return root.toggleCollapsed() }

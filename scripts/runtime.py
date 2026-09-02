@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 REPO = "higgsfield-ai/cli"
-UA = "higgsfield.signals-omarchy/0.15"
+UA = "higgsfield-omagotchi-omarchy/0.15"
 
 
 def out(obj) -> None:

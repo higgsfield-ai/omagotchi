@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-PLUGIN_ID = "higgsfield.signals"
+PLUGIN_ID = "higgsfield-omagotchi"
 SECTION = "right"
 
 

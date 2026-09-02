@@ -5,7 +5,7 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "higgsfield.signals"
+  moduleName: "higgsfield-omagotchi"
   manageIpc: false
 
   property var anchorItem: null
@@ -13,7 +13,7 @@ Panel {
 
   readonly property var barIdentity: hostWidget || root
   readonly property var svc: root.bar && root.bar.shell && root.bar.shell.serviceFor
-    ? root.bar.shell.serviceFor("higgsfield.signals")
+    ? root.bar.shell.serviceFor("higgsfield-omagotchi")
     : null
   readonly property bool generating: root.svc ? !!root.svc.generating : false
   readonly property bool picking: root.svc ? !!root.svc.picking : false

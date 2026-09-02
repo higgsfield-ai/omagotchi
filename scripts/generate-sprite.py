@@ -544,7 +544,7 @@ def parse_job(raw: str):
 
 def download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": "higgsfield.signals-omarchy/0.13"})
+    req = urllib.request.Request(url, headers={"User-Agent": "higgsfield-omagotchi-omarchy/0.13"})
     with urllib.request.urlopen(req, timeout=180) as resp, open(dest, "wb") as fh:
         while True:
             chunk = resp.read(1024 * 256)

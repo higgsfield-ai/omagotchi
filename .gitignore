@@ -6,3 +6,5 @@
 !.env.example
 *.key
 *.secret
+__pycache__/
+*.pyc
