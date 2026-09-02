@@ -72,7 +72,27 @@ def import_current(out_dir: Path, av_dir: Path):
     make_thumb(dest / "spritesheet_16x12.png", dest / "thumb.png")
 
 
-def cmd_list(out_dir: Path) -> None:
+def default_entry(out_dir: Path, plugin_root: str):
+    """The bundled pet is a permanent carousel entry, never archived: its
+    sheet lives in the plugin dir (which moves on updates), so the atlas
+    references it by the relative name the shell resolves at load time."""
+    if not plugin_root:
+        return None
+    sheet = Path(plugin_root) / "default-sheet.png"
+    if not sheet.is_file():
+        return None
+    thumb = out_dir / "default-thumb.png"
+    if not thumb.is_file():
+        make_thumb(sheet, thumb)
+    return {
+        "dir": "default",
+        "name": "default",
+        "sheet": "default-sheet.png",
+        "thumb": str(thumb) if thumb.is_file() else str(sheet),
+    }
+
+
+def cmd_list(out_dir: Path, plugin_root: str) -> None:
     av_dir = out_dir / "avatars"
     av_dir.mkdir(parents=True, exist_ok=True)
     dirs = sorted([d for d in av_dir.iterdir() if d.is_dir()], reverse=True)
@@ -80,10 +100,19 @@ def cmd_list(out_dir: Path) -> None:
         import_current(out_dir, av_dir)
         dirs = sorted([d for d in av_dir.iterdir() if d.is_dir()], reverse=True)
     rows = [e for e in (archive_entry(d) for d in dirs) if e]
+    default = default_entry(out_dir, plugin_root)
+    if default:
+        rows.append(default)
     out({"ok": True, "avatars": rows})
 
 
 def cmd_activate(out_dir: Path, target: str) -> None:
+    if target == "default":
+        # Reverting to the bundled pet = removing the generated-atlas
+        # override; the shell falls back to the built-in spec.
+        (out_dir / "atlas.json").unlink(missing_ok=True)
+        out({"ok": True, "default": True, "atlas": None})
+        return
     d = Path(target).expanduser().resolve()
     av_root = (out_dir / "avatars").resolve()
     if av_root not in d.parents:
@@ -102,10 +131,11 @@ def main() -> None:
     parser.add_argument("command", choices=["list", "activate"])
     parser.add_argument("--out", required=True)
     parser.add_argument("--dir", default="")
+    parser.add_argument("--plugin-root", default="")
     args = parser.parse_args()
     out_dir = Path(args.out).expanduser()
     if args.command == "list":
-        cmd_list(out_dir)
+        cmd_list(out_dir, args.plugin_root)
     else:
         if not args.dir:
             out({"ok": False, "error": "activate needs --dir"})

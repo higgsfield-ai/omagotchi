@@ -831,7 +831,8 @@ Item {
 
   function refreshAvatars() {
     avatarsListProc.command = ["python3", "-u", root.filePath("scripts/avatars.py"),
-                               "list", "--out", root.dataDir()]
+                               "list", "--out", root.dataDir(),
+                               "--plugin-root", root.pluginRoot()]
     avatarsListProc.running = false
     avatarsListProc.running = true
   }
@@ -1149,7 +1150,15 @@ Item {
       root.avatarSwitching = false
       var parsed = null
       try { parsed = JSON.parse(String(avatarActivateOut.text || "").trim()) } catch (e) { return }
-      if (parsed && parsed.ok && parsed.atlas && parsed.atlas.file) {
+      if (!parsed || !parsed.ok) return
+      if (parsed.default) {
+        root.atlasSpec = null
+        root.lastResultPath = ""
+        root.hasCustomAvatar = false
+        root.atlasRev += 1
+        return
+      }
+      if (parsed.atlas && parsed.atlas.file) {
         root.atlasSpec = parsed.atlas
         root.lastResultPath = String(parsed.atlas.file)
         root.hasCustomAvatar = true

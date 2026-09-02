@@ -320,7 +320,7 @@ Panel {
 
               Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Tamagotchi"
+                text: "Higgsfield Omagotchi"
                 color: root.cText
                 font.family: root.fontFamily
                 font.pixelSize: 15
