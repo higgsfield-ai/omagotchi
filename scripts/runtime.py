@@ -361,20 +361,19 @@ def ensure_workspace(hf: str) -> dict:
 
 
 def logged_in(hf: str) -> bool:
+    """`auth token` is the only probe that answers the question directly: it
+    prints the stored token, or says there is none. The bare parent commands
+    print their help text and exit 0 when handed no subcommand, and reading
+    that as success reported a logged-out machine as signed in — so the panel
+    offered to generate instead of offering to log in."""
     if not hf:
         return False
-    for args in (
-        [hf, "account", "status", "--json"],
-        [hf, "account", "--json"],
-        [hf, "auth", "--json"],
-    ):
-        proc = subprocess.run(args, capture_output=True, text=True)
-        text = ((proc.stdout or "") + "\n" + (proc.stderr or "")).lower()
-        if proc.returncode == 0 and "not authenticated" not in text and "session expired" not in text:
-            return True
-        if "not authenticated" in text or "session expired" in text or "please login" in text:
-            return False
-    return False
+    proc = subprocess.run([hf, "auth", "token"], capture_output=True, text=True)
+    text = ((proc.stdout or "") + "\n" + (proc.stderr or "")).lower()
+    if "not authenticated" in text or "session expired" in text or "please login" in text:
+        return False
+    # The token itself is the success signal, and it never leaves this function.
+    return proc.returncode == 0 and bool((proc.stdout or "").strip())
 
 
 def cmd_ensure(out_dir: Path) -> None:
