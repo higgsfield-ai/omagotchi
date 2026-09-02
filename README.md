@@ -70,8 +70,8 @@ Recipe: `skill/sprite-sheet-8bit/SKILL.md`. Runtime: `scripts/runtime.py` (CLI +
 ```sh
 brew install fswatch
 cp .env.example .env   # set OMARCHY_HOST=omarchy-hp
-./scripts/sync.sh --validate
-./scripts/watch.sh
+./dev/sync.sh --validate
+./dev/watch.sh
 ```
 
 ## Privacy & security

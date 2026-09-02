@@ -17,12 +17,12 @@ if ! command -v fswatch >/dev/null; then
 fi
 
 echo "watching $ROOT → ${OMARCHY_HOST:?Set OMARCHY_HOST}"
-"$ROOT/scripts/sync.sh"
+"$ROOT/dev/sync.sh"
 
 fswatch -o \
   --exclude '/\.git/' \
   --exclude '/\.DS_Store$' \
   --exclude '/\.env$' \
   "$ROOT" | while read -r _; do
-  "$ROOT/scripts/sync.sh"
+  "$ROOT/dev/sync.sh"
 done
