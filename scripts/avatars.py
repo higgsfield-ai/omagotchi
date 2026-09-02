@@ -97,9 +97,26 @@ def default_entry(out_dir: Path, plugin_root: str):
     }
 
 
+def repair_active(out_dir: Path, av_dir: Path) -> None:
+    """Repoint the live atlas at its sheet after the data directory moved."""
+    live = out_dir / "atlas.json"
+    atlas = read_json(live)
+    if not atlas:
+        return
+    stored = Path(str(atlas.get("file") or ""))
+    if not str(stored).startswith("/") or stored.is_file():
+        return
+    moved = av_dir / stored.parent.name / stored.name
+    if not moved.is_file():
+        return
+    atlas["file"] = str(moved)
+    live.write_text(json.dumps(atlas, indent=2) + "\n")
+
+
 def cmd_list(out_dir: Path, plugin_root: str) -> None:
     av_dir = out_dir / "avatars"
     av_dir.mkdir(parents=True, exist_ok=True)
+    repair_active(out_dir, av_dir)
     dirs = sorted([d for d in av_dir.iterdir() if d.is_dir()], reverse=True)
     if not dirs:
         import_current(out_dir, av_dir)
@@ -124,9 +141,16 @@ def cmd_activate(out_dir: Path, target: str) -> None:
         out({"ok": False, "error": "not an archived avatar"})
         sys.exit(1)
     atlas = read_json(d / "atlas.json")
-    if not atlas or not Path(str(atlas.get("file") or "")).is_file():
+    sheet = d / "spritesheet_16x12.png"
+    if not atlas or not sheet.is_file():
         out({"ok": False, "error": "archive is missing its sheet"})
         sys.exit(1)
+    # The directory, not the stored path, says where the sheet is: an atlas
+    # records its sheet absolutely, so renaming or moving the data directory
+    # leaves every archive pointing at a path that no longer exists.
+    if str(atlas.get("file") or "") != str(sheet):
+        atlas["file"] = str(sheet)
+        (d / "atlas.json").write_text(json.dumps(atlas, indent=2) + "\n")
     (out_dir / "atlas.json").write_text(json.dumps(atlas, indent=2) + "\n")
     out({"ok": True, "atlas": atlas})
 

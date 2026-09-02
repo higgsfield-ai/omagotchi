@@ -1262,12 +1262,22 @@ Item {
   // this machine sits under the old name. Move it across once, and hold the
   // rest of startup until that exits, so loadAtlas() and friends look in the
   // right place on the very first run after an update.
+  //
+  // Renaming the directory is only half the job: an atlas records its sheet by
+  // absolute path, so the move leaves atlas.json — the live one and every
+  // archived one — pointing into a directory that no longer exists, which
+  // blanks the avatar and makes switching fail. Rewrite those paths on every
+  // start, since the move may already have happened without them.
   Process {
     id: migrateProc
     command: ["sh", "-c",
       "old=\"$HOME/.local/share/higgsfield.signals\"; "
       + "new=\"$HOME/.local/share/higgsfield-omagotchi\"; "
       + "if [ -d \"$old\" ] && [ ! -e \"$new\" ]; then mv \"$old\" \"$new\"; fi; "
+      + "for f in \"$new\"/atlas.json \"$new\"/avatars/*/atlas.json "
+      + "\"$new\"/media/last.json; do "
+      + "[ -f \"$f\" ] && grep -qF \"$old\" \"$f\" "
+      + "&& sed -i \"s|$old|$new|g\" \"$f\"; done; "
       + "exit 0"]
     onExited: function() { root.startup() }
   }

@@ -142,6 +142,31 @@ class AvatarArchive(unittest.TestCase):
         self.assertTrue(data["ok"] and data["default"])
         self.assertFalse((self.out / "atlas.json").exists())
 
+    def test_activate_repoints_a_moved_archive(self):
+        """The data dir was renamed: stored paths are stale, the dir is not."""
+        arch = self.out / "avatars" / "20260901_1200"
+        (arch / "atlas.json").write_text(json.dumps(
+            {"file": "/gone/avatars/20260901_1200/spritesheet_16x12.png",
+             "frameWidth": 80}))
+        code, data = self.run_avatars("activate", "--out", str(self.out),
+                                      "--dir", str(arch))
+        self.assertEqual(code, 0)
+        self.assertTrue(data["ok"])
+        sheet = str(arch / "spritesheet_16x12.png")
+        self.assertEqual(data["atlas"]["file"], sheet)
+        self.assertEqual(json.loads((arch / "atlas.json").read_text())["file"], sheet)
+        self.assertEqual(json.loads((self.out / "atlas.json").read_text())["file"], sheet)
+
+    def test_list_repoints_a_moved_active_atlas(self):
+        (self.out / "atlas.json").write_text(json.dumps(
+            {"file": "/gone/avatars/20260901_1200/spritesheet_16x12.png"}))
+        code, _ = self.run_avatars(
+            "list", "--out", str(self.out), "--plugin-root", str(ROOT))
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            json.loads((self.out / "atlas.json").read_text())["file"],
+            str(self.out / "avatars" / "20260901_1200" / "spritesheet_16x12.png"))
+
     def test_activate_refuses_escape(self):
         code, data = self.run_avatars("activate", "--out", str(self.out), "--dir", "/etc")
         self.assertNotEqual(code, 0)
