@@ -437,6 +437,27 @@ Item {
     careSaveProc.running = true
   }
 
+  // Same cat-through-a-Process route as the atlas and care state: the shell
+  // runs without QML_XHR_ALLOW_FILE_READ, so nothing here may read a file
+  // synchronously.
+  function loadLastMedia() {
+    lastMediaReadProc.command = ["cat", root.dataDir() + "/media/last.json"]
+    lastMediaReadProc.running = false
+    lastMediaReadProc.running = true
+  }
+
+  function applyLastMediaText(text) {
+    var data = null
+    try {
+      data = JSON.parse(String(text || "").replace(/^\s+|\s+$/g, ""))
+    } catch (e) {
+      return
+    }
+    if (!data || String(data.path || "").charAt(0) !== "/") return
+    root.lastMediaPath = String(data.path)
+    root.lastMediaThumb = String(data.thumb || data.path)
+  }
+
   function loadCare() {
     careReadProc.command = ["cat", root.dataDir() + "/care.json"]
     careReadProc.running = false
@@ -1088,6 +1109,15 @@ Item {
   }
 
   Process {
+    id: lastMediaReadProc
+    stdout: StdioCollector {
+      id: lastMediaReadOut
+      waitForEnd: true
+    }
+    onExited: root.applyLastMediaText(lastMediaReadOut.text)
+  }
+
+  Process {
     id: genProc
     stdout: SplitParser {
       onRead: function(line) {
@@ -1291,11 +1321,7 @@ Item {
     root.lastWashMs = now
     root.loadAtlas()
     root.loadCare()
-    var lastMedia = root.readJsonFile("file://" + root.dataDir() + "/media/last.json")
-    if (lastMedia && String(lastMedia.path || "").charAt(0) === "/") {
-      root.lastMediaPath = String(lastMedia.path)
-      root.lastMediaThumb = String(lastMedia.thumb || lastMedia.path)
-    }
+    root.loadLastMedia()
     root.wander = Model.pickWander(Math.random(), root.careSnapshot())
     root.ensureRuntime()
     root.refreshAvatars()
