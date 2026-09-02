@@ -8,6 +8,12 @@
   itself on first start and stale stored paths heal on every launch.
 - The avatar archive repoints atlases at the sheet beside them, so moving
   the data directory can never blank the carousel again.
+- A clean install finishes starting up: the last call to the long-removed
+  readJsonFile aborted startup partway, so a fresh machine never installed
+  the CLI it needs and got no data directory at all.
+- Being logged out is recognised as being logged out. The probe read the
+  CLI's help text as a session, so a machine with no credentials offered to
+  generate instead of offering to log in.
 
 ## 0.65.0
 
