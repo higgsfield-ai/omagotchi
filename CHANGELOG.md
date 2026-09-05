@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.67.1 — result downloads bound to Higgsfield hosts
+
+- Generated-media downloads now validate the hostname of the initial URL and
+  of every redirect hop against a documented allowlist — `higgsfield.ai` (and
+  subdomains) plus Higgsfield's two CloudFront distributions — with IP-literal
+  destinations rejected and redirects capped at three hops. A URL outside the
+  set fails closed before any request is made. The CLI downloader applies the
+  same per-hop revalidation against its GitHub allowlist.
+
 ## 0.67.0 — security hardening (marketplace review)
 
 - Nothing installs at load time: the pinned CLI release (sha256 embedded in

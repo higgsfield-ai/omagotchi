@@ -554,20 +554,69 @@ def looks_like_media(head: bytes) -> bool:
     return len(head) >= 8 and head[4:8] in MP4_BRANDS
 
 
+# Result URLs come from remotely supplied job JSON, so every request they can
+# cause is bounded here: https only, hostname on this documented allowlist
+# (exact name or subdomain — suffix tricks like evil-higgsfield.ai fail the
+# boundary check), never an IP literal, and every redirect hop re-validated.
+# The complete set observed across every run in generate.log: the vanity CDN
+# plus Higgsfield's two CloudFront distributions. If Higgsfield rotates
+# distributions, downloads fail closed with a clear allowlist error until
+# this constant is updated.
+RESULT_HOSTS = (
+    "higgsfield.ai",
+    "d2ol7oe51mr4n9.cloudfront.net",
+    "d8j0ntlcm91z4.cloudfront.net",
+)
+MAX_REDIRECT_HOPS = 3
+
+
+def checked_media_url(url: str) -> str:
+    import ipaddress
+    from urllib.parse import urlparse
+    parsed = urlparse(str(url))
+    if parsed.scheme != "https":
+        raise RuntimeError(f"refusing non-https result URL: {url}")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        raise RuntimeError("result URL has no hostname")
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(f"refusing IP-literal result host: {host}")
+    if not any(host == allowed or host.endswith("." + allowed) for allowed in RESULT_HOSTS):
+        raise RuntimeError(f"refusing result host outside the allowlist: {host}")
+    return str(url)
+
+
+class _MediaRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """urllib follows redirects on its own; every hop goes back through the
+    same boundary the first URL passed, and the hop count is capped."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        checked_media_url(newurl)
+        if len(getattr(req, "redirect_dict", {})) >= MAX_REDIRECT_HOPS:
+            raise RuntimeError("too many redirects for a result download")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+MEDIA_OPENER = urllib.request.build_opener(_MediaRedirectHandler)
+
+
 def download(url: str, dest: Path) -> None:
-    """Result downloads: https only, byte-capped, content sniffed against the
+    """Result downloads: https to allowlisted Higgsfield hosts only (initial
+    URL and every redirect hop), byte-capped, content sniffed against the
     media types this pipeline produces, staged privately, published atomically."""
-    if not str(url).lower().startswith("https://"):
-        raise RuntimeError("refusing non-https result URL")
+    checked_media_url(url)
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "higgsfield-omagotchi-omarchy/0.13"})
     tmp = dest.parent / (dest.name + ".part")
     total = 0
     head = b""
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as fh:
-            if not str(resp.geturl()).lower().startswith("https://"):
-                raise RuntimeError("refusing non-https redirect")
+        with MEDIA_OPENER.open(req, timeout=180) as resp, open(tmp, "wb") as fh:
+            checked_media_url(resp.geturl())
             while True:
                 chunk = resp.read(1024 * 256)
                 if not chunk:

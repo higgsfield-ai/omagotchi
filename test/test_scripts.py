@@ -265,5 +265,42 @@ class SpriteDownloadGuards(unittest.TestCase):
         self.assertIn("https://cdn.example.com/a.png?…", text)
 
 
+    def test_result_host_allowlist(self):
+        ok = self.gs.checked_media_url
+        self.assertTrue(ok("https://higgsfield.ai/results/a.png"))
+        self.assertTrue(ok("https://cdn.higgsfield.ai/results/a.png"))
+        self.assertTrue(ok("https://d2ol7oe51mr4n9.cloudfront.net/a.mp4"))
+        self.assertTrue(ok("https://d8j0ntlcm91z4.cloudfront.net/a.png"))
+        # pinned distributions do not legitimize the rest of cloudfront
+        with self.assertRaises(RuntimeError):
+            ok("https://dattacker11111.cloudfront.net/a.png")
+        for bad in (
+            "http://higgsfield.ai/a.png",             # scheme
+            "https://evil.com/a.png",                 # foreign host
+            "https://evil-higgsfield.ai/a.png",       # suffix trick
+            "https://higgsfield.ai.evil.com/a.png",   # prefix trick
+            "https://1.2.3.4/a.png",                  # IP literal
+            "https://192.168.1.5/a.png",              # private IP literal
+            "https://[::1]/a.png",                    # v6 literal
+        ):
+            with self.assertRaises(RuntimeError, msg=bad):
+                ok(bad)
+
+    def test_redirect_hops_revalidate_and_cap(self):
+        handler = self.gs._MediaRedirectHandler()
+
+        class Req:
+            redirect_dict = {}
+
+        with self.assertRaises(RuntimeError):
+            handler.redirect_request(Req(), None, 302, "Found", {},
+                                     "https://evil.com/a.png")
+        capped = Req()
+        capped.redirect_dict = {"a": 1, "b": 1, "c": 1}
+        with self.assertRaises(RuntimeError):
+            handler.redirect_request(capped, None, 302, "Found", {},
+                                     "https://cdn.higgsfield.ai/a.png")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

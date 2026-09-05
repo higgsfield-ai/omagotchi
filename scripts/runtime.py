@@ -84,16 +84,29 @@ def find_hf(out_dir: Path) -> str:
 
 
 
+class _PinnedHostRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Every redirect hop re-passes the same allowlist as the initial URL."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_download_url(newurl)
+        if len(getattr(req, "redirect_dict", {})) >= 3:
+            raise RuntimeError("too many redirects for a CLI download")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+DOWNLOAD_OPENER = urllib.request.build_opener(_PinnedHostRedirectHandler)
+
+
 def http_download(url: str, dest: Path) -> None:
-    """https-only, allowlisted hosts (including after redirects), byte-capped,
-    written to a private temp file and published atomically."""
+    """https-only, allowlisted hosts (initial URL and every redirect hop),
+    byte-capped, written to a private temp file and published atomically."""
     check_download_url(url)
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     tmp = dest.parent / (dest.name + ".part")
     total = 0
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as fh:
+        with DOWNLOAD_OPENER.open(req, timeout=180) as resp, open(tmp, "wb") as fh:
             check_download_url(resp.geturl())
             while True:
                 chunk = resp.read(1024 * 256)
